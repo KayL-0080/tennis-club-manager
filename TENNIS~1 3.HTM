@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>테니스 대진표 & 스코어보드</title>
+<style>
+  :root{
+    --navy:#1a3d7c;
+    --navy-light:#e8edf7;
+    --border:#c9d3e3;
+    --accent:#c0392b;
+    --good:#1e824c;
+    --bad:#c0392b;
+    --gold:#b8860b;
+    --bg:#f4f6fb;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+    background:var(--bg);
+    margin:0;
+    padding:0 0 40px;
+    color:#222;
+  }
+  .page{max-width:1100px;margin:0 auto;padding:24px;}
+  h1{
+    font-size:22px;
+    color:var(--navy);
+    margin:0 0 4px;
+  }
+  .sub{color:#666;font-size:13px;margin-bottom:18px;}
+  .card{
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:18px 20px;
+    margin-bottom:18px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card h2{
+    font-size:15px;
+    color:var(--navy);
+    margin:0 0 12px;
+    padding-bottom:8px;
+    border-bottom:2px solid var(--navy-light);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  table{border-collapse:collapse;width:100%;}
+  th,td{border:1px solid var(--border);padding:6px 8px;font-size:13px;text-align:center;}
+  th{background:var(--navy);color:#fff;font-weight:600;}
+  #playersTable input[type=text]{width:90px;}
+  #playersTable input[type=number]{width:60px;}
+  input,select{
+    font-size:13px;
+    padding:4px 6px;
+    border:1px solid var(--border);
+    border-radius:4px;
+  }
+  button{
+    font-size:13px;
+    padding:6px 14px;
+    border-radius:6px;
+    border:1px solid var(--navy);
+    background:var(--navy);
+    color:#fff;
+    cursor:pointer;
+  }
+  button.secondary{
+    background:#fff;
+    color:var(--navy);
+  }
+  button.danger{
+    background:#fff;
+    color:var(--bad);
+    border-color:var(--bad);
+    padding:2px 8px;
+    font-size:12px;
+  }
+  button:disabled{opacity:0.5;cursor:not-allowed;}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+  .field{display:flex;flex-direction:column;gap:4px;}
+  .field label{font-size:12px;color:#555;}
+  .toolbar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  #totalCheck{font-size:13px;margin-top:8px;font-weight:600;}
+  .ok{color:var(--good);}
+  .bad{color:var(--bad);}
+  .groupRow{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
+  .groupList div.item{
+    display:flex;justify-content:space-between;align-items:center;
+    background:var(--navy-light);border-radius:6px;padding:6px 10px;margin-bottom:6px;font-size:13px;
+  }
+  .historyItem{
+    display:flex;justify-content:space-between;align-items:center;
+    background:var(--navy-light);border-radius:6px;padding:6px 10px;margin-bottom:6px;font-size:13px;
+  }
+  #genBtnRow{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;}
+  #manualBtnRow{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+  #status{font-size:13px;color:#555;}
+  #saveIndicator{font-size:12px;color:#888;margin-left:4px;}
+  #resultArea table{margin-bottom:16px;}
+  #resultArea td.match{font-size:12.5px;line-height:1.6;min-width:170px;}
+  #resultArea td.match .vs{color:#999;font-size:11px;}
+  #resultArea td.match .sum{color:var(--navy);font-weight:600;}
+  #resultArea td.match .teamline{display:flex;align-items:center;justify-content:center;gap:3px;flex-wrap:wrap;margin:2px 0;}
+  .playerSelect{max-width:78px;font-size:11.5px;padding:2px 3px;}
+  .scoreInput{width:36px;text-align:center;padding:2px 3px;}
+  .teamline.winner{font-weight:700;color:var(--good);}
+  .roundLabel{background:var(--navy);color:#fff;font-weight:700;}
+  #summaryTable td,#summaryTable th{font-size:12.5px;}
+  #standingsTable td,#standingsTable th,#lifetimeTable td,#lifetimeTable th{font-size:12.5px;}
+  #standingsTable tr.rank1 td:first-child,#lifetimeTable tr.rank1 td:first-child{color:var(--gold);font-weight:700;}
+  .warn{
+    background:#fff3ef;border:1px solid var(--accent);color:var(--accent);
+    padding:8px 12px;border-radius:6px;font-size:13px;margin-top:10px;
+  }
+  .empty-note{font-size:12.5px;color:#888;}
+
+  .tabnav{
+    display:flex;gap:4px;margin-bottom:18px;background:#fff;border:1px solid var(--border);
+    border-radius:10px;padding:5px;box-shadow:0 1px 3px rgba(0,0,0,0.04);flex-wrap:wrap;
+  }
+  .tabbtn{
+    flex:1;min-width:110px;background:transparent;color:var(--navy);border:none;
+    padding:9px 10px;border-radius:8px;font-weight:600;font-size:13px;
+  }
+  .tabbtn.active{background:var(--navy);color:#fff;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .statgrid{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  .statcard{
+    flex:1;min-width:150px;background:#fff;border:1px solid var(--border);border-radius:10px;
+    padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);
+  }
+  .statcard .num{font-size:23px;font-weight:800;color:var(--navy);}
+  .statcard .num.ok{color:var(--good);}
+  .statcard .num.bad{color:var(--bad);}
+  .statcard .label{font-size:12px;color:#666;margin-top:2px;}
+  .dashTable td,.dashTable th{font-size:12.5px;}
+
+  @media print{
+    .no-print{display:none !important;}
+    body{background:#fff;padding:0;}
+    .page{max-width:none;padding:0;}
+    .card{box-shadow:none;border:none;padding:0;margin-bottom:20px;}
+    .scoreInput{border:none;}
+    .playerSelect{border:none;-webkit-appearance:none;background:transparent;}
+    .tab-panel{display:block !important;}
+    .tabnav{display:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>테니스 대진표 & 스코어보드</h1>
+<div class="sub">회원 명단은 "회원 관리"에서 따로 관리하고, "대진표 만들기"에서 오늘 나온 사람만 골라 참가시킨 뒤 대진표를 만듭니다. 점수를 입력하면 승패·순위표가 자동 계산되고, 날짜별로 기록을 저장해 누적 전적을 볼 수 있습니다. <span id="saveIndicator">모든 변경사항은 이 브라우저에 자동 저장됩니다.</span></div>
+
+<div class="tabnav no-print">
+  <button class="tabbtn active" data-tab="dashboard" type="button">📊 대시보드</button>
+  <button class="tabbtn" data-tab="players" type="button">👥 회원 관리</button>
+  <button class="tabbtn" data-tab="settings" type="button">🛠 대진표 만들기</button>
+  <button class="tabbtn" data-tab="bracket" type="button">📋 오늘 대진표</button>
+  <button class="tabbtn" data-tab="history" type="button">🏆 기록 · 순위</button>
+</div>
+
+<div class="tab-panel active" data-panel="dashboard" id="dashboardPanel"></div>
+
+<div class="tab-panel" data-panel="players">
+  <div class="card no-print">
+    <h2>회원 명단 (전체 회원 관리 — 대진표와는 별개입니다)</h2>
+    <table id="playersTable">
+      <thead>
+        <tr><th>이름</th><th>성별</th><th>NTRP</th><th></th></tr>
+      </thead>
+      <tbody id="playersBody"></tbody>
+    </table>
+    <div class="toolbar">
+      <button class="secondary" id="addPlayerBtn" type="button">+ 회원 추가</button>
+      <button class="secondary" id="resetBtn" type="button">기본값으로 초기화</button>
+    </div>
+  </div>
+</div>
+
+<div class="tab-panel" data-panel="settings">
+  <div class="card no-print">
+    <h2>오늘 참가자 선택</h2>
+    <div class="row">
+      <div class="field"><label>회원 명단에서 추가</label>
+        <div style="display:flex;gap:6px;">
+          <select id="addParticipantSelect"></select>
+          <button id="addParticipantBtn" type="button">+ 참가자로 추가</button>
+        </div>
+      </div>
+    </div>
+    <table id="participantsTable">
+      <thead><tr><th>이름</th><th>성별</th><th>NTRP</th><th>목표 게임수</th><th></th></tr></thead>
+      <tbody id="participantsBody"></tbody>
+    </table>
+    <div class="toolbar">
+      <button class="secondary" id="addAllParticipantsBtn" type="button">회원 전체 추가</button>
+      <button class="secondary" id="clearParticipantsBtn" type="button">참가자 전체 제외</button>
+      <button class="secondary" id="autoBalanceBtn" type="button">목표 게임수 자동 균등배분</button>
+    </div>
+    <div id="totalCheck"></div>
+  </div>
+
+  <div class="card no-print">
+    <h2>라운드 · 코트 설정</h2>
+    <div class="row">
+      <div class="field"><label>라운드 수</label><input type="number" id="roundsInput" min="1" value="6" style="width:70px"></div>
+      <div class="field"><label>코트 수 (라운드당 동시 진행 게임 수)</label><input type="number" id="courtsInput" min="1" value="2" style="width:70px"></div>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>특별 조건 (자동 생성 시에만 적용, 오늘 참가자 중에서만 선택 가능)</h2>
+    <div class="field" style="margin-bottom:14px;">
+      <label>특정 4명이 함께 뛰는 게임 (같은 4명, 페어만 다르게 구성)</label>
+      <div class="groupRow">
+        <select id="g1"></select><select id="g2"></select><select id="g3"></select><select id="g4"></select>
+        게임수: <input type="number" id="gCount" value="2" min="1" style="width:50px">
+        <button class="secondary" id="addGroupBtn" type="button">추가</button>
+      </div>
+      <div class="groupList" id="groupList"></div>
+    </div>
+
+    <div class="row">
+      <div class="field"><label>혼복(남녀 각 1명씩 두 팀) 게임 수</label><input type="number" id="mixedCountInput" value="2" min="0" style="width:70px"></div>
+      <div class="field"><label>&nbsp;</label>
+        <label style="font-size:13px;"><input type="checkbox" id="noFFInput" checked disabled> 여여 페어 금지 (항상 적용)</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>대진표 만들기</h2>
+    <div id="genBtnRow">
+      <button id="generateBtn" type="button">자동으로 대진표 생성</button>
+      <button class="secondary" id="regenBtn" type="button" style="display:none;">다시 생성 (재시도)</button>
+      <button class="secondary" id="manualBtn" type="button">빈 대진표 직접 만들기</button>
+      <span id="status"></span>
+    </div>
+    <div id="manualBtnRow" style="display:none;">
+      <button class="secondary" id="addRoundBtn" type="button">+ 라운드 추가</button>
+      <button class="secondary" id="removeRoundBtn" type="button">- 마지막 라운드 삭제</button>
+      <button class="secondary" id="addCourtBtn" type="button">+ 코트 추가</button>
+      <button class="secondary" id="removeCourtBtn" type="button">- 마지막 코트 삭제</button>
+      <button class="secondary" id="clearScoresBtn" type="button">점수만 초기화</button>
+      <button class="secondary" id="printBtn" type="button">인쇄 / PDF</button>
+    </div>
+    <div id="warnArea"></div>
+  </div>
+</div>
+
+<div class="tab-panel" data-panel="bracket">
+  <div id="resultArea"></div>
+</div>
+
+<div class="tab-panel" data-panel="history">
+  <div class="card no-print">
+    <h2>기록 저장 & 지난 기록</h2>
+    <div class="row">
+      <div class="field"><label>기록 날짜</label><input type="date" id="recordDateInput"></div>
+      <div class="field"><label>&nbsp;</label><button id="saveRecordBtn" type="button">오늘 기록으로 저장</button></div>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
+  <div id="historyViewArea" style="display:none;"></div>
+
+  <div class="card no-print">
+    <h2>전체 누적 순위표 (저장된 기록 전체 합산)</h2>
+    <div id="lifetimeStandingsWrap"></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ===================== 핵심 스케줄링 알고리즘 =====================
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+function weightedPick(list, weightFn){
+  const weights = list.map(weightFn);
+  const total = weights.reduce((a,b)=>a+b,0);
+  if(total<=0) return list[Math.floor(Math.random()*list.length)];
+  let r = Math.random()*total;
+  for(let i=0;i<list.length;i++){
+    r -= weights[i];
+    if(r<=0) return list[i];
+  }
+  return list[list.length-1];
+}
+function pairKey(a,b){ return [a,b].sort().join('__'); }
+
+function pickQuadWithGenderConstraint(byId, avail, need, remainingFreeCount){
+  const females = avail.filter(p=>p.gender==='F');
+  const males = avail.filter(p=>p.gender==='M');
+  const femaleNeedTotal = females.reduce((s,p)=>s+need[p.id],0);
+  let useFemale = false;
+  if(females.length>0 && males.length>=3){
+    if(femaleNeedTotal>=remainingFreeCount) useFemale = true;
+    else {
+      const prob = femaleNeedTotal/Math.max(remainingFreeCount,1);
+      useFemale = Math.random() < prob;
+    }
+  }
+  if(useFemale){
+    const f = weightedPick(females, p=>need[p.id]+0.5);
+    if(males.length<3) return null;
+    const picked=[f]; let remaining = males.slice();
+    for(let i=0;i<3;i++){
+      const m = weightedPick(remaining, p=>need[p.id]+0.5);
+      picked.push(m); remaining = remaining.filter(p=>p.id!==m.id);
+    }
+    return picked.map(p=>p.id);
+  } else {
+    if(males.length<4){
+      if(females.length>0 && males.length>=3){
+        const f = weightedPick(females, p=>need[p.id]+0.5);
+        let remaining = males.slice(); const picked=[f];
+        for(let i=0;i<3;i++){
+          const m = weightedPick(remaining, p=>need[p.id]+0.5);
+          picked.push(m); remaining = remaining.filter(p=>p.id!==m.id);
+        }
+        return picked.map(p=>p.id);
+      }
+      return null;
+    }
+    let remaining = males.slice(); const picked=[];
+    for(let i=0;i<4;i++){
+      const m = weightedPick(remaining, p=>need[p.id]+0.5);
+      picked.push(m); remaining = remaining.filter(p=>p.id!==m.id);
+    }
+    return picked.map(p=>p.id);
+  }
+}
+
+function tryGenerateOnce(players, rounds, courts, opts){
+  const byId = {}; players.forEach(p=>byId[p.id]=p);
+  const total = rounds*courts;
+  const need = {}; players.forEach(p=>need[p.id]=p.target);
+  const quads = [];
+
+  for(const g of opts.groups){
+    for(let k=0;k<g.count;k++){
+      for(const id of g.memberIds){ if(need[id]<=0) return {fail:'group_need_exhausted'}; }
+      quads.push({ids:g.memberIds.slice(), type:'group'});
+      for(const id of g.memberIds) need[id]--;
+    }
+  }
+
+  for(let i=0;i<opts.mixedCount;i++){
+    let favail = players.filter(p=>p.gender==='F' && need[p.id]>0);
+    if(favail.length<2) return {fail:'mixed_not_enough_females'};
+    favail = shuffle(favail).sort((a,b)=>need[b.id]-need[a.id]);
+    const f1 = favail[0];
+    const f2 = weightedPick(favail.slice(1), p=>need[p.id]+0.5);
+    let mavail = players.filter(p=>p.gender==='M' && need[p.id]>0);
+    if(mavail.length<2) return {fail:'mixed_not_enough_males'};
+    const m1 = weightedPick(mavail, p=>need[p.id]+0.5);
+    const m2 = weightedPick(mavail.filter(p=>p.id!==m1.id), p=>need[p.id]+0.5);
+    quads.push({ids:[f1.id,f2.id,m1.id,m2.id], type:'mixed'});
+    [f1,f2,m1,m2].forEach(p=>need[p.id]--);
+  }
+
+  const freeCount = total - quads.length;
+  if(freeCount<0) return {fail:'freeCount_negative'};
+  for(let i=0;i<freeCount;i++){
+    const avail = players.filter(p=>need[p.id]>0);
+    if(avail.length<4) return {fail:'free_avail_lt_4'};
+    const ids = pickQuadWithGenderConstraint(byId, avail, need, freeCount-i);
+    if(!ids) return {fail:'free_pick_null'};
+    quads.push({ids, type:'free'});
+    ids.forEach(id=>need[id]--);
+  }
+
+  for(const p of players) if(need[p.id]!==0) return {fail:'leftover_need'};
+
+  let pool = shuffle(quads.slice());
+  const partition = [];
+  for(let r=0;r<rounds;r++){
+    let success=false, roundMatches=[];
+    for(let attempt=0; attempt<60 && !success; attempt++){
+      roundMatches=[]; const used=new Set();
+      const candidates = shuffle(pool.slice());
+      for(const q of candidates){
+        if(roundMatches.length>=courts) break;
+        if(q.ids.some(id=>used.has(id))) continue;
+        roundMatches.push(q); q.ids.forEach(id=>used.add(id));
+      }
+      if(roundMatches.length===courts) success=true;
+    }
+    if(!success) return {fail:'partition_round_fail'};
+    roundMatches.forEach(q=>{ const idx=pool.indexOf(q); pool.splice(idx,1); });
+    partition.push(roundMatches);
+  }
+
+  const usedPairs = {};
+  let ntrpDiffSum = 0;
+  const scheduleRounds = [];
+  for(const roundMatches of partition){
+    const roundOut = [];
+    for(const q of roundMatches){
+      const ids = q.ids;
+      let splits;
+      if(q.type==='mixed'){
+        const [f1,f2,m1,m2] = ids;
+        splits = [[[f1,m1],[f2,m2]],[[f1,m2],[f2,m1]]];
+      } else {
+        const [a,b,c,d] = ids;
+        splits = [[[a,b],[c,d]],[[a,c],[b,d]],[[a,d],[b,c]]];
+        splits = splits.filter(s=>{
+          const t1f = s[0].filter(id=>byId[id].gender==='F').length;
+          const t2f = s[1].filter(id=>byId[id].gender==='F').length;
+          return t1f<2 && t2f<2;
+        });
+        if(splits.length===0) splits = [[[a,b],[c,d]]];
+      }
+      let best=null, bestScore=Infinity;
+      for(const s of splits){
+        const [t1,t2] = s;
+        const k1 = pairKey(t1[0],t1[1]), k2 = pairKey(t2[0],t2[1]);
+        const dupPenalty = (usedPairs[k1]||0)*1000 + (usedPairs[k2]||0)*1000;
+        const sum1 = t1.reduce((s,id)=>s+byId[id].ntrp,0);
+        const sum2 = t2.reduce((s,id)=>s+byId[id].ntrp,0);
+        const diff = Math.abs(sum1-sum2);
+        const score = dupPenalty + diff;
+        if(score<bestScore){ bestScore=score; best={t1,t2,sum1,sum2,diff,k1,k2}; }
+      }
+      usedPairs[best.k1]=(usedPairs[best.k1]||0)+1;
+      usedPairs[best.k2]=(usedPairs[best.k2]||0)+1;
+      ntrpDiffSum += best.diff;
+      roundOut.push({ teamA: best.t1.slice(), teamB: best.t2.slice(), type: q.type });
+    }
+    scheduleRounds.push(roundOut);
+  }
+
+  let dupCount = 0;
+  for(const k in usedPairs) if(usedPairs[k]>1) dupCount += usedPairs[k]-1;
+  const score = dupCount*1000 + ntrpDiffSum;
+  return {scheduleRounds, score, dupCount, ntrpDiffSum};
+}
+
+function generateSchedule(players, rounds, courts, opts, timeBudgetMs, maxAttempts){
+  const start = Date.now();
+  let best = null, attempts=0;
+  const failReasons = {};
+  while(Date.now()-start < timeBudgetMs && attempts < maxAttempts){
+    attempts++;
+    const r = tryGenerateOnce(players, rounds, courts, opts);
+    if(r && r.fail){ failReasons[r.fail]=(failReasons[r.fail]||0)+1; continue; }
+    if(r && (!best || r.score < best.score)){
+      best = r;
+      if(best.score===0) break;
+    }
+  }
+  return {result:best, attempts, failReasons};
+}
+
+// ===================== 상태 & 저장/불러오기 (localStorage) =====================
+const STORAGE_KEY = 'tennis_bracket_generator_state_v5';
+const LEGACY_KEY = 'tennis_bracket_generator_state_v4';
+
+function defaultPlayers(){
+  let c = 0;
+  const nid = ()=>'p'+(c++);
+  return [
+    {id:nid(), name:'이경열', gender:'M', ntrp:3.5},
+    {id:nid(), name:'윤필용', gender:'M', ntrp:3.0},
+    {id:nid(), name:'백성렬', gender:'M', ntrp:3.0},
+    {id:nid(), name:'김응답', gender:'M', ntrp:2.5},
+    {id:nid(), name:'강택수', gender:'M', ntrp:1.5},
+    {id:nid(), name:'김신재', gender:'M', ntrp:1.5},
+    {id:nid(), name:'이흥범', gender:'M', ntrp:1.5},
+    {id:nid(), name:'이규현', gender:'M', ntrp:1.5},
+    {id:nid(), name:'최민웅', gender:'M', ntrp:2.5},
+    {id:nid(), name:'최옥경', gender:'F', ntrp:2.0},
+    {id:nid(), name:'이가영', gender:'F', ntrp:1.0},
+  ];
+}
+const DEFAULT_TARGETS = [4,4,4,4,4,5,5,5,4,4,5];
+function defaultParticipantsFor(pls){
+  return pls.map((p,i)=>({playerId:p.id, target: DEFAULT_TARGETS[i]!==undefined?DEFAULT_TARGETS[i]:0}));
+}
+function defaultGroupsFor(pls){
+  return [{id:'grp0', memberIds:[pls[0].id, pls[1].id, pls[2].id, pls[3].id], count:2}];
+}
+
+let idCounter = 0;
+function newId(){ return 'p'+(idCounter++); }
+
+let players = defaultPlayers();
+idCounter = players.length;
+let participants = defaultParticipantsFor(players); // [{playerId, target}]
+let groups = defaultGroupsFor(players);
+let roundsVal = 6, courtsVal = 2, mixedCountVal = 2;
+
+let schedule = null;
+let scores = {};
+let scheduleRounds_ = 0, scheduleCourts_ = 0;
+let lastGenStats = null;
+
+let history = [];
+
+function getPlayerById(id){
+  if(!id) return null;
+  return players.find(p=>p.id===id) || null;
+}
+function getParticipantEntries(){
+  return participants
+    .map(pt=>{ const p = getPlayerById(pt.playerId); return p ? {...p, target: pt.target} : null; })
+    .filter(Boolean);
+}
+function isParticipant(id){
+  return participants.some(pt=>pt.playerId===id);
+}
+function teamSum(ids){
+  return ids.reduce((s,id)=>{ const p = getPlayerById(id); return s + (p ? p.ntrp : 0); }, 0);
+}
+function todayDateStr(){
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+function saveState(){
+  try{
+    const state = {
+      players, participants, groups, idCounter,
+      rounds: parseInt(document.getElementById('roundsInput').value)||roundsVal,
+      courts: parseInt(document.getElementById('courtsInput').value)||courtsVal,
+      mixedCount: parseInt(document.getElementById('mixedCountInput').value)||0,
+      schedule, scores,
+      scheduleRounds_, scheduleCourts_,
+      history,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){ /* localStorage unavailable - ignore */ }
+  renderDashboard();
+}
+
+function loadState(){
+  try{
+    let raw = localStorage.getItem(STORAGE_KEY);
+    let migrating = false;
+    if(!raw){
+      const legacy = localStorage.getItem(LEGACY_KEY);
+      if(legacy){ raw = legacy; migrating = true; }
+    }
+    if(!raw) return false;
+    const state = JSON.parse(raw);
+    if(!state || !Array.isArray(state.players) || state.players.length===0) return false;
+
+    if(migrating || !Array.isArray(state.participants)){
+      // v4 이하 구조(회원별 attending/target 내장)에서 마이그레이션
+      participants = state.players
+        .filter(p=>p.attending!==false)
+        .map(p=>({playerId:p.id, target: p.target||0}));
+      players = state.players.map(p=>({id:p.id, name:p.name, gender:p.gender, ntrp:p.ntrp}));
+    } else {
+      players = state.players;
+      participants = state.participants;
+    }
+    groups = Array.isArray(state.groups) ? state.groups : [];
+    idCounter = typeof state.idCounter==='number' ? state.idCounter : players.length;
+    roundsVal = state.rounds || 6;
+    courtsVal = state.courts || 2;
+    mixedCountVal = typeof state.mixedCount==='number' ? state.mixedCount : 2;
+    schedule = Array.isArray(state.schedule) ? state.schedule : null;
+    scores = state.scores && typeof state.scores==='object' ? state.scores : {};
+    scheduleRounds_ = state.scheduleRounds_ || 0;
+    scheduleCourts_ = state.scheduleCourts_ || 0;
+    history = Array.isArray(state.history) ? state.history : [];
+    if(migrating){
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({players,participants,groups,idCounter,rounds:roundsVal,courts:courtsVal,mixedCount:mixedCountVal,schedule,scores,scheduleRounds_,scheduleCourts_,history})); }catch(e){}
+    }
+    return true;
+  }catch(e){ return false; }
+}
+
+function resetToDefault(){
+  if(!confirm('현재 회원 명단·참가자·대진표·점수가 기본 예시로 초기화됩니다. (날짜별 저장 기록은 삭제되지 않습니다) 계속할까요?')) return;
+  players = defaultPlayers();
+  idCounter = players.length;
+  participants = defaultParticipantsFor(players);
+  groups = defaultGroupsFor(players);
+  schedule = null; scores = {}; scheduleRounds_ = 0; scheduleCourts_ = 0; lastGenStats = null;
+  document.getElementById('roundsInput').value = 6;
+  document.getElementById('courtsInput').value = 2;
+  document.getElementById('mixedCountInput').value = 2;
+  document.getElementById('resultArea').innerHTML = '';
+  document.getElementById('regenBtn').style.display='none';
+  document.getElementById('manualBtnRow').style.display='none';
+  document.getElementById('warnArea').innerHTML = '';
+  document.getElementById('status').textContent = '';
+  renderAll();
+  saveState();
+}
+
+// ===================== 탭 전환 =====================
+function switchTab(name){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active', p.getAttribute('data-panel')===name));
+  document.querySelectorAll('.tabbtn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-tab')===name));
+  if(name==='dashboard') renderDashboard();
+}
+document.querySelectorAll('.tabbtn').forEach(b=>{
+  b.addEventListener('click', ()=>switchTab(b.getAttribute('data-tab')));
+});
+
+// ===================== 회원 관리 UI (players 탭) =====================
+function renderPlayersTable(){
+  const tbody = document.getElementById('playersBody');
+  tbody.innerHTML = '';
+  players.forEach(p=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${p.name}" data-id="${p.id}" data-field="name"></td>
+      <td>
+        <select data-id="${p.id}" data-field="gender">
+          <option value="M" ${p.gender==='M'?'selected':''}>남</option>
+          <option value="F" ${p.gender==='F'?'selected':''}>여</option>
+        </select>
+      </td>
+      <td><input type="number" step="0.5" value="${p.ntrp}" data-id="${p.id}" data-field="ntrp" style="width:55px"></td>
+      <td><button class="danger" data-id="${p.id}" data-action="removePlayer" type="button">삭제</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('input,select').forEach(el=>{
+    el.addEventListener('change', onPlayerFieldChange);
+  });
+  tbody.querySelectorAll('button[data-action=removePlayer]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-id');
+      players = players.filter(p=>p.id!==id);
+      participants = participants.filter(pt=>pt.playerId!==id);
+      groups = groups.filter(g=>!g.memberIds.includes(id));
+      renderAll();
+      if(schedule) renderBracketAndStandings();
+      saveState();
+    });
+  });
+}
+
+function onPlayerFieldChange(e){
+  const id = e.target.getAttribute('data-id');
+  const field = e.target.getAttribute('data-field');
+  const p = players.find(p=>p.id===id);
+  if(!p) return;
+  if(field==='name') p.name = e.target.value;
+  else if(field==='gender') p.gender = e.target.value;
+  else if(field==='ntrp') p.ntrp = parseFloat(e.target.value)||0;
+  renderParticipantsAll();
+  if(schedule) renderBracketAndStandings();
+  saveState();
+}
+
+function addPlayer(){
+  players.push({id:newId(), name:'회원'+(players.length+1), gender:'M', ntrp:2.0});
+  renderAll();
+  saveState();
+}
+
+function renderAll(){
+  renderPlayersTable();
+  renderParticipantsAll();
+  renderGroupList();
+}
+
+document.getElementById('addPlayerBtn').addEventListener('click', addPlayer);
+document.getElementById('resetBtn').addEventListener('click', resetToDefault);
+
+// ===================== 오늘 참가자 UI (settings 탭) =====================
+function addParticipant(playerId){
+  if(!playerId || isParticipant(playerId)) return;
+  participants.push({playerId, target:0});
+}
+function removeParticipant(playerId){
+  participants = participants.filter(pt=>pt.playerId!==playerId);
+}
+function addAllParticipants(){
+  players.forEach(p=>{ if(!isParticipant(p.id)) participants.push({playerId:p.id, target:0}); });
+}
+function clearParticipants(){
+  participants = [];
+}
+
+function renderAddParticipantSelect(){
+  const sel = document.getElementById('addParticipantSelect');
+  const available = players.filter(p=>!isParticipant(p.id));
+  if(available.length===0){
+    sel.innerHTML = '<option value="">추가할 회원이 없습니다</option>';
+  } else {
+    sel.innerHTML = available.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  }
+}
+
+function renderParticipantsTable(){
+  const tbody = document.getElementById('participantsBody');
+  tbody.innerHTML = '';
+  participants.forEach(pt=>{
+    const p = getPlayerById(pt.playerId);
+    if(!p) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.name}</td>
+      <td>${p.gender==='M'?'남':'여'}</td>
+      <td>${p.ntrp}</td>
+      <td><input type="number" min="0" value="${pt.target}" data-id="${pt.playerId}" data-field="ptarget" style="width:55px"></td>
+      <td><button class="danger" data-id="${pt.playerId}" data-action="removeParticipant" type="button">제외</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('input[data-field=ptarget]').forEach(inp=>{
+    inp.addEventListener('change', (e)=>{
+      const id = e.target.getAttribute('data-id');
+      const pt = participants.find(x=>x.playerId===id);
+      if(pt) pt.target = parseInt(e.target.value)||0;
+      updateTotalCheck();
+      if(schedule) renderBracketAndStandings();
+      saveState();
+    });
+  });
+  tbody.querySelectorAll('button[data-action=removeParticipant]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      removeParticipant(btn.getAttribute('data-id'));
+      renderParticipantsAll();
+      if(schedule) renderBracketAndStandings();
+      saveState();
+    });
+  });
+  updateTotalCheck();
+}
+
+function renderParticipantsAll(){
+  renderParticipantsTable();
+  renderAddParticipantSelect();
+  renderGroupSelectors();
+}
+
+document.getElementById('addParticipantBtn').addEventListener('click', ()=>{
+  const id = document.getElementById('addParticipantSelect').value;
+  if(!id) return;
+  addParticipant(id);
+  renderParticipantsAll();
+  saveState();
+});
+document.getElementById('addAllParticipantsBtn').addEventListener('click', ()=>{
+  addAllParticipants();
+  renderParticipantsAll();
+  saveState();
+});
+document.getElementById('clearParticipantsBtn').addEventListener('click', ()=>{
+  if(participants.length===0) return;
+  if(!confirm('오늘 참가자 전체를 제외할까요? (회원 명단 자체는 삭제되지 않습니다)')) return;
+  clearParticipants();
+  renderParticipantsAll();
+  saveState();
+});
+document.getElementById('autoBalanceBtn').addEventListener('click', autoBalance);
+
+function renderGroupSelectors(){
+  const entries = getParticipantEntries();
+  ['g1','g2','g3','g4'].forEach(gid=>{
+    const sel = document.getElementById(gid);
+    const prev = sel.value;
+    sel.innerHTML = entries.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    if(entries.some(p=>p.id===prev)) sel.value = prev;
+  });
+}
+
+function renderGroupList(){
+  const el = document.getElementById('groupList');
+  el.innerHTML = '';
+  groups.forEach(g=>{
+    const names = g.memberIds.map(id=>{
+      const p = players.find(p=>p.id===id);
+      return p ? p.name : '(삭제됨)';
+    }).join(', ');
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = `<span>${names} — ${g.count}게임</span>`;
+    const btn = document.createElement('button');
+    btn.className = 'danger'; btn.textContent = '삭제'; btn.type='button';
+    btn.addEventListener('click', ()=>{ groups = groups.filter(x=>x.id!==g.id); renderGroupList(); saveState(); });
+    div.appendChild(btn);
+    el.appendChild(div);
+  });
+}
+
+document.getElementById('addGroupBtn').addEventListener('click', ()=>{
+  const ids = ['g1','g2','g3','g4'].map(gid=>document.getElementById(gid).value);
+  const count = parseInt(document.getElementById('gCount').value)||1;
+  if(ids.some(id=>!id) || new Set(ids).size < 4){ alert('오늘 참가자 중 4명을 서로 다르게 선택해주세요.'); return; }
+  groups.push({id:'grp'+Date.now(), memberIds:ids, count});
+  renderGroupList();
+  saveState();
+});
+
+function getTotalSlots(){
+  const rounds = parseInt(document.getElementById('roundsInput').value)||0;
+  const courts = parseInt(document.getElementById('courtsInput').value)||0;
+  return rounds*courts*4;
+}
+
+function updateTotalCheck(){
+  const total = getTotalSlots();
+  const sum = participants.reduce((s,pt)=>s+pt.target,0);
+  const el = document.getElementById('totalCheck');
+  const ok = total===sum && total>0;
+  el.innerHTML = `오늘 참가자: <b>${participants.length}명</b> &nbsp;|&nbsp; 목표 게임수 합계: <b>${sum}</b> / 필요 합계 (라운드×코트×4): <b>${total}</b> ` +
+    (ok ? `<span class="ok">✓ 일치</span>` : `<span class="bad">✗ 불일치 (자동생성 시에만 해당)</span>`);
+  document.getElementById('generateBtn').disabled = !ok || participants.length<4;
+}
+
+function autoBalance(){
+  const total = getTotalSlots();
+  const n = participants.length;
+  if(n===0 || total<=0) return;
+  const base = Math.floor(total/n);
+  let rem = total - base*n;
+  participants.forEach((pt,i)=>{ pt.target = base + (i<rem?1:0); });
+  renderParticipantsTable();
+  saveState();
+}
+
+document.getElementById('roundsInput').addEventListener('input', ()=>{ updateTotalCheck(); saveState(); });
+document.getElementById('courtsInput').addEventListener('input', ()=>{ updateTotalCheck(); saveState(); });
+document.getElementById('mixedCountInput').addEventListener('input', saveState);
+document.getElementById('saveRecordBtn').addEventListener('click', saveTodayRecord);
+
+// 저장된 상태 불러오기 (있으면 적용)
+const restored = loadState();
+document.getElementById('roundsInput').value = roundsVal;
+document.getElementById('courtsInput').value = courtsVal;
+document.getElementById('mixedCountInput').value = mixedCountVal;
+document.getElementById('recordDateInput').value = todayDateStr();
+renderAll();
+renderHistoryList();
+renderLifetimeStandings();
+if(restored){
+  document.getElementById('saveIndicator').textContent = '저장된 이전 설정을 불러왔습니다. (모든 변경사항은 이 브라우저에 자동 저장됩니다)';
+  if(schedule && scheduleRounds_>0 && scheduleCourts_>0){
+    showBracketControls();
+    document.getElementById('status').textContent = '저장된 대진표를 불러왔습니다.';
+    renderBracketAndStandings();
+  }
+}
+renderDashboard();
+
+function showBracketControls(){
+  document.getElementById('regenBtn').style.display='inline-block';
+  document.getElementById('manualBtnRow').style.display='flex';
+}
+
+// ===================== 대진표 생성 (자동) =====================
+function runGeneration(){
+  const rounds = parseInt(document.getElementById('roundsInput').value)||0;
+  const courts = parseInt(document.getElementById('courtsInput').value)||0;
+  const mixedCount = parseInt(document.getElementById('mixedCountInput').value)||0;
+  const entries = getParticipantEntries();
+  const validGroups = groups.filter(g=>g.memberIds.every(id=>entries.some(p=>p.id===id)));
+  const opts = { groups: validGroups.map(g=>({memberIds:g.memberIds, count:g.count})), mixedCount, noFF:true };
+
+  document.getElementById('status').textContent = '생성 중... (최대 3초)';
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('regenBtn').disabled = true;
+  document.getElementById('warnArea').innerHTML = '';
+
+  setTimeout(()=>{
+    const {result, attempts, failReasons} = generateSchedule(entries, rounds, courts, opts, 2500, 3000);
+    document.getElementById('generateBtn').disabled = false;
+    document.getElementById('regenBtn').disabled = false;
+    document.getElementById('status').textContent = `시도 ${attempts}회 완료`;
+    if(!result){
+      const reasonTxt = Object.entries(failReasons).map(([k,v])=>`${k}:${v}`).join(', ');
+      document.getElementById('warnArea').innerHTML =
+        `<div class="warn">조건을 만족하는 대진표를 찾지 못했습니다. 참가자의 목표 게임수 합계, 혼복 게임수, 특별그룹 게임수, 코트 수를 조정한 뒤 다시 시도해주세요.<br><span style="font-size:11px;">(${reasonTxt})</span></div>`;
+      return;
+    }
+    schedule = result.scheduleRounds;
+    scores = {};
+    scheduleRounds_ = rounds;
+    scheduleCourts_ = courts;
+    lastGenStats = {dupCount: result.dupCount, ntrpDiffSum: result.ntrpDiffSum};
+    showBracketControls();
+    renderBracketAndStandings();
+    saveState();
+    switchTab('bracket');
+  }, 30);
+}
+
+// ===================== 빈 대진표 직접 만들기 / 라운드·코트 편집 =====================
+function makeEmptyMatch(){ return {teamA:['',''], teamB:['',''], type:'manual'}; }
+
+function createManualBracket(){
+  const rounds = parseInt(document.getElementById('roundsInput').value)||1;
+  const courts = parseInt(document.getElementById('courtsInput').value)||1;
+  if(schedule){
+    if(!confirm('이미 만들어진 대진표가 있습니다. 새 빈 대진표로 덮어쓸까요? (점수도 함께 초기화됩니다)')) return;
+  }
+  schedule = [];
+  for(let r=0;r<rounds;r++){
+    const round = [];
+    for(let c=0;c<courts;c++) round.push(makeEmptyMatch());
+    schedule.push(round);
+  }
+  scores = {};
+  scheduleRounds_ = rounds;
+  scheduleCourts_ = courts;
+  lastGenStats = null;
+  document.getElementById('warnArea').innerHTML = '';
+  document.getElementById('status').textContent = '빈 대진표를 만들었습니다. 각 경기 칸에서 선수를 선택하세요.';
+  showBracketControls();
+  renderBracketAndStandings();
+  saveState();
+  switchTab('bracket');
+}
+
+function addRound(){
+  if(!schedule) return;
+  const courts = scheduleCourts_ || (schedule[0] ? schedule[0].length : 1);
+  const round = [];
+  for(let c=0;c<courts;c++) round.push(makeEmptyMatch());
+  schedule.push(round);
+  scheduleRounds_ = schedule.length;
+  document.getElementById('roundsInput').value = scheduleRounds_;
+  renderBracketAndStandings();
+  saveState();
+}
+
+function removeRound(){
+  if(!schedule || schedule.length===0) return;
+  if(!confirm('마지막 라운드를 삭제할까요? 해당 라운드의 점수도 함께 삭제됩니다.')) return;
+  const ri = schedule.length-1;
+  Object.keys(scores).forEach(k=>{ if(k.startsWith(ri+'-')) delete scores[k]; });
+  schedule.pop();
+  scheduleRounds_ = schedule.length;
+  document.getElementById('roundsInput').value = scheduleRounds_;
+  renderBracketAndStandings();
+  saveState();
+}
+
+function addCourtColumn(){
+  if(!schedule) return;
+  schedule.forEach(round=>round.push(makeEmptyMatch()));
+  scheduleCourts_ = (scheduleCourts_||0) + 1;
+  document.getElementById('courtsInput').value = scheduleCourts_;
+  renderBracketAndStandings();
+  saveState();
+}
+
+function removeCourtColumn(){
+  if(!schedule || scheduleCourts_<=1) { alert('코트가 1개뿐이라 더 삭제할 수 없습니다.'); return; }
+  if(!confirm('각 라운드의 마지막 코트를 삭제할까요? 해당 경기 점수도 함께 삭제됩니다.')) return;
+  const ci = scheduleCourts_-1;
+  Object.keys(scores).forEach(k=>{ if(k.endsWith('-'+ci)) delete scores[k]; });
+  schedule.forEach(round=>{ round.pop(); });
+  scheduleCourts_ = scheduleCourts_-1;
+  document.getElementById('courtsInput').value = scheduleCourts_;
+  renderBracketAndStandings();
+  saveState();
+}
+
+function courtLabel(i){
+  return String.fromCharCode(65+i) + '코트';
+}
+
+function clearScores(){
+  if(!confirm('입력한 점수를 모두 지울까요? (대진표는 유지됩니다)')) return;
+  scores = {};
+  renderBracketAndStandings();
+  saveState();
+}
+
+// ===================== 대진표 & 순위표 렌더링 (오늘 작업 중인 대진표) =====================
+function renderBracketAndStandings(){
+  if(!schedule) return;
+  const area = document.getElementById('resultArea');
+  const courts = scheduleCourts_ || (schedule[0] ? schedule[0].length : 0);
+  const entries = getParticipantEntries();
+
+  let html = '<div class="card"><h2 style="border:none;">대진표 (선수·점수 직접 수정 가능)</h2><table><thead><tr><th>라운드</th>';
+  for(let c=0;c<courts;c++) html += `<th>${courtLabel(c)}</th>`;
+  html += '</tr></thead><tbody>';
+
+  const playerOptions = (selectedId)=>{
+    let opts = `<option value="" ${!selectedId?'selected':''}>-</option>`;
+    let list = entries.slice();
+    if(selectedId && !list.some(p=>p.id===selectedId)){
+      const p = getPlayerById(selectedId);
+      if(p) list = [p, ...list];
+    }
+    list.forEach(p=>{ opts += `<option value="${p.id}" ${p.id===selectedId?'selected':''}>${p.name}</option>`; });
+    return opts;
+  };
+
+  schedule.forEach((round, ri)=>{
+    html += `<tr><td class="roundLabel">${ri+1}R</td>`;
+    round.forEach((m, ci)=>{
+      const key = ri+'-'+ci;
+      const sc = scores[key] || {a:null, b:null};
+      const sumA = teamSum(m.teamA), sumB = teamSum(m.teamB);
+      let winA=false, winB=false;
+      if(sc.a!==null && sc.a!==undefined && sc.a!=='' && sc.b!==null && sc.b!==undefined && sc.b!==''){
+        if(Number(sc.a) > Number(sc.b)) winA = true;
+        else if(Number(sc.b) > Number(sc.a)) winB = true;
+      }
+      html += `<td class="match">
+        <div class="teamline ${winA?'winner':''}">
+          <select class="playerSelect" data-round="${ri}" data-court="${ci}" data-team="a" data-slot="0">${playerOptions(m.teamA[0])}</select>
+          <select class="playerSelect" data-round="${ri}" data-court="${ci}" data-team="a" data-slot="1">${playerOptions(m.teamA[1])}</select>
+          <span class="sum">(${sumA})</span>
+        </div>
+        <div><input type="number" class="scoreInput" data-round="${ri}" data-court="${ci}" data-team="a" value="${sc.a===null||sc.a===undefined?'':sc.a}" min="0"> : <input type="number" class="scoreInput" data-round="${ri}" data-court="${ci}" data-team="b" value="${sc.b===null||sc.b===undefined?'':sc.b}" min="0"></div>
+        <div class="teamline ${winB?'winner':''}">
+          <select class="playerSelect" data-round="${ri}" data-court="${ci}" data-team="b" data-slot="0">${playerOptions(m.teamB[0])}</select>
+          <select class="playerSelect" data-round="${ri}" data-court="${ci}" data-team="b" data-slot="1">${playerOptions(m.teamB[1])}</select>
+          <span class="sum">(${sumB})</span>
+        </div>
+      </td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  const counts = {}; entries.forEach(p=>counts[p.id]=0);
+  schedule.forEach(round=>round.forEach(m=>{
+    [...m.teamA, ...m.teamB].forEach(id=>{ if(id && counts[id]!==undefined) counts[id]++; });
+  }));
+  html += '<div class="card"><h2 style="border:none;">검증 요약</h2>';
+  if(lastGenStats){
+    html += `<div style="margin-bottom:10px;font-size:13px;">중복 페어 수: <b class="${lastGenStats.dupCount===0?'ok':'bad'}">${lastGenStats.dupCount}</b> &nbsp; | &nbsp; NTRP 합계 편차 총합: <b>${lastGenStats.ntrpDiffSum.toFixed(1)}</b></div>`;
+  } else {
+    html += `<div style="margin-bottom:10px;" class="empty-note">직접 만든/수정된 대진표입니다. 아래는 참가자별 실제 배정된 게임수입니다.</div>`;
+  }
+  html += '<table id="summaryTable"><thead><tr><th>이름</th><th>목표 게임수</th><th>실제 게임수</th><th>일치</th></tr></thead><tbody>';
+  entries.forEach(p=>{
+    const actual = counts[p.id]||0;
+    const ok = actual===p.target;
+    html += `<tr><td>${p.name}</td><td>${p.target}</td><td>${actual}</td><td class="${ok?'ok':'bad'}">${ok?'✓':'✗'}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  html += '<div class="card"><h2 style="border:none;">오늘 개인 순위표</h2><div id="standingsWrap"></div></div>';
+
+  area.innerHTML = html;
+
+  area.querySelectorAll('.scoreInput').forEach(inp=>{
+    inp.addEventListener('change', onScoreChange);
+  });
+  area.querySelectorAll('.playerSelect').forEach(sel=>{
+    sel.addEventListener('change', onPlayerSelectChange);
+  });
+
+  renderStandingsTable();
+}
+
+function onPlayerSelectChange(e){
+  const ri = parseInt(e.target.getAttribute('data-round'));
+  const ci = parseInt(e.target.getAttribute('data-court'));
+  const team = e.target.getAttribute('data-team');
+  const slot = parseInt(e.target.getAttribute('data-slot'));
+  const newVal = e.target.value;
+  const m = schedule[ri][ci];
+  if(team==='a') m.teamA[slot] = newVal; else m.teamB[slot] = newVal;
+  renderBracketAndStandings();
+  saveState();
+}
+
+function onScoreChange(e){
+  const ri = e.target.getAttribute('data-round');
+  const ci = e.target.getAttribute('data-court');
+  const team = e.target.getAttribute('data-team');
+  const key = ri+'-'+ci;
+  if(!scores[key]) scores[key] = {a:null, b:null};
+  const val = e.target.value === '' ? null : Number(e.target.value);
+  scores[key][team] = val;
+  renderBracketAndStandings();
+  saveState();
+}
+
+function computeTodayStandings(){
+  if(!schedule) return [];
+  const stats = {};
+  function ensure(id){
+    if(!stats[id]){
+      const p = getPlayerById(id);
+      stats[id] = {name: p? p.name : '(미정)', played:0, win:0, loss:0, diff:0};
+    }
+    return stats[id];
+  }
+  schedule.forEach((round, ri)=>{
+    round.forEach((m, ci)=>{
+      const key = ri+'-'+ci;
+      const sc = scores[key];
+      if(!sc || sc.a===null || sc.a===undefined || sc.a==='' || sc.b===null || sc.b===undefined || sc.b==='') return;
+      const a = Number(sc.a), b = Number(sc.b);
+      const diff = a-b;
+      m.teamA.forEach(id=>{
+        if(!id) return;
+        const s = ensure(id);
+        s.played++; s.diff += diff;
+        if(a>b) s.win++; else if(a<b) s.loss++;
+      });
+      m.teamB.forEach(id=>{
+        if(!id) return;
+        const s = ensure(id);
+        s.played++; s.diff += -diff;
+        if(b>a) s.win++; else if(b<a) s.loss++;
+      });
+    });
+  });
+  const rows = Object.values(stats).map(s=>({...s, winRate: s.played>0 ? (s.win/s.played) : -1}));
+  rows.sort((x,y)=>{
+    if(y.winRate!==x.winRate) return y.winRate - x.winRate;
+    if(y.diff!==x.diff) return y.diff - x.diff;
+    return y.win - x.win;
+  });
+  return rows;
+}
+
+function renderStandingsTable(){
+  const wrap = document.getElementById('standingsWrap');
+  if(!wrap) return;
+  const rows = computeTodayStandings();
+  if(rows.length===0){ wrap.innerHTML = '<div class="empty-note">아직 입력된 점수가 없습니다.</div>'; return; }
+  let html = '<table id="standingsTable"><thead><tr><th>순위</th><th>이름</th><th>경기수</th><th>승</th><th>패</th><th>승률</th><th>득실차</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const rateTxt = r.played>0 ? (r.winRate*100).toFixed(0)+'%' : '-';
+    html += `<tr class="${i===0 && r.played>0 ? 'rank1':''}"><td>${r.played>0? (i+1):'-'}</td><td>${r.name}</td><td>${r.played}</td><td>${r.win}</td><td>${r.loss}</td><td>${rateTxt}</td><td>${r.diff>0?'+'+r.diff:r.diff}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ===================== 날짜별 기록 저장 / 조회 / 삭제 =====================
+function saveTodayRecord(){
+  if(!schedule){ alert('저장할 대진표가 없습니다. 먼저 대진표를 만들어주세요.'); return; }
+  const dateVal = document.getElementById('recordDateInput').value || todayDateStr();
+  const entry = {
+    id: 'h'+Date.now(),
+    date: dateVal,
+    schedule: JSON.parse(JSON.stringify(schedule)),
+    scores: JSON.parse(JSON.stringify(scores)),
+    playerSnapshot: players.map(p=>({id:p.id, name:p.name, gender:p.gender, ntrp:p.ntrp})),
+  };
+  history.push(entry);
+  history.sort((a,b)=> a.date < b.date ? 1 : (a.date > b.date ? -1 : 0));
+  renderHistoryList();
+  renderLifetimeStandings();
+  saveState();
+  document.getElementById('status').textContent = `${dateVal} 기록이 저장되었습니다. (총 ${history.length}건 누적)`;
+}
+
+function findSnapshotPlayer(entry, id){
+  if(!id) return null;
+  return entry.playerSnapshot.find(p=>p.id===id) || null;
+}
+
+function deleteHistoryEntry(id){
+  if(!confirm('이 기록을 삭제할까요?')) return;
+  history = history.filter(h=>h.id!==id);
+  renderHistoryList();
+  renderLifetimeStandings();
+  const viewArea = document.getElementById('historyViewArea');
+  viewArea.style.display = 'none';
+  viewArea.innerHTML = '';
+  saveState();
+}
+
+function viewHistoryEntry(id){
+  const entry = history.find(h=>h.id===id);
+  if(!entry) return;
+  const wrap = document.getElementById('historyViewArea');
+  const courts = entry.schedule[0] ? entry.schedule[0].length : 0;
+  let html = `<div class="card"><h2 style="border:none;">${entry.date} 기록 <button class="secondary" id="closeHistoryViewBtn" type="button">닫기</button></h2><table><thead><tr><th>라운드</th>`;
+  for(let c=0;c<courts;c++) html += `<th>${courtLabel(c)}</th>`;
+  html += '</tr></thead><tbody>';
+  entry.schedule.forEach((round,ri)=>{
+    html += `<tr><td class="roundLabel">${ri+1}R</td>`;
+    round.forEach((m,ci)=>{
+      const key = ri+'-'+ci;
+      const sc = (entry.scores && entry.scores[key]) || {a:null,b:null};
+      const nameOf = (id)=>{ const p = findSnapshotPlayer(entry,id); return p? p.name : '(미정)'; };
+      const sumOf = (ids)=> ids.reduce((s,id)=>{ const p=findSnapshotPlayer(entry,id); return s+(p?p.ntrp:0); },0);
+      const aName = m.teamA.map(nameOf).join('+');
+      const bName = m.teamB.map(nameOf).join('+');
+      const hasScore = sc.a!==null && sc.a!==undefined && sc.a!=='' && sc.b!==null && sc.b!==undefined && sc.b!=='';
+      const winA = hasScore && Number(sc.a)>Number(sc.b);
+      const winB = hasScore && Number(sc.b)>Number(sc.a);
+      html += `<td class="match">
+        <div class="teamline ${winA?'winner':''}">${aName} <span class="sum">(${sumOf(m.teamA)})</span></div>
+        <div>${hasScore? sc.a+' : '+sc.b : '- : -'}</div>
+        <div class="teamline ${winB?'winner':''}">${bName} <span class="sum">(${sumOf(m.teamB)})</span></div>
+      </td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+  wrap.style.display = 'block';
+  document.getElementById('closeHistoryViewBtn').addEventListener('click', ()=>{ wrap.style.display='none'; wrap.innerHTML=''; });
+}
+
+function renderHistoryList(){
+  const el = document.getElementById('historyList');
+  if(!el) return;
+  if(history.length===0){ el.innerHTML = '<div class="empty-note">아직 저장된 기록이 없습니다.</div>'; return; }
+  let html = '';
+  history.forEach(h=>{
+    const participantCount = new Set(h.schedule.flatMap(r=>r.flatMap(m=>[...m.teamA,...m.teamB])).filter(Boolean)).size;
+    html += `<div class="historyItem">
+      <span>${h.date} · 참가 ${participantCount}명</span>
+      <span>
+        <button class="secondary" data-action="view" data-id="${h.id}" type="button" style="font-size:12px;padding:2px 8px;">보기</button>
+        <button class="danger" data-action="del" data-id="${h.id}" type="button">삭제</button>
+      </span>
+    </div>`;
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('button[data-action=view]').forEach(b=>b.addEventListener('click', ()=>viewHistoryEntry(b.getAttribute('data-id'))));
+  el.querySelectorAll('button[data-action=del]').forEach(b=>b.addEventListener('click', ()=>deleteHistoryEntry(b.getAttribute('data-id'))));
+}
+
+function computeLifetimeStandings(){
+  const stats = {};
+  function ensure(name){ if(!stats[name]) stats[name] = {name, played:0, win:0, loss:0, diff:0}; return stats[name]; }
+  history.forEach(entry=>{
+    entry.schedule.forEach((round,ri)=>{
+      round.forEach((m,ci)=>{
+        const key = ri+'-'+ci;
+        const sc = entry.scores && entry.scores[key];
+        if(!sc || sc.a===null||sc.a===undefined||sc.a===''||sc.b===null||sc.b===undefined||sc.b==='') return;
+        const a = Number(sc.a), b = Number(sc.b);
+        const diff = a-b;
+        m.teamA.forEach(id=>{
+          const p = findSnapshotPlayer(entry,id); if(!p) return;
+          const s = ensure(p.name); s.played++; s.diff += diff;
+          if(a>b) s.win++; else if(a<b) s.loss++;
+        });
+        m.teamB.forEach(id=>{
+          const p = findSnapshotPlayer(entry,id); if(!p) return;
+          const s = ensure(p.name); s.played++; s.diff += -diff;
+          if(b>a) s.win++; else if(b<a) s.loss++;
+        });
+      });
+    });
+  });
+  const rows = Object.values(stats).map(s=>({...s, winRate: s.played>0? s.win/s.played : -1}));
+  rows.sort((x,y)=>{
+    if(y.winRate!==x.winRate) return y.winRate-x.winRate;
+    if(y.diff!==x.diff) return y.diff-x.diff;
+    return y.win-x.win;
+  });
+  return rows;
+}
+
+function renderLifetimeStandings(){
+  const wrap = document.getElementById('lifetimeStandingsWrap');
+  if(!wrap) return;
+  const rows = computeLifetimeStandings();
+  if(rows.length===0){ wrap.innerHTML = '<div class="empty-note">아직 저장된 기록이 없습니다. 오늘 경기를 마친 뒤 "오늘 기록으로 저장"을 눌러보세요.</div>'; return; }
+  let html = '<table id="lifetimeTable"><thead><tr><th>순위</th><th>이름</th><th>경기수</th><th>승</th><th>패</th><th>승률</th><th>득실차</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const rateTxt = r.played>0? (r.winRate*100).toFixed(0)+'%':'-';
+    html += `<tr class="${i===0?'rank1':''}"><td>${i+1}</td><td>${r.name}</td><td>${r.played}</td><td>${r.win}</td><td>${r.loss}</td><td>${rateTxt}</td><td>${r.diff>0?'+'+r.diff:r.diff}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ===================== 대시보드 =====================
+function statCard(label, value, cls){
+  return `<div class="statcard"><div class="num ${cls||''}">${value}</div><div class="label">${label}</div></div>`;
+}
+
+function miniStandingsTable(rows, emptyMsg){
+  if(!rows || rows.length===0) return `<div class="empty-note">${emptyMsg}</div>`;
+  let html = '<table class="dashTable"><thead><tr><th>순위</th><th>이름</th><th>경기수</th><th>승</th><th>패</th><th>승률</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const rate = r.played>0 ? (r.winRate*100).toFixed(0)+'%' : '-';
+    html += `<tr><td>${i+1}</td><td>${r.name}</td><td>${r.played}</td><td>${r.win}</td><td>${r.loss}</td><td>${rate}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderDashboard(){
+  const panel = document.getElementById('dashboardPanel');
+  if(!panel) return;
+  const total = getTotalSlots();
+  const sum = participants.reduce((s,pt)=>s+pt.target,0);
+  const scheduleStatus = schedule ? `${scheduleRounds_}R × ${scheduleCourts_}코트` : '아직 없음';
+  const todayRows = computeTodayStandings();
+  const lifetimeRows = computeLifetimeStandings();
+
+  let html = '<div class="statgrid">';
+  html += statCard('전체 회원', players.length+'명');
+  html += statCard('오늘 참가자', participants.length+'명');
+  html += statCard('목표 게임수', sum+' / '+total, (sum===total && total>0) ? 'ok':'bad');
+  html += statCard('오늘 대진표', scheduleStatus);
+  html += statCard('저장된 기록', history.length+'건');
+  html += '</div>';
+
+  html += '<div class="card"><h2 style="border:none;">오늘 순위 TOP 3<button class="secondary" type="button" data-goto="bracket" style="font-size:11px;padding:3px 8px;">전체보기 →</button></h2>';
+  html += miniStandingsTable(todayRows.slice(0,3), '아직 오늘 입력된 점수가 없습니다.');
+  html += '</div>';
+
+  html += '<div class="card"><h2 style="border:none;">전체 누적 순위 TOP 3<button class="secondary" type="button" data-goto="history" style="font-size:11px;padding:3px 8px;">전체보기 →</button></h2>';
+  html += miniStandingsTable(lifetimeRows.slice(0,3), '아직 저장된 기록이 없습니다.');
+  html += '</div>';
+
+  html += '<div class="card"><h2 style="border:none;">최근 저장된 기록<button class="secondary" type="button" data-goto="history" style="font-size:11px;padding:3px 8px;">전체보기 →</button></h2>';
+  if(history.length===0){
+    html += '<div class="empty-note">아직 저장된 기록이 없습니다.</div>';
+  } else {
+    html += history.slice(0,5).map(h=>{
+      const cnt = new Set(h.schedule.flatMap(r=>r.flatMap(m=>[...m.teamA,...m.teamB])).filter(Boolean)).size;
+      return `<div class="historyItem"><span>${h.date} · 참가 ${cnt}명</span></div>`;
+    }).join('');
+  }
+  html += '</div>';
+
+  panel.innerHTML = html;
+  panel.querySelectorAll('button[data-goto]').forEach(b=>{
+    b.addEventListener('click', ()=>switchTab(b.getAttribute('data-goto')));
+  });
+}
+
+document.getElementById('generateBtn').addEventListener('click', runGeneration);
+document.getElementById('regenBtn').addEventListener('click', runGeneration);
+document.getElementById('manualBtn').addEventListener('click', createManualBracket);
+document.getElementById('addRoundBtn').addEventListener('click', addRound);
+document.getElementById('removeRoundBtn').addEventListener('click', removeRound);
+document.getElementById('addCourtBtn').addEventListener('click', addCourtColumn);
+document.getElementById('removeCourtBtn').addEventListener('click', removeCourtColumn);
+document.getElementById('clearScoresBtn').addEventListener('click', clearScores);
+document.getElementById('printBtn').addEventListener('click', ()=>window.print());
+</script>
+</body>
+</html>

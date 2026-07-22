@@ -1,0 +1,25 @@
+/* components/GroupConditions.module.css */
+.desc { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+
+.addRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.list { display: flex; flex-direction: column; gap: 8px; }
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(30, 77, 154, 0.15);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  gap: 8px;
+}

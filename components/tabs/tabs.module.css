@@ -1,0 +1,268 @@
+/* components/tabs/tabs.module.css — HTM 스타일 라이트 테마 */
+
+/* ── 공통 섹션 ── */
+.section { padding: 18px 20px; }
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--navy-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sectionNote { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+
+/* ── 툴바 ── */
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.addRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.settingsRow {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.genRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.toolbarGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8fafd;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.toolbarLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 2px;
+}
+
+/* ── 밸런스 상태 ── */
+.balanceRow {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+}
+.ok  { color: var(--green); }
+.bad { color: var(--red); }
+
+/* ── 그룹 목록 ── */
+.groupList { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.groupItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--navy-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── 대시보드 ── */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.statCard {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 0 !important;
+}
+.statNum { font-size: 22px; font-weight: 800; color: var(--navy); }
+.statSub { font-size: 12px; color: var(--text-muted); }
+.statLabel { font-size: 12px; color: var(--text-muted); }
+
+.dashSection { padding: 16px 18px; }
+.dashHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--navy);
+}
+
+/* ── 기록 목록 ── */
+.histList { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.histItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--navy-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── 대진표 ── */
+.roundLabel {
+  background: var(--navy) !important;
+  color: #fff !important;
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 46px;
+}
+
+.matchCell {
+  vertical-align: middle;
+  padding: 8px 10px !important;
+  min-width: 180px;
+  background: #fff !important;
+}
+tr:nth-child(even) .matchCell { background: #f8fafd !important; }
+
+.matchCellContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+@media (min-width: 992px) {
+  .matchCellContent {
+    flex-direction: row;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 991px) and (orientation: landscape) {
+  .matchCellContent.singleCourt {
+    flex-direction: row;
+    gap: 12px;
+  }
+}
+
+.teamLine {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  position: relative;
+}
+.winner { font-weight: 700; color: var(--green); }
+
+.playerSel {
+  font-size: 12px;
+  padding: 0 2px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  width: 65px;
+  height: 26px;
+  box-sizing: border-box;
+  text-align: center;
+}
+.bgTeamA {
+  background-color: #f0f7ff !important;
+  border-color: #cce0ff !important;
+}
+.bgTeamB {
+  background-color: #fff0f5 !important; /* Very light pink/red */
+  border-color: #ffcce0 !important;
+}
+.playerSel option { background: #fff; color: var(--text); }
+
+.teamBadge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.ntrpSum {
+  font-size: 11px;
+  color: var(--navy);
+  font-weight: 600;
+  position: absolute;
+  left: 100%;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.scoreRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 0;
+}
+.scoreInput {
+  width: 65px;
+  height: 26px;
+  box-sizing: border-box;
+  text-align: center;
+  padding: 0;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--text);
+}
+.scoreSep { 
+  width: 12px; 
+  text-align: center; 
+  color: var(--text-muted); 
+  font-weight: 600; 
+  font-size: 13px; 
+}
+
+/* ── 검증/통계 ── */
+.statsRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.statBox {
+  flex: 1;
+  min-width: 150px;
+  background: #f8fafd;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.statGreen { border-color: var(--green); background: #edfbf4; }
+.statRed   { border-color: var(--red);   background: #fff0ee; }
+.statNum2  { font-size: 22px; font-weight: 800; color: var(--navy); }
+.statGreen .statNum2 { color: var(--green); }
+.statRed   .statNum2 { color: var(--red); }

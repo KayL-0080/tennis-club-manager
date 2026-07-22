@@ -1,0 +1,94 @@
+/* app/dashboard/dashboard.module.css — HTM 스타일 라이트 테마 */
+.page { min-height: 100vh; background: var(--bg); }
+
+.main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+.sub { color: var(--text-muted); font-size: 13px; }
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 80px;
+}
+
+/* 빈 상태 */
+.empty {
+  text-align: center;
+  padding: 60px 24px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.emptyIcon { font-size: 48px; margin-bottom: 14px; opacity: 0.3; }
+.emptyTitle { font-size: 16px; font-weight: 600; color: var(--text-muted); }
+.emptySub   { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+
+/* 그리드 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* 카드 */
+.schedCard {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+  margin-bottom: 0 !important;
+}
+.schedCard:hover {
+  box-shadow: 0 4px 16px rgba(26,61,124,0.12);
+  transform: translateY(-2px);
+}
+
+.schedTop {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.schedIcon { font-size: 26px; flex-shrink: 0; }
+.schedInfo { flex: 1; min-width: 0; }
+.schedTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.schedMeta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.schedBadges { display: flex; gap: 6px; flex-wrap: wrap; }
+.schedDate { font-size: 12px; color: var(--text-muted); }
+
+.schedActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 2px;
+}

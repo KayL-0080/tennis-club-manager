@@ -1,0 +1,159 @@
+/* app/page.module.css — 로그인 페이지 (다크 테마 유지) */
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background: #060b18;
+}
+
+.courtBg {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(30,77,154,0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 80%, rgba(59,130,246,0.12) 0%, transparent 60%),
+    linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+  background-size: auto, auto, 60px 60px, 60px 60px;
+  z-index: 0;
+}
+
+.centered {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #060b18;
+}
+
+.container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+/* 로고 */
+.logo { text-align: center; }
+.logoIcon {
+  font-size: 52px;
+  line-height: 1;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 0 24px rgba(59,130,246,0.5));
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+.logoTitle {
+  font-size: 28px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #93c5fd, #3b82f6, #1d4ed8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+.logoSub { font-size: 13px; color: #8899bb; margin-top: 4px; }
+
+/* 카드 */
+.authCard {
+  width: 100%;
+  padding: 28px;
+  background: rgba(13,22,45,0.9) !important;
+  border: 1px solid rgba(59,130,246,0.2) !important;
+  border-radius: 18px !important;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 32px rgba(0,0,0,0.5) !important;
+  animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 탭 */
+.tabs {
+  display: flex;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+.tab {
+  flex: 1;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: #8899bb;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.tabActive {
+  background: #1e4d9a;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* 폼 */
+.form { display: flex; flex-direction: column; gap: 14px; }
+
+/* 로그인 페이지의 input은 다크 스타일 오버라이드 */
+.authCard .input,
+.authCard .select {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(59,130,246,0.2) !important;
+  color: #e8edf8 !important;
+}
+.authCard .input::placeholder { color: #8899bb !important; }
+.authCard .input:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.2) !important;
+}
+
+/* 로그인 페이지 버튼 */
+.authCard .btn-primary {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  border-color: transparent !important;
+}
+
+/* Google 버튼 */
+.googleBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+/* 하단 텍스트 */
+.footer { font-size: 12px; color: #8899bb; text-align: center; opacity: 0.6; }
+
+/* 로그인 페이지용 스피너 오버라이드 */
+.authCard .spinner {
+  border-color: rgba(255,255,255,0.2);
+  border-top-color: #fff;
+}
+
+/* alert 오버라이드 */
+.authCard .alert-error {
+  background: rgba(239,68,68,0.15);
+  border-color: rgba(239,68,68,0.4);
+  color: #fca5a5;
+}
