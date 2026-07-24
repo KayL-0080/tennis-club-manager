@@ -19,7 +19,7 @@ const TABS = [
 
 export default function EditorPage({ params }) {
   const { id } = use(params);
-  const { isAdmin, loading, currentClubId, clubs } = useAuth();
+  const { isAdmin, isSuperAdmin, loading, currentClubId, clubs } = useAuth();
   const router = useRouter();
 
   const [fetching, setFetching] = useState(true);
@@ -195,6 +195,7 @@ export default function EditorPage({ params }) {
               members={extendedMembers} history={history} setHistory={setHistory}
               onSave={save}
               isAdmin={isAdmin}
+              isSuperAdmin={isSuperAdmin}
             />
           )}
         </div>
