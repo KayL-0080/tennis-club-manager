@@ -86,11 +86,16 @@ export default function AuthPage() {
           <div className={styles.headerIcon}>🎾</div>
           <h1 className={styles.headerTitle}>Tennis Club Manager</h1>
         </div>
-        <button className={styles.topLoginBtn} onClick={() => {
-          document.getElementById('auth-section').scrollIntoView({ behavior: 'smooth' });
-        }}>
-          로그인 / 가입
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => router.push('/guide')}>
+            서비스 소개 및 가이드
+          </button>
+          <button className={styles.topLoginBtn} onClick={() => {
+            document.getElementById('auth-section').scrollIntoView({ behavior: 'smooth' });
+          }}>
+            로그인 / 가입
+          </button>
+        </div>
       </header>
 
       {/* 메인 컨텐츠 */}
