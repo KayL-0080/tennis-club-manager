@@ -23,16 +23,12 @@ export default function Navbar() {
     <nav className={`no-print ${styles.nav}`}>
       <div className={styles.inner}>
         <button className={styles.logo} onClick={() => router.push('/dashboard')}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <path d="M4 20l5 -5" />
-            <ellipse cx="14" cy="10" rx="4" ry="7" transform="rotate(45 14 10)" />
-            <path d="M12 12l4 -4M11 9l4 4M13 13l4 -4" opacity="0.4" />
-            <path d="M20 20l-5 -5" />
-            <ellipse cx="10" cy="10" rx="4" ry="7" transform="rotate(-45 10 10)" />
-            <path d="M12 12l-4 -4M13 9l-4 4M11 13l-4 -4" opacity="0.4" />
-          </svg>
-          <span>{isHome ? 'Tennis Match (내 클럽)' : `Tennis Match(${clubName})`}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className={styles.logoTitle}>{isHome ? 'Tennis Club Manager' : `TCM (${clubName})`}</span>
+          </div>
+          <div className={styles.version}>Ver.20260724-02</div>
         </button>
+        
         <div className={styles.right}>
           {!isHome && (
             <button 
@@ -40,34 +36,33 @@ export default function Navbar() {
               onClick={() => {
                 setCurrentClubId(null);
                 router.push('/');
-              }} 
-              style={{ marginRight: '15px', backgroundColor: '#e2e8f0', color: '#1e293b' }}
+              }}
             >
-              ⬅️ 클럽 목록으로
+              ⬅️ 목록으로
             </button>
           )}
 
           {!isHome && (
             <div className={styles.desktopMenu}>
-              <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')} style={{ marginRight: '8px' }}>
-                🎾 대진표 목록
+              <button className={`${styles.navTab} ${pathname.startsWith('/dashboard') ? styles.active : ''}`} onClick={() => router.push('/dashboard')}>
+                🎾 대진표
               </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => router.push('/stats')} style={{ marginRight: '8px' }}>
-                📊 통계 대시보드
+              <button className={`${styles.navTab} ${pathname.startsWith('/stats') ? styles.active : ''}`} onClick={() => router.push('/stats')}>
+                📊 통계
               </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => router.push('/votes')} style={{ marginRight: '8px' }}>
-                🗓️ 참석 투표
+              <button className={`${styles.navTab} ${pathname.startsWith('/votes') ? styles.active : ''}`} onClick={() => router.push('/votes')}>
+                🗓️ 투표
               </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => router.push('/members')} style={{ marginRight: '8px' }}>
-                👥 회원 관리
+              <button className={`${styles.navTab} ${pathname.startsWith('/members') ? styles.active : ''}`} onClick={() => router.push('/members')}>
+                👥 회원
               </button>
             </div>
           )}
           {user ? (
             <>
               {isSuperAdmin && (
-                <button className="btn btn-secondary btn-sm" onClick={() => router.push('/admin')} style={{ marginRight: '8px', backgroundColor: '#ffd700', color: '#000', padding: '4px 8px' }} title="슈퍼 관리자">
-                  👑
+                <button className="badge badge-gold" onClick={() => router.push('/admin')} title="슈퍼 관리자" style={{ border: 'none', padding: '6px 10px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                  👑 Admin
                 </button>
               )}
               <span className={styles.userInfo}>
@@ -79,28 +74,29 @@ export default function Navbar() {
               </button>
             </>
           ) : (
-            <button className="btn btn-secondary btn-sm" onClick={() => router.push('/login')} style={{ fontSize: '11px', opacity: 0.7 }}>
+            <button className="btn btn-primary btn-sm" onClick={() => router.push('/login')}>
               관리자 로그인
             </button>
           )}
         </div>
       </div>
     </nav>
+    
     {!isHome && (
       <div className={`no-print ${styles.mobileBottomTab}`}>
-          <button className={styles.tabBtn} onClick={() => router.push('/dashboard')}>
+          <button className={`${styles.tabBtn} ${pathname.startsWith('/dashboard') ? styles.active : ''}`} onClick={() => router.push('/dashboard')}>
             <div className={styles.tabIcon}>🎾</div>
             <span>홈</span>
           </button>
-          <button className={styles.tabBtn} onClick={() => router.push('/stats')}>
+          <button className={`${styles.tabBtn} ${pathname.startsWith('/stats') ? styles.active : ''}`} onClick={() => router.push('/stats')}>
             <div className={styles.tabIcon}>📊</div>
             <span>통계</span>
           </button>
-          <button className={styles.tabBtn} onClick={() => router.push('/votes')}>
+          <button className={`${styles.tabBtn} ${pathname.startsWith('/votes') ? styles.active : ''}`} onClick={() => router.push('/votes')}>
             <div className={styles.tabIcon}>🗓️</div>
             <span>투표</span>
           </button>
-          <button className={styles.tabBtn} onClick={() => router.push('/members')}>
+          <button className={`${styles.tabBtn} ${pathname.startsWith('/members') ? styles.active : ''}`} onClick={() => router.push('/members')}>
             <div className={styles.tabIcon}>👥</div>
             <span>회원</span>
           </button>

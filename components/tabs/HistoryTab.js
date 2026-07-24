@@ -8,7 +8,12 @@ const COURT_LABELS = 'ABCDEFGHIJ'.split('');
 
 export default function HistoryTab({ schedule, scores, members, history, setHistory, onSave, isAdmin }) {
   const [viewEntry, setViewEntry] = useState(null);
-  const lifetimeRows = useMemo(() => computeLifetimeStandings(history), [history]);
+
+  const byId = useMemo(() => {
+    const m = {}; members.forEach(p => m[p.id] = p); return m;
+  }, [members]);
+
+  const lifetimeRows = useMemo(() => computeLifetimeStandings(history, byId), [history, byId]);
 
   const todayStr = () => {
     const d = new Date();
@@ -62,7 +67,7 @@ export default function HistoryTab({ schedule, scores, members, history, setHist
       <div className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>{isAdmin ? '기록 목록' : '지난 기록'}</h2>
         {history.length === 0 ? (
-          <p className="text-muted" style={{ fontSize: 13, marginTop: 12 }}>아직 저장된 기록이 없습니다.</p>
+          <p className="text-muted" style={{ fontSize: '15px', marginTop: 12 }}>아직 저장된 기록이 없습니다.</p>
         ) : (
           <div className={styles.histList}>
             {history.map(h => {
@@ -146,7 +151,7 @@ export default function HistoryTab({ schedule, scores, members, history, setHist
       <div className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>전체 누적 순위표 (저장된 기록 전체 합산)</h2>
         {lifetimeRows.length === 0 ? (
-          <p className="text-muted" style={{ fontSize: 13 }}>아직 저장된 기록이 없습니다. 경기를 마친 뒤 "오늘 기록으로 저장"을 눌러보세요.</p>
+          <p className="text-muted" style={{ fontSize: '15px' }}>아직 저장된 기록이 없습니다. 경기를 마친 뒤 "오늘 기록으로 저장"을 눌러보세요.</p>
         ) : (
           <div className="table-wrap">
             <table>

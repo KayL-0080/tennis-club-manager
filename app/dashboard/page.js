@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSchedules, createSchedule, deleteSchedule, getMembers, initDefaultMembers, getEvents, updateClub } from '@/lib/firestore';
+import { getSchedules, createSchedule, deleteSchedule, getMembers, getEvents, updateClub } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import SettingsTab from '@/components/tabs/SettingsTab';
 import styles from './dashboard.module.css';
@@ -35,16 +35,12 @@ export default function Dashboard() {
   const [endTime, setEndTime] = useState('12:00');
 
   const load = useCallback(async () => {
-    if (!currentClubId) return;
+    if (!currentClubId) {
+      setFetching(false);
+      return;
+    }
     setFetching(true);
     try {
-      if (isAdmin) {
-        try {
-          await initDefaultMembers(currentClubId);
-        } catch (e) {
-          console.warn('initDefaultMembers failed', e);
-        }
-      }
       try {
         const mbrs = await getMembers(currentClubId);
         setMembers(mbrs);
@@ -61,7 +57,7 @@ export default function Dashboard() {
 
       try {
         const evts = await getEvents(currentClubId);
-        setEvents(evts);
+        setEvents(evts.filter(e => !e.isCancelled));
       } catch(e) {
         console.warn('getEvents failed', e);
       }
@@ -217,11 +213,11 @@ export default function Dashboard() {
         <div className={styles.header}>
           <div>
             <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Tennis Match({currentClub?.name || '로딩 중...'})
+              Tennis Club Manager({currentClub?.name || '로딩 중...'})
               {isAdmin && (
                 <button 
                   className="btn btn-secondary btn-sm" 
-                  style={{ padding: '2px 8px', fontSize: '12px' }} 
+                  style={{ padding: '2px 8px', fontSize: '16px' }} 
                   onClick={handleRenameClub}
                   title="클럽 이름 변경"
                 >
@@ -294,11 +290,11 @@ export default function Dashboard() {
                             onMouseOut={(e) => e.currentTarget.style.boxShadow = 'none'}
                           >
                             <div>
-                              <div style={{ fontWeight: 'bold', fontSize: '14px', color: 'var(--navy)', marginBottom: '4px' }}>{s.title}</div>
-                              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{dateStr}</div>
+                              <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--navy)', marginBottom: '4px' }}>{s.title}</div>
+                              <div style={{ fontSize: '16px', color: 'var(--text-muted)' }}>{dateStr}</div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{s.participants?.length ?? 0}명 참여</span>
+                              <span style={{ fontSize: '16px', color: 'var(--text-muted)' }}>{s.participants?.length ?? 0}명 참여</span>
                               <span style={{ color: 'var(--primary)' }}>&rarr;</span>
                             </div>
                           </div>
@@ -363,13 +359,13 @@ function ScheduleCard({ s, isAdmin, onOpen, onDelete }) {
         {s.mixedCount > 0 && <span className="badge badge-purple">혼복 {s.mixedCount}게임</span>}
       </div>
       {(s.startTime || s.endTime) && (
-        <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+        <div style={{ fontSize: '15px', color: 'var(--text-muted)', marginBottom: '8px' }}>
           ⏱ 경기시간: {s.startTime || '?'} ~ {s.endTime || '?'}
         </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <p className={styles.schedDate}>{dateStr} {timeStr}</p>
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>생성자: {s.createdBy || '알 수 없음'}</span>
+        <span style={{ fontSize: '16px', color: 'var(--text-muted)' }}>생성자: {s.createdBy || '알 수 없음'}</span>
       </div>
       <div className={styles.schedActions}>
         <button className="btn btn-secondary" onClick={(e) => { e.stopPropagation(); onOpen(); }}>기록/입력</button>

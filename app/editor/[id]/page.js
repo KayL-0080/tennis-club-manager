@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getSchedule, updateSchedule,
-  getMembers, initDefaultMembers
+  getMembers
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import BracketTab   from '@/components/tabs/BracketTab';
@@ -19,7 +19,7 @@ const TABS = [
 
 export default function EditorPage({ params }) {
   const { id } = use(params);
-  const { isAdmin, loading, currentClubId } = useAuth();
+  const { isAdmin, loading, currentClubId, clubs } = useAuth();
   const router = useRouter();
 
   const [fetching, setFetching] = useState(true);
@@ -56,9 +56,7 @@ export default function EditorPage({ params }) {
     (async () => {
       if (!currentClubId) return;
       try {
-        if (isAdmin) {
-          try { await initDefaultMembers(currentClubId); } catch(e) { console.warn(e); }
-        }
+        // Removed initDefaultMembers
         
         let mbrs = [];
         try { mbrs = await getMembers(currentClubId); } catch(e) { console.warn(e); }
@@ -185,6 +183,10 @@ export default function EditorPage({ params }) {
               onSave={save}
               onPrint={() => window.print()}
               isAdmin={isAdmin}
+              matchDate={matchDate}
+              startTime={startTime}
+              endTime={endTime}
+              clubName={clubs.find(c => c.id === currentClubId)?.name || ''}
             />
           )}
           {activeTab === 'history' && (

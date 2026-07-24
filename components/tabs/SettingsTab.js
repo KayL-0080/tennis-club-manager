@@ -231,8 +231,8 @@ export default function SettingsTab({
         </div>
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', maxHeight: '150px', overflowY: 'auto', background: 'var(--bg)' }}>
-            {availableToAdd.length === 0 ? <span className="text-muted" style={{ fontSize: 13 }}>추가할 회원이 없습니다.</span> : availableToAdd.map(m => (
-              <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'var(--bg-card)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: 14 }}>
+            {availableToAdd.length === 0 ? <span className="text-muted" style={{ fontSize: '15px' }}>추가할 회원이 없습니다.</span> : availableToAdd.map(m => (
+              <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'var(--bg-card)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '16px' }}>
                 <input type="checkbox" checked={selectedToAdd.includes(m.id)} onChange={e => toggleSelectToAdd(m.id, e.target.checked)} />
                 {m.name}
               </label>
@@ -294,7 +294,7 @@ export default function SettingsTab({
               onChange={e => setEndTime(e.target.value)} style={{ width: 110 }} />
           </div>
         </div>
-        <div style={{ marginTop: 12, fontSize: 13, color: isMatchSumOk ? 'var(--primary)' : 'var(--danger)', fontWeight: 'bold' }}>
+        <div style={{ marginTop: 12, fontSize: '15px', color: isMatchSumOk ? 'var(--primary)' : 'var(--danger)', fontWeight: 'bold' }}>
           {isMatchSumOk 
             ? (sumMatches < requiredMatches ? `✓ 세부 게임(${sumMatches}) 외 남은 ${requiredMatches - sumMatches}게임은 성별 무관(잡복)으로 자동 배정됩니다.` : '✓ 세부 게임 수 합계가 총 경기 수와 일치합니다.')
             : `✗ 남복(${mensDoublesCount || 0}) + 혼복(${mixedCount || 0}) + 잡복(${jointCount || 0}) 합계(${sumMatches})가 총 경기 수(${requiredMatches} = 라운드×코트)보다 클 수 없습니다.`}
@@ -345,7 +345,7 @@ export default function SettingsTab({
           </label>
           <span className={styles.sectionNote}>(체크 시 자동 생성에 반영)</span>
         </h2>
-        <p className="text-muted" style={{ fontSize: 13, marginBottom: 12 }}>특정 4명이 함께 뛰는 게임 (같은 4명, 페어만 다르게 구성)</p>
+        <p className="text-muted" style={{ fontSize: '15px', marginBottom: 12 }}>특정 4명이 함께 뛰는 게임 (같은 4명, 페어만 다르게 구성)</p>
         {entries.length >= 4 && (
           <form className={styles.addRow} onSubmit={addGroup}>
             {['g1', 'g2', 'g3', 'g4'].map(n => (
@@ -353,7 +353,7 @@ export default function SettingsTab({
                 {entries.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             ))}
-            <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>게임수:</span>
+            <span style={{ fontSize: '15px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>게임수:</span>
             <select name="gCount" className="input input-sm" defaultValue={2} style={{ width: 55 }}>
               {numOptions(1, 10)}
             </select>
@@ -385,7 +385,7 @@ export default function SettingsTab({
           </button>
           <button className="btn btn-secondary" onClick={createManual}>빈 대진표 직접 만들기</button>
           <button className="btn btn-secondary" onClick={onSaveAndExit}>💾 저장 후 목록으로</button>
-          {status && <span className="text-muted" style={{ fontSize: 13 }}>{status}</span>}
+          {status && <span className="text-muted" style={{ fontSize: '15px' }}>{status}</span>}
         </div>
         {warnMsg && (
           <div className="alert alert-warn" style={{ marginTop: 12, whiteSpace: 'pre-line' }}>⚠️ {warnMsg}</div>

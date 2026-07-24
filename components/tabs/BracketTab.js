@@ -1,6 +1,6 @@
 // components/tabs/BracketTab.js — 대진표(선수 드롭다운+점수입력) + 검증요약 + 개인순위
 'use client';
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { makeEmptyMatch, teamNtrpSum, computeTodayStandings } from '@/lib/scheduler';
 import styles from './tabs.module.css';
 
@@ -18,7 +18,37 @@ export default function BracketTab({
   members, participants, lastGenStats,
   scheduleRounds, scheduleCourts, setScheduleRounds, setScheduleCourts,
   onSave, onPrint, isAdmin,
+  matchDate, startTime, endTime, clubName
 }) {
+  const [showGuestModal, setShowGuestModal] = useState(false);
+
+  const guestTemplate = `🎾 [테니스 게스트 모집] 🎾
+
+📌 모임명: ${clubName || '알 수 없음'}
+📌 일시: ${matchDate || 'YYYY-MM-DD'} ${startTime || ''} ~ ${endTime || ''}
+📌 장소: 코트 ${scheduleCourts || (schedule?.[0]?.length ?? 0)}면
+📌 인원: 0명 (남/녀)
+📌 실력: NTRP 2.0 ~ 3.0 (수정해서 사용하세요)
+📌 참가비: 0,000원 (수정해서 사용하세요)
+
+(여기에 추가 안내 사항을 적어주세요)
+
+참여를 원하시는 분은 댓글이나 채팅 부탁드립니다! 🎾`;
+
+  const [guestText, setGuestText] = useState('');
+  
+  useEffect(() => {
+    if (showGuestModal) {
+      setGuestText(guestTemplate);
+    }
+  }, [showGuestModal, guestTemplate]);
+
+  const copyGuestText = () => {
+    if (typeof window === 'undefined') return;
+    navigator.clipboard.writeText(guestText)
+      .then(() => alert('게스트 모집글이 클립보드에 복사되었습니다.'))
+      .catch(() => alert('복사에 실패했습니다.'));
+  };
   const byId = useMemo(() => {
     const m = {}; members.forEach(p => m[p.id] = p); return m;
   }, [members]);
@@ -102,6 +132,18 @@ export default function BracketTab({
     setScores({});
   };
 
+  const deleteEntireBracket = async () => {
+    if (!confirm('대진표 전체를 정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
+    setSchedule([]);
+    setScores({});
+    setScheduleRounds(0);
+    setScheduleCourts(0);
+    if (onSave) {
+      await onSave({ schedule: [], scores: {}, scheduleRounds_: 0, scheduleCourts_: 0 });
+    }
+    alert('대진표가 삭제되었습니다.');
+  };
+
   /* ── 선수 선택 옵션 ── */
   const playerOptions = (selectedId) => {
     const list = [...entries];
@@ -146,35 +188,35 @@ export default function BracketTab({
     <div>
       {/* 도구 모음 */}
       <div className={`card ${styles.section} no-print`}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
           {isAdmin && (
-            <div className={styles.toolbarGroup}>
+            <div className={styles.toolbarGroup} style={{ flex: '1 1 100%' }}>
               <span className={styles.toolbarLabel}>구조 편집</span>
-              <div className={styles.genRow}>
+              <div className={styles.uniformBtnRow}>
                 <button className="btn btn-secondary btn-sm" onClick={addRound}>+ 라운드 추가</button>
                 <button className="btn btn-secondary btn-sm" onClick={removeRound}>- 라운드 삭제</button>
                 <button className="btn btn-secondary btn-sm" onClick={addCourt}>+ 코트 추가</button>
                 <button className="btn btn-secondary btn-sm" onClick={removeCourt}>- 코트 삭제</button>
+                <button className="btn btn-danger btn-sm" onClick={deleteEntireBracket} style={{ marginLeft: 'auto' }}>🗑️ 대진표 전체 삭제</button>
               </div>
             </div>
           )}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <div className={styles.toolbarGroup} style={{ flex: 1, minWidth: 200 }}>
-              <span className={styles.toolbarLabel}>데이터 관리</span>
-              <div className={styles.genRow}>
-                <button className="btn btn-primary btn-sm" onClick={async () => { await onSave(); alert('저장되었습니다.'); }}>💾 저장</button>
-                {isAdmin && (
-                  <button className="btn btn-secondary btn-sm" onClick={clearScores}>점수 초기화</button>
-                )}
-              </div>
+          <div className={styles.toolbarGroup} style={{ flex: '1 1 auto' }}>
+            <span className={styles.toolbarLabel}>데이터 관리</span>
+            <div className={styles.uniformBtnRow}>
+              <button className="btn btn-primary btn-sm" onClick={async () => { await onSave(); alert('저장되었습니다.'); }}>💾 저장</button>
+              {isAdmin && (
+                <button className="btn btn-secondary btn-sm" onClick={clearScores}>점수 초기화</button>
+              )}
             </div>
-            <div className={styles.toolbarGroup} style={{ flex: 1, minWidth: 260 }}>
-              <span className={styles.toolbarLabel}>내보내기 / 공유</span>
-              <div className={styles.genRow}>
-                <button className="btn btn-secondary btn-sm" onClick={copyUrl}>🔗 URL 복사</button>
-                <button className="btn btn-secondary btn-sm" onClick={shareNative}>📤 공유하기</button>
-                <button className="btn btn-secondary btn-sm" onClick={onPrint}>🖨️ 인쇄</button>
-              </div>
+          </div>
+          <div className={styles.toolbarGroup} style={{ flex: '2 1 auto' }}>
+            <span className={styles.toolbarLabel}>내보내기 / 공유</span>
+            <div className={styles.uniformBtnRow}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowGuestModal(true)}>📝 게스트 모집글</button>
+              <button className="btn btn-secondary btn-sm" onClick={copyUrl}>🔗 URL 복사</button>
+              <button className="btn btn-secondary btn-sm" onClick={shareNative}>📤 공유하기</button>
+              <button className="btn btn-secondary btn-sm" onClick={onPrint}>🖨️ 인쇄</button>
             </div>
           </div>
         </div>
@@ -292,7 +334,7 @@ export default function BracketTab({
       <div className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>오늘 개인 순위표</h2>
         {todayRows.length === 0 ? (
-          <p className="text-muted" style={{ fontSize: 13 }}>아직 입력된 점수가 없습니다.</p>
+          <p className="text-muted" style={{ fontSize: '15px' }}>아직 입력된 점수가 없습니다.</p>
         ) : (
           <div className="table-wrap">
             <table>
@@ -319,6 +361,32 @@ export default function BracketTab({
           </div>
         )}
       </div>
+      {/* 게스트 모집글 모달 */}
+      {showGuestModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2 style={{ margin: 0, fontSize: '18px' }}>게스트 모집글 생성</h2>
+              <button className="modal-close" onClick={() => setShowGuestModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: '15px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                아래 텍스트를 자유롭게 수정한 뒤 복사해서 카카오톡이나 밴드에 공유하세요.
+              </p>
+              <textarea
+                className="input"
+                style={{ width: '100%', height: '250px', resize: 'vertical', padding: '12px', lineHeight: '1.5', fontFamily: 'inherit' }}
+                value={guestText}
+                onChange={(e) => setGuestText(e.target.value)}
+              />
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+              <button className="btn btn-secondary" onClick={() => setShowGuestModal(false)}>닫기</button>
+              <button className="btn btn-primary" onClick={copyGuestText}>복사하기</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

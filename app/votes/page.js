@@ -145,8 +145,9 @@ export default function VotesPage() {
   const removeEvent = async () => {
     if (!selectedEvent) return;
     if (!confirm('이 일정을 삭제하시겠습니까?')) return;
-    await deleteEvent(currentClubId, selectedEvent.id);
-    setEvents(prev => prev.filter(e => e.id !== selectedEvent.id));
+    // 실제 삭제 대신 취소 상태로 변경하여 자동 생성을 방지합니다.
+    await updateEvent(currentClubId, selectedEvent.id, { isCancelled: true });
+    setEvents(prev => prev.map(e => e.id === selectedEvent.id ? { ...e, isCancelled: true } : e));
     setSelectedEvent(null);
   };
 
@@ -157,6 +158,45 @@ export default function VotesPage() {
     setEditStartTime(e.startTime);
     setEditEndTime(e.endTime);
     setEditLocation(e.location);
+  };
+
+  const generateResultText = () => {
+    if (!selectedEvent) return '';
+    const attList = [];
+    const absList = [];
+    const unkList = [];
+    members.forEach(m => {
+      const status = selectedEvent.attendees?.[m.id] || '?';
+      if (status === 'Y') attList.push(m.name);
+      else if (status === 'N') absList.push(m.name);
+      else unkList.push(m.name);
+    });
+
+    const dateStr = `${selectedEvent.date} (${new Date(selectedEvent.date).toLocaleDateString('ko-KR', { weekday: 'short' })})`;
+    let text = `[${selectedEvent.title}]\n일시: ${dateStr} ${selectedEvent.startTime}~${selectedEvent.endTime}\n장소: ${selectedEvent.location}\n\n`;
+    text += `✅ 참석 (${attList.length}명):\n${attList.length > 0 ? attList.join(', ') : '없음'}\n\n`;
+    text += `❌ 불참 (${absList.length}명):\n${absList.length > 0 ? absList.join(', ') : '없음'}\n\n`;
+    text += `❓ 미정 (${unkList.length}명):\n${unkList.length > 0 ? unkList.join(', ') : '없음'}`;
+    return text;
+  };
+
+  const copyVoteResults = () => {
+    const text = generateResultText();
+    navigator.clipboard.writeText(text)
+      .then(() => alert('투표 결과가 클립보드에 복사되었습니다.'))
+      .catch(() => alert('복사에 실패했습니다.'));
+  };
+
+  const shareNativeVote = () => {
+    const text = generateResultText();
+    if (navigator.share) {
+      navigator.share({
+        title: selectedEvent.title,
+        text: text,
+      }).catch(err => console.log('공유 취소 또는 실패', err));
+    } else {
+      alert('이 브라우저에서는 기본 공유 기능을 지원하지 않습니다. 텍스트 복사를 이용해주세요.');
+    }
   };
 
   const openSettingsModal = () => {
@@ -187,7 +227,7 @@ export default function VotesPage() {
   }
 
   const todayStr = new Date().toLocaleDateString('en-CA');
-  const upcomingEvents = events.filter(e => e.date >= todayStr);
+  const upcomingEvents = events.filter(e => e.date >= todayStr && !e.isCancelled);
 
   return (
     <div className={styles.page}>
@@ -228,11 +268,11 @@ export default function VotesPage() {
                       <p className={styles.schedDate}>{e.date} ({new Date(e.date).toLocaleDateString('ko-KR', { weekday: 'short' })})</p>
                     </div>
                   </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: '15px', color: 'var(--text-muted)' }}>
                     ⏰ {e.startTime} ~ {e.endTime} <br/>
                     📍 {e.location}
                   </div>
-                  <div style={{ marginTop: '12px', fontSize: '14px', fontWeight: 'bold', color: 'var(--primary)' }}>
+                  <div style={{ marginTop: '12px', fontSize: '16px', fontWeight: 'bold', color: 'var(--primary)' }}>
                     참석 인원: {attCount}명
                   </div>
                 </div>
@@ -248,7 +288,7 @@ export default function VotesPage() {
         <div className="modal-overlay" onClick={() => setShowSettingsModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>⚙️ 정기 모임 설정</h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+            <p style={{ fontSize: '15px', color: 'var(--text-muted)', marginBottom: '16px' }}>
               여기서 설정한 요일과 시간에 맞춰 4주간의 투표 일정이 자동으로 생성됩니다.
             </p>
             
@@ -256,7 +296,7 @@ export default function VotesPage() {
               {tempMeetings.map((m, idx) => (
                 <div key={idx} style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end' }}>
                   <div>
-                    <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>요일</label>
+                    <label style={{ fontSize: '16px', display: 'block', marginBottom: '4px' }}>요일</label>
                     <select className="input input-sm" value={m.dayOfWeek} onChange={e => {
                       const newM = [...tempMeetings];
                       newM[idx].dayOfWeek = parseInt(e.target.value, 10);
@@ -266,7 +306,7 @@ export default function VotesPage() {
                     </select>
                   </div>
                   <div>
-                    <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>제목</label>
+                    <label style={{ fontSize: '16px', display: 'block', marginBottom: '4px' }}>제목</label>
                     <input className="input input-sm" style={{ width: '120px' }} value={m.title || ''} placeholder="기본 제목" onChange={e => {
                       const newM = [...tempMeetings];
                       newM[idx].title = e.target.value;
@@ -274,7 +314,7 @@ export default function VotesPage() {
                     }} />
                   </div>
                   <div>
-                    <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>시작 시간</label>
+                    <label style={{ fontSize: '16px', display: 'block', marginBottom: '4px' }}>시작 시간</label>
                     <input className="input input-sm" type="time" value={m.startTime} onChange={e => {
                       const newM = [...tempMeetings];
                       newM[idx].startTime = e.target.value;
@@ -282,7 +322,7 @@ export default function VotesPage() {
                     }} />
                   </div>
                   <div>
-                    <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>종료 시간</label>
+                    <label style={{ fontSize: '16px', display: 'block', marginBottom: '4px' }}>종료 시간</label>
                     <input className="input input-sm" type="time" value={m.endTime} onChange={e => {
                       const newM = [...tempMeetings];
                       newM[idx].endTime = e.target.value;
@@ -290,7 +330,7 @@ export default function VotesPage() {
                     }} />
                   </div>
                   <div style={{ flex: '1 1 auto' }}>
-                    <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>장소(코트명)</label>
+                    <label style={{ fontSize: '16px', display: 'block', marginBottom: '4px' }}>장소(코트명)</label>
                     <input className="input input-sm" style={{ width: '100%' }} value={m.location} onChange={e => {
                       const newM = [...tempMeetings];
                       newM[idx].location = e.target.value;
@@ -331,11 +371,11 @@ export default function VotesPage() {
             </div>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>시작 시간</label>
+                <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px' }}>시작 시간</label>
                 <input className="input" type="time" value={editStartTime} onChange={e => setEditStartTime(e.target.value)} />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>종료 시간</label>
+                <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px' }}>종료 시간</label>
                 <input className="input" type="time" value={editEndTime} onChange={e => setEditEndTime(e.target.value)} />
               </div>
             </div>
@@ -365,11 +405,11 @@ export default function VotesPage() {
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                   <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>시작 시간</label>
+                    <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px' }}>시작 시간</label>
                     <input className="input" type="time" value={editStartTime} onChange={e => setEditStartTime(e.target.value)} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>종료 시간</label>
+                    <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px' }}>종료 시간</label>
                     <input className="input" type="time" value={editEndTime} onChange={e => setEditEndTime(e.target.value)} />
                   </div>
                 </div>
@@ -389,7 +429,7 @@ export default function VotesPage() {
                     <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--navy)', marginBottom: '4px', wordBreak: 'keep-all' }}>
                       {selectedEvent.title}
                     </h2>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', wordBreak: 'keep-all' }}>
+                    <p style={{ fontSize: '15px', color: 'var(--text-muted)', wordBreak: 'keep-all' }}>
                       {selectedEvent.date} ({new Date(selectedEvent.date).toLocaleDateString('ko-KR', { weekday: 'short' })}) <br/>
                       ⏰ {selectedEvent.startTime} ~ {selectedEvent.endTime} <br/> 📍 {selectedEvent.location}
                     </p>
@@ -402,7 +442,7 @@ export default function VotesPage() {
                   )}
                 </div>
 
-                <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--bg)', borderRadius: '8px', fontSize: '14px' }}>
+                <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--bg)', borderRadius: '8px', fontSize: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <strong>✅ 참석</strong>
                     <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>
@@ -421,6 +461,15 @@ export default function VotesPage() {
                       {members.length - Object.values(selectedEvent.attendees || {}).filter(v => v === 'Y' || v === 'N').length}명
                     </span>
                   </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                  <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={copyVoteResults}>
+                    📋 카톡 공유 텍스트 복사
+                  </button>
+                  <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={shareNativeVote}>
+                    📤 기기 기본 공유
+                  </button>
                 </div>
 
                 <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>투표 명단</h3>

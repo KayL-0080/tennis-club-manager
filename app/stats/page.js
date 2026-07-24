@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getMembers, getSchedules, initDefaultMembers } from '@/lib/firestore';
+import { getMembers, getSchedules } from '@/lib/firestore';
 import { computeGlobalStandings } from '@/lib/scheduler';
 import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
@@ -24,7 +24,6 @@ export default function StatsPage() {
     (async () => {
       try {
         setFetching(true);
-        await initDefaultMembers(currentClubId);
         const mbrs = await getMembers(currentClubId);
         const scheds = await getSchedules(currentClubId);
         setMembers(mbrs);
@@ -51,7 +50,7 @@ export default function StatsPage() {
 
   if (!currentClubId) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
         <span className="spinner" />
       </div>
     );
@@ -59,7 +58,7 @@ export default function StatsPage() {
 
   if (fetching) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
         <span className="spinner" />
       </div>
     );
@@ -80,22 +79,22 @@ export default function StatsPage() {
 
         {/* 필터 영역 */}
         <div className="card" style={{ marginBottom: '24px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: '14px', color: 'var(--text)' }}>📅 조회 기간</strong>
+          <strong style={{ fontSize: '0.88rem', color: 'var(--txt)' }}>📅 조회 기간</strong>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input 
               className="input input-sm" 
               type="date" 
               value={startDate} 
               onChange={e => setStartDate(e.target.value)} 
-              style={{ width: '130px' }} 
+              style={{ width: '130px', padding: '6px 10px' }} 
             />
-            <span style={{ color: 'var(--text-muted)' }}>~</span>
+            <span style={{ color: 'var(--txt3)' }}>~</span>
             <input 
               className="input input-sm" 
               type="date" 
               value={endDate} 
               onChange={e => setEndDate(e.target.value)} 
-              style={{ width: '130px' }} 
+              style={{ width: '130px', padding: '6px 10px' }} 
             />
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -129,16 +128,16 @@ export default function StatsPage() {
         {/* Top 3 영역 */}
         {top3.length > 0 && (
           <div style={{ marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', color: 'var(--navy)' }}>🏆 해당 기간 Top 3</h2>
+            <h2 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '12px', color: 'var(--txt)' }}>🏆 해당 기간 Top 3</h2>
             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               {top3.map((s, idx) => (
-                <div key={s.id} className="card" style={{ flex: '1 1 200px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ fontSize: '28px', width: '36px', textAlign: 'center' }}>
+                <div key={s.id} className="card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ fontSize: '36px', width: '48px', textAlign: 'center', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))' }}>
                     {idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0 0 4px 0' }}>{s.name}</h3>
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: '800', margin: '0 0 6px 0', color: 'var(--txt)' }}>{s.name} ({s.points}점)</h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--txt2)', margin: 0, fontWeight: '600' }}>
                       {s.win}승 {s.draw}무 {s.loss}패 (득실 {s.diff > 0 ? `+${s.diff}` : s.diff})
                     </p>
                   </div>
@@ -150,19 +149,22 @@ export default function StatsPage() {
 
         {/* 전체 누적 순위표 */}
         <div className="card">
-          <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', color: 'var(--navy)' }}>전체 순위 및 참여 현황</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px dashed var(--border)', padding: '16px 20px', paddingBottom: '16px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--txt)', margin: 0 }}>전체 순위 및 참여 현황</h2>
+            <span style={{ fontSize: '0.72rem', color: 'var(--txt3)', fontWeight: '600' }}>(승점 기준 : 승 3점, 무 1점, 패 -3점)</span>
+          </div>
           {globalStandings.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>해당 기간에 기록된 데이터가 없습니다.</p>
+            <p style={{ color: 'var(--txt3)', fontSize: '0.88rem', textAlign: 'center', padding: '20px 0', fontWeight: '600' }}>해당 기간에 기록된 데이터가 없습니다.</p>
           ) : (
-            <div className="table-wrap">
+            <div className="table-wrap" style={{ paddingBottom: '16px' }}>
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: 50 }}>순위</th>
+                    <th style={{ width: 60 }}>순위</th>
                     <th>이름</th>
                     <th>참여 일수</th>
                     <th>경기수</th>
-                    <th>승률</th>
+                    <th>승점</th>
                     <th>승</th>
                     <th>무</th>
                     <th>패</th>
@@ -174,15 +176,15 @@ export default function StatsPage() {
                     <tr key={s.id}>
                       <td><strong>{i + 1}</strong></td>
                       <td>
-                        {s.name} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({s.gender === 'F' ? '여' : '남'})</span>
+                        <span style={{ fontWeight: '700' }}>{s.name}</span> <span style={{ fontSize: '0.76rem', color: 'var(--txt3)' }}>({s.gender === 'F' ? '여' : '남'})</span>
                       </td>
                       <td><strong>{s.attendedDays}</strong>일</td>
                       <td>{s.played}</td>
-                      <td>{s.played > 0 ? Math.round(s.winRate * 100) : 0}%</td>
-                      <td><span style={{ color: 'var(--primary)' }}>{s.win}</span></td>
-                      <td><span style={{ color: '#888' }}>{s.draw}</span></td>
-                      <td><span style={{ color: '#e53e3e' }}>{s.loss}</span></td>
-                      <td><strong style={{ color: s.diff > 0 ? 'var(--primary)' : s.diff < 0 ? '#e53e3e' : 'inherit' }}>{s.diff > 0 ? `+${s.diff}` : s.diff}</strong></td>
+                      <td><strong style={{ color: 'var(--gold)' }}>{s.points}</strong>점</td>
+                      <td><span style={{ color: 'var(--blue)', fontWeight: '700' }}>{s.win}</span></td>
+                      <td><span style={{ color: 'var(--txt3)', fontWeight: '600' }}>{s.draw}</span></td>
+                      <td><span style={{ color: 'var(--red)', fontWeight: '700' }}>{s.loss}</span></td>
+                      <td><strong style={{ color: s.diff > 0 ? 'var(--blue)' : s.diff < 0 ? 'var(--red)' : 'inherit' }}>{s.diff > 0 ? `+${s.diff}` : s.diff}</strong></td>
                     </tr>
                   ))}
                 </tbody>

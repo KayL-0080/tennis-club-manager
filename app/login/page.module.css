@@ -1,135 +1,222 @@
-/* app/page.module.css — 로그인 페이지 (다크 테마 유지) */
+/* app/login/page.module.css — Kyushu Style Landing Page */
 .page {
   min-height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  flex-direction: column;
   position: relative;
   overflow: hidden;
-  background: #060b18;
+  background: var(--bg);
 }
 
-.courtBg {
-  position: fixed;
-  inset: 0;
+.heroBg {
+  position: absolute; inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(30,77,154,0.22) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 80%, rgba(59,130,246,0.12) 0%, transparent 60%),
-    linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
-  background-size: auto, auto, 60px 60px, 60px 60px;
+    radial-gradient(ellipse at 25% 40%, rgba(232,82,42,.15) 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 30%, rgba(58,123,213,.15)  0%, transparent 55%),
+    radial-gradient(ellipse at 50% 80%, rgba(32,178,170,.15)  0%, transparent 50%),
+    linear-gradient(160deg, #f4f5f8 0%, #e8ecf5 50%, #eef1f6 100%);
+  animation: heroPulse 6s ease-in-out infinite alternate;
   z-index: 0;
 }
+@keyframes heroPulse { from { opacity:.7 } to { opacity:1 } }
 
-.centered {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #060b18;
-}
-
-.container {
-  position: relative;
+.heroParticles {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,141,161,.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 20%, rgba(58,123,213,.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 80% 60%, rgba(32,178,170,.6)  0%, transparent 100%),
+    radial-gradient(1px 1px at 40% 70%, rgba(224,133,0,.5)  0%, transparent 100%),
+    radial-gradient(1px 1px at 10% 80%, rgba(232,82,42,.4) 0%, transparent 100%);
   z-index: 1;
-  width: 100%;
-  max-width: 420px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24px;
 }
 
-/* 로고 */
-.logo { text-align: center; }
-.logoIcon {
-  font-size: 52px;
-  line-height: 1;
-  margin-bottom: 10px;
-  filter: drop-shadow(0 0 24px rgba(59,130,246,0.5));
-  animation: float 3s ease-in-out infinite;
+.header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 32px;
+  width: 100%;
 }
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50%       { transform: translateY(-8px); }
+
+.headerLogo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.logoTitle {
+
+.headerIcon {
   font-size: 28px;
+}
+
+.headerTitle {
+  font-size: 1.25rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #93c5fd, #3b82f6, #1d4ed8);
+  color: var(--txt);
+  background: linear-gradient(130deg, #1a1a24 0%, #3a7bd5 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   letter-spacing: -0.02em;
 }
-.logoSub { font-size: 13px; color: #8899bb; margin-top: 4px; }
 
-/* 카드 */
+.topLoginBtn {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--txt);
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+.topLoginBtn:hover {
+  background: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.mainContent {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  gap: 60px;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.heroText {
+  flex: 1;
+  color: var(--txt);
+  max-width: 500px;
+  animation: slideRight 0.6s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.heroFlag {
+  display: inline-block;
+  font-size: 2.8rem;
+  margin-bottom: 12px;
+  animation: floatY 3s ease-in-out infinite;
+}
+@keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+
+.heroLabel {
+  font-size: 0.72rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--blue);
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+
+.heroTitle {
+  font-size: clamp(2.5rem, 6vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 16px;
+  background: linear-gradient(130deg, #1a1a24 0%, var(--red) 50%, var(--blue) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.heroDesc {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--txt2);
+  margin-bottom: 32px;
+  font-weight: 500;
+}
+
+.featureList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.88rem;
+  color: var(--txt);
+  background: var(--glass);
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+}
+
+.featureIcon {
+  font-size: 1.6rem;
+}
+
+/* Auth Card */
+.authContainer {
+  flex: 0 0 400px;
+  animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .authCard {
   width: 100%;
-  padding: 28px;
-  background: rgba(13,22,45,0.9) !important;
-  border: 1px solid rgba(59,130,246,0.2) !important;
-  border-radius: 18px !important;
-  backdrop-filter: blur(16px);
-  box-shadow: 0 4px 32px rgba(0,0,0,0.5) !important;
-  animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
-}
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
+  padding: 32px 28px;
+  background: var(--glass) !important;
+  border: 1px solid rgba(255,255,255,0.6) !important;
+  border-radius: var(--radius-lg) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.08) !important;
 }
 
 /* 탭 */
 .tabs {
   display: flex;
-  background: rgba(255,255,255,0.05);
-  border-radius: 10px;
+  background: rgba(0,0,0,0.04);
+  border-radius: 12px;
   padding: 4px;
   gap: 4px;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 .tab {
   flex: 1;
   font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 9px;
-  border-radius: 7px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 10px;
+  border-radius: 10px;
   border: none;
   background: transparent;
-  color: #8899bb;
+  color: var(--txt3);
   cursor: pointer;
-  transition: all 0.18s;
+  transition: all 0.2s;
 }
 .tabActive {
-  background: #1e4d9a;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  background: #fff;
+  color: var(--blue);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
 /* 폼 */
-.form { display: flex; flex-direction: column; gap: 14px; }
-
-/* 로그인 페이지의 input은 다크 스타일 오버라이드 */
-.authCard .input,
-.authCard .select {
-  background: rgba(255,255,255,0.06) !important;
-  border-color: rgba(59,130,246,0.2) !important;
-  color: #e8edf8 !important;
-}
-.authCard .input::placeholder { color: #8899bb !important; }
-.authCard .input:focus {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.2) !important;
-}
-
-/* 로그인 페이지 버튼 */
-.authCard .btn-primary {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
-  border-color: transparent !important;
-}
+.form { display: flex; flex-direction: column; gap: 4px; }
 
 /* Google 버튼 */
 .googleBtn {
@@ -137,23 +224,43 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-weight: 500;
-  font-size: 14px;
+  gap: 12px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  background: #fff !important;
+  color: var(--txt) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 12px !important;
+  border: 1px solid var(--border) !important;
+  transition: all 0.2s !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+.googleBtn:hover {
+  background: #f8fafc !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
 }
 
 /* 하단 텍스트 */
-.footer { font-size: 12px; color: #8899bb; text-align: center; opacity: 0.6; }
+.footer { font-size: 0.72rem; color: var(--txt3); text-align: center; margin-top: 24px; font-weight: 600; letter-spacing: 0.05em; }
 
-/* 로그인 페이지용 스피너 오버라이드 */
-.authCard .spinner {
-  border-color: rgba(255,255,255,0.2);
-  border-top-color: #fff;
-}
-
-/* alert 오버라이드 */
-.authCard .alert-error {
-  background: rgba(239,68,68,0.15);
-  border-color: rgba(239,68,68,0.4);
-  color: #fca5a5;
+/* 반응형 */
+@media (max-width: 900px) {
+  .mainContent {
+    flex-direction: column;
+    padding: 24px 20px;
+    gap: 40px;
+    margin-top: 20px;
+  }
+  .header {
+    padding: 20px;
+  }
+  .heroTitle {
+    font-size: 2.5rem;
+  }
+  .authContainer {
+    flex: 1;
+    width: 100%;
+    max-width: 440px;
+  }
 }

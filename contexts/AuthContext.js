@@ -63,7 +63,8 @@ export function AuthProvider({ children }) {
       setUser(u);
       
       // Super admin check
-      if (u && u.email === 'leeky1537@gmail.com') {
+      const email = u?.email?.toLowerCase() || '';
+      if (email === 'leeky1537@gmail.com') {
         setIsSuperAdmin(true);
         setIsAdmin(true);
       } else {
@@ -78,10 +79,11 @@ export function AuthProvider({ children }) {
   // 유저와 클럽 목록이 준비되면 myClubs와 권한 계산
   useEffect(() => {
     const loadUserClubs = async () => {
-      if (!user || !user.email || clubs.length === 0) {
+      const email = user?.email?.toLowerCase() || '';
+      if (!user || !email || clubs.length === 0) {
         setMyClubs([]);
         setMyJoinRequests([]);
-        if (user && user.email !== 'leeky1537@gmail.com') setIsAdmin(false);
+        if (email !== 'leeky1537@gmail.com') setIsAdmin(false);
         return;
       }
       
@@ -111,7 +113,7 @@ export function AuthProvider({ children }) {
         );
         
         adminChecks.forEach(check => {
-          if (check.isAdm || user.email === 'leeky1537@gmail.com') {
+          if (check.isAdm || email === 'leeky1537@gmail.com') {
             myClubIds.add(check.clubId);
           }
           if (currentClubId && check.clubId === currentClubId && check.isAdm) {
@@ -119,7 +121,9 @@ export function AuthProvider({ children }) {
           }
         });
 
-        if (user.email !== 'leeky1537@gmail.com') {
+        if (email === 'leeky1537@gmail.com') {
+          setIsAdmin(true);
+        } else {
           setIsAdmin(amIAdminInCurrentClub);
         }
 
