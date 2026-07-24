@@ -79,7 +79,7 @@ export default function HistoryTab({ schedule, scores, members, history, setHist
                     <button className="btn btn-secondary btn-sm" onClick={() => setViewEntry(viewEntry?.id === h.id ? null : h)}>
                       {viewEntry?.id === h.id ? '닫기' : '보기'}
                     </button>
-                    {isSuperAdmin && <button className="btn btn-danger btn-sm" onClick={() => deleteEntry(h.id)} style={{ marginLeft: 6 }}>삭제</button>}
+                    {isAdmin && <button className="btn btn-danger btn-sm" onClick={() => deleteEntry(h.id)} style={{ marginLeft: 6 }}>삭제</button>}
                   </span>
                 </div>
               );

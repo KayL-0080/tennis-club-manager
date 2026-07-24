@@ -9,7 +9,7 @@ import SettingsTab from '@/components/tabs/SettingsTab';
 import styles from './dashboard.module.css';
 
 export default function Dashboard() {
-  const { user, isAdmin, loading, currentClubId, clubs, setClubs } = useAuth();
+  const { user, isAdmin, isSuperAdmin, loading, currentClubId, clubs, setClubs } = useAuth();
   const currentClub = clubs.find(c => c.id === currentClubId);
   const router = useRouter();
   
@@ -293,8 +293,11 @@ export default function Dashboard() {
                               <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--navy)', marginBottom: '4px' }}>{s.title}</div>
                               <div style={{ fontSize: '16px', color: 'var(--text-muted)' }}>{dateStr}</div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <span style={{ fontSize: '16px', color: 'var(--text-muted)' }}>{s.participants?.length ?? 0}명 참여</span>
+                              {isSuperAdmin && (
+                                <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); remove(s.id, s.title); }}>삭제</button>
+                              )}
                               <span style={{ color: 'var(--primary)' }}>&rarr;</span>
                             </div>
                           </div>
