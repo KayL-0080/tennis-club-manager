@@ -19,6 +19,7 @@ export default function SettingsTab({
   members, participants, setParticipants,
   rounds, setRounds, courts, setCourts,
   mensDoublesCount, setMensDoublesCount,
+  womensDoublesCount, setWomensDoublesCount,
   mixedCount, setMixedCount,
   jointCount, setJointCount,
   startTime, setStartTime, endTime, setEndTime,
@@ -147,7 +148,7 @@ export default function SettingsTab({
     setTimeout(() => {
       const validGroups = groups.filter(g => g.memberIds.every(id => entries.some(p => p.id === id)));
       const activeGroups = enableConditions ? validGroups.map(g => ({ memberIds: g.memberIds, count: g.count })) : [];
-      const opts = { groups: activeGroups, mensDoublesCount, mixedCount, jointCount, noFF: true };
+      const opts = { groups: activeGroups, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, noFF: true };
       const { result, attempts, failReasons } = generateSchedule(entries, rounds, courts, opts, 2500, 3000);
       setGenerating(false);
       setStatus(`시도 ${attempts}회 완료`);
@@ -155,11 +156,12 @@ export default function SettingsTab({
         const KoreanReasons = {
           group_need_exhausted: "• 특별 조건 멤버의 목표 게임수 부족 (특별 조건 멤버들의 '목표 게임수'가 조건에 설정된 게임수보다 작음)",
           mens_not_enough_males: "• 남성 참가자 부족 (남식 복식을 위한 남성 회원 또는 남성 회원의 잔여 목표 게임수가 부족함)",
+          womens_not_enough_females: "• 여성 참가자 부족 (여성 복식을 위한 여성 회원 또는 여성 회원의 잔여 목표 게임수가 부족함)",
           mixed_not_enough_females: "• 여성 참가자 부족 (혼식 복식에 배정할 여성 회원 또는 여성 회원의 잔여 목표 게임수가 부족함)",
           mixed_not_enough_males: "• 남성 참가자 부족 (혼식 복식에 배정할 남성 회원 또는 남성 회원의 잔여 목표 게임수가 부족함)",
           joint_not_enough_players: "• 잡복 대기 참가자 부족 (잡식 복식을 채우기 위한 잔여 목표 게임수가 있는 참가자가 부족함)",
           joint_pick_null: "• 잡복 구성 불가능 (잡식 복식 조건을 맞추어 4인을 구성할 수 없습니다. 성비 또는 목표 게임수를 조절해주세요)",
-          freeCount_negative: "• 특별/남복/혼복/잡복 조건 초과 (설정된 게임 수의 합이 총 경기 수(라운드×코트)보다 많음)",
+          freeCount_negative: "• 특별/남복/여복/혼복/잡복 조건 초과 (설정된 게임 수의 합이 총 경기 수(라운드×코트)보다 많음)",
           free_avail_lt_4: "• 대기 인원 부족 (남은 경기를 채울 대기 참가자가 4명 미만임. 참가자를 추가하거나 목표 게임수를 넓혀주세요)",
           free_pick_null: "• 성비 불균형 (남녀 참가자 비율 또는 특정 성별의 목표 게임수가 한쪽으로 너무 치우침)",
           leftover_need: "• 목표 게임수 불일치 (참가자들의 목표 게임수 합계가 '라운드 × 코트 × 4'와 완벽히 맞물리지 않음)",
@@ -198,7 +200,7 @@ export default function SettingsTab({
     .filter(m => !isParticipant(m.id))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const sumMatches = (mensDoublesCount || 0) + (mixedCount || 0) + (jointCount || 0);
+  const sumMatches = (mensDoublesCount || 0) + (womensDoublesCount || 0) + (mixedCount || 0) + (jointCount || 0);
   const requiredMatches = rounds * courts;
   const isMatchSumOk = sumMatches <= requiredMatches;
 
@@ -272,6 +274,12 @@ export default function SettingsTab({
             </select>
           </div>
           <div className="form-group">
+            <label className="form-label">여복 게임 수</label>
+            <select className="input input-sm" value={womensDoublesCount} onChange={e => setWomensDoublesCount(parseInt(e.target.value) || 0)} style={{ width: 90 }}>
+              {numOptions(0, 20)}
+            </select>
+          </div>
+          <div className="form-group">
             <label className="form-label">혼복 게임 수</label>
             <select className="input input-sm" value={mixedCount} onChange={e => setMixedCount(parseInt(e.target.value) || 0)} style={{ width: 90 }}>
               {numOptions(0, 20)}
@@ -297,7 +305,7 @@ export default function SettingsTab({
         <div style={{ marginTop: 12, fontSize: '15px', color: isMatchSumOk ? 'var(--primary)' : 'var(--danger)', fontWeight: 'bold' }}>
           {isMatchSumOk 
             ? (sumMatches < requiredMatches ? `✓ 세부 게임(${sumMatches}) 외 남은 ${requiredMatches - sumMatches}게임은 성별 무관(잡복)으로 자동 배정됩니다.` : '✓ 세부 게임 수 합계가 총 경기 수와 일치합니다.')
-            : `✗ 남복(${mensDoublesCount || 0}) + 혼복(${mixedCount || 0}) + 잡복(${jointCount || 0}) 합계(${sumMatches})가 총 경기 수(${requiredMatches} = 라운드×코트)보다 클 수 없습니다.`}
+            : `✗ 남복(${mensDoublesCount || 0}) + 여복(${womensDoublesCount || 0}) + 혼복(${mixedCount || 0}) + 잡복(${jointCount || 0}) 합계(${sumMatches})가 총 경기 수(${requiredMatches} = 라운드×코트)보다 클 수 없습니다.`}
         </div>
       </div>
 

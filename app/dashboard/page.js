@@ -29,6 +29,7 @@ export default function Dashboard() {
   const [rounds, setRounds] = useState(6);
   const [courts, setCourts] = useState(2);
   const [mensDoublesCount, setMensDoublesCount] = useState(0);
+  const [womensDoublesCount, setWomensDoublesCount] = useState(0);
   const [mixedCount, setMixedCount] = useState(0);
   const [jointCount, setJointCount] = useState(0);
   const [startTime, setStartTime] = useState('09:00');
@@ -90,6 +91,7 @@ export default function Dashboard() {
         rounds,
         courts,
         mensDoublesCount,
+        womensDoublesCount,
         mixedCount,
         jointCount,
         startTime,
@@ -149,6 +151,7 @@ export default function Dashboard() {
         rounds,
         courts,
         mensDoublesCount,
+        womensDoublesCount,
         mixedCount,
         jointCount,
         startTime,
@@ -319,6 +322,7 @@ export default function Dashboard() {
               rounds={rounds} setRounds={setRounds}
               courts={courts} setCourts={setCourts}
               mensDoublesCount={mensDoublesCount} setMensDoublesCount={setMensDoublesCount}
+              womensDoublesCount={womensDoublesCount} setWomensDoublesCount={setWomensDoublesCount}
               mixedCount={mixedCount} setMixedCount={setMixedCount}
               jointCount={jointCount} setJointCount={setJointCount}
               startTime={startTime} setStartTime={setStartTime}
@@ -359,6 +363,7 @@ function ScheduleCard({ s, isAdmin, onOpen, onDelete }) {
         ) : (
           <span className="badge badge-gold">미생성</span>
         )}
+        {s.womensDoublesCount > 0 && <span className="badge badge-purple">여복 {s.womensDoublesCount}게임</span>}
         {s.mixedCount > 0 && <span className="badge badge-purple">혼복 {s.mixedCount}게임</span>}
       </div>
       {(s.startTime || s.endTime) && (

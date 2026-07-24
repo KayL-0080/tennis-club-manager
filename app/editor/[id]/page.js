@@ -36,6 +36,7 @@ export default function EditorPage({ params }) {
   const [rounds, setRounds] = useState(6);
   const [courts, setCourts] = useState(2);
   const [mensDoublesCount, setMensDoublesCount] = useState(0);
+  const [womensDoublesCount, setWomensDoublesCount] = useState(0);
   const [mixedCount, setMixedCount] = useState(0);
   const [jointCount, setJointCount] = useState(0);
   const [startTime, setStartTime] = useState('');
@@ -78,6 +79,7 @@ export default function EditorPage({ params }) {
         setRounds(data.rounds ?? 6);
         setCourts(data.courts ?? 2);
         setMensDoublesCount(data.mensDoublesCount ?? 0);
+        setWomensDoublesCount(data.womensDoublesCount ?? 0);
         setMixedCount(data.mixedCount ?? 0);
         setJointCount(data.jointCount ?? 0);
         setStartTime(data.startTime ?? '');
@@ -108,7 +110,7 @@ export default function EditorPage({ params }) {
     setSaving(true);
     const payload = {
       title, matchDate, participants, groups, rounds, courts,
-      mensDoublesCount, mixedCount, jointCount,
+      mensDoublesCount, womensDoublesCount, mixedCount, jointCount,
       startTime, endTime,
       schedule, scores,
       scheduleRounds_: scheduleRounds,
@@ -121,7 +123,7 @@ export default function EditorPage({ params }) {
       setSaveLabel('저장됨 ✓');
       setTimeout(() => setSaveLabel(''), 2000);
     } finally { setSaving(false); }
-  }, [id, currentClubId, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, mixedCount, jointCount, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history]);
+  }, [id, currentClubId, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history]);
 
   // participants에 있는 게스트를 members 배열에 임시로 포함시켜 하위 컴포넌트에 전달
   const extendedMembers = useMemo(() => {
