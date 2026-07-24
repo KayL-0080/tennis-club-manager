@@ -189,24 +189,15 @@ export default function BracketTab({
       {/* 도구 모음 */}
       <div className={`card ${styles.section} no-print`}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-          {isAdmin && (
-            <div className={styles.toolbarGroup} style={{ flex: '1 1 100%' }}>
-              <span className={styles.toolbarLabel}>구조 편집</span>
-              <div className={styles.uniformBtnRow}>
-                <button className="btn btn-secondary btn-sm" onClick={addRound}>+ 라운드 추가</button>
-                <button className="btn btn-secondary btn-sm" onClick={removeRound}>- 라운드 삭제</button>
-                <button className="btn btn-secondary btn-sm" onClick={addCourt}>+ 코트 추가</button>
-                <button className="btn btn-secondary btn-sm" onClick={removeCourt}>- 코트 삭제</button>
-                <button className="btn btn-danger btn-sm" onClick={deleteEntireBracket} style={{ marginLeft: 'auto' }}>🗑️ 대진표 전체 삭제</button>
-              </div>
-            </div>
-          )}
           <div className={styles.toolbarGroup} style={{ flex: '1 1 auto' }}>
             <span className={styles.toolbarLabel}>데이터 관리</span>
             <div className={styles.uniformBtnRow}>
               <button className="btn btn-primary btn-sm" onClick={async () => { await onSave(); alert('저장되었습니다.'); }}>💾 저장</button>
               {isAdmin && (
-                <button className="btn btn-secondary btn-sm" onClick={clearScores}>점수 초기화</button>
+                <>
+                  <button className="btn btn-secondary btn-sm" onClick={clearScores}>점수 초기화</button>
+                  <button className="btn btn-danger btn-sm" onClick={deleteEntireBracket} style={{ marginLeft: 'auto' }}>🗑️ 대진표 전체 삭제</button>
+                </>
               )}
             </div>
           </div>
@@ -292,6 +283,14 @@ export default function BracketTab({
             </tbody>
           </table>
         </div>
+        {isAdmin && (
+          <div className={`${styles.uniformBtnRow} no-print`} style={{ marginTop: 16, justifyContent: 'center' }}>
+            <button className="btn btn-secondary btn-sm" onClick={addRound}>+ 라운드 추가</button>
+            <button className="btn btn-secondary btn-sm" onClick={removeRound}>- 라운드 삭제</button>
+            <button className="btn btn-secondary btn-sm" onClick={addCourt}>+ 코트 추가</button>
+            <button className="btn btn-secondary btn-sm" onClick={removeCourt}>- 코트 삭제</button>
+          </div>
+        )}
       </div>
 
       {/* 검증 요약 */}
