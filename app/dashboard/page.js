@@ -363,6 +363,7 @@ function ScheduleCard({ s, isAdmin, onOpen, onDelete }) {
         ) : (
           <span className="badge badge-gold">미생성</span>
         )}
+        {s.mensDoublesCount > 0 && <span className="badge badge-blue">남복 {s.mensDoublesCount}게임</span>}
         {s.womensDoublesCount > 0 && <span className="badge badge-purple">여복 {s.womensDoublesCount}게임</span>}
         {s.mixedCount > 0 && <span className="badge badge-purple">혼복 {s.mixedCount}게임</span>}
       </div>
