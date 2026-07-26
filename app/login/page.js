@@ -100,32 +100,56 @@ export default function AuthPage() {
 
       {/* 메인 컨텐츠 */}
       <main className={styles.mainContent}>
-        {/* 좌측 히어로 텍스트 및 기능 설명 */}
-        <div className={styles.heroText}>
+        {/* 상단 히어로 섹션 */}
+        <section className={styles.heroSection}>
           <span className={styles.heroFlag}>🏆</span>
           <div className={styles.heroLabel}>Tennis Club Management Platform</div>
-          <h2 className={styles.heroTitle}>스마트한 클럽 운영의 시작</h2>
+          <h2 className={styles.heroTitle}>Tennis Club Manager</h2>
           <p className={styles.heroDesc}>
-            모임 일정부터 참석 투표, 그리고 대진표까지. 복잡한 클럽 관리를 하나의 플랫폼에서 손쉽게 해결하세요. 누구나 클럽을 개설하고 효율적으로 운영할 수 있습니다.
+            모임 일정부터 참석 투표, 복잡한 대진표 자동 매칭까지.<br/>
+            클럽 관리를 하나의 플랫폼에서 손쉽게 자동화하세요.
           </p>
-          <div className={styles.featureList}>
-            <div className={styles.featureItem}>
-              <span className={styles.featureIcon}>🏟️</span>
-              <span><strong>무제한 클럽 생성 및 관리</strong> - 누구나 쉽게 클럽을 개설하고 회원을 초대할 수 있습니다.</span>
+        </section>
+
+        {/* 가이드 캐러셀 섹션 */}
+        <section className={styles.carouselSection}>
+          <div className={styles.carouselContainer}>
+            <div className={styles.carouselCard}>
+              <div className={styles.cardIcon}>📱</div>
+              <div className={styles.cardStep}>STEP 1. 시작하기</div>
+              <h3 className={styles.cardTitle}>클럽 개설 및 가입</h3>
+              <p className={styles.cardDesc}>누구나 쉽게 무료로 클럽을 만들고 관리할 수 있습니다. 검색을 통해 기존 모임에 간편하게 가입해보세요.</p>
+              <div><span className={styles.cardHighlight}>무제한 클럽 생성</span></div>
             </div>
-            <div className={styles.featureItem}>
-              <span className={styles.featureIcon}>🗓️</span>
-              <span><strong>편리한 모임 일정 및 참석 투표</strong> - 정기 모임 일정을 공유하고 회원들의 참석 여부를 빠르게 취합하세요.</span>
+            
+            <div className={styles.carouselCard}>
+              <div className={styles.cardIcon}>🎾</div>
+              <div className={styles.cardStep}>STEP 2. 대진표</div>
+              <h3 className={styles.cardTitle}>자동 대진표 매칭</h3>
+              <p className={styles.cardDesc}>참가 인원, 코트 수, 종목을 입력하면 실력 밸런스를 맞추고 파트너 중복을 최소화한 최적의 대진표가 완성됩니다.</p>
+              <div><span className={styles.cardHighlight}>목표 게임수 균등배분 기능</span></div>
             </div>
-            <div className={styles.featureItem}>
-              <span className={styles.featureIcon}>🎾</span>
-              <span><strong>자동화된 대진표 생성 시스템</strong> - 참석자 명단을 바탕으로 밸런스를 고려한 대진표를 터치 한 번에 자동 생성합니다.</span>
+
+            <div className={styles.carouselCard}>
+              <div className={styles.cardIcon}>📊</div>
+              <div className={styles.cardStep}>STEP 3. 결과 기록</div>
+              <h3 className={styles.cardTitle}>실시간 점수 및 순위표</h3>
+              <p className={styles.cardDesc}>대진표에 경기 결과를 입력하면 실시간으로 순위표가 업데이트됩니다. 승점과 득실차를 기반으로 클럽 랭킹을 관리하세요.</p>
+              <div><span className={styles.cardHighlight}>누적 랭킹 시스템</span></div>
+            </div>
+
+            <div className={styles.carouselCard}>
+              <div className={styles.cardIcon}>🗓️</div>
+              <div className={styles.cardStep}>STEP 4. 일정 관리</div>
+              <h3 className={styles.cardTitle}>원클릭 참석 투표</h3>
+              <p className={styles.cardDesc}>모임 일정을 등록하고 회원들의 참석 여부를 빠르게 취합하여 참석자 기반 대진표 작성의 번거로움을 줄입니다.</p>
+              <div><span className={styles.cardHighlight}>스마트 일정 공유</span></div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* 우측 로그인/회원가입 폼 */}
-        <div className={styles.authContainer} id="auth-section">
+        {/* 하단 로그인/회원가입 폼 */}
+        <section className={styles.authSection} id="auth-section">
           <div className={`card ${styles.authCard}`}>
             <div className={styles.tabs}>
               <button
@@ -219,7 +243,7 @@ export default function AuthPage() {
               Tennis Club Manager — 스마트한 테니스 모임 관리
             </p>
           </div>
-        </div>
+        </section>
       </main>
     </div>
   );
