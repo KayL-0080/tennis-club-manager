@@ -86,7 +86,7 @@ export default function AuthPage() {
           <div className={styles.headerIcon}>🎾</div>
           <h1 className={styles.headerTitle}>Tennis Club Manager</h1>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div className={styles.headerActions}>
           <button className="btn btn-secondary btn-sm" onClick={() => router.push('/guide')}>
             서비스 소개 및 가이드
           </button>
