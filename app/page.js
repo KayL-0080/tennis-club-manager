@@ -186,7 +186,13 @@ export default function Home() {
                   }}
                 >
                   <div className={styles.schedTop}>
-                    <div className={styles.schedIcon}>🏟️</div>
+                    <div className={styles.schedIcon} style={{ padding: 0, overflow: 'hidden', background: 'transparent' }}>
+                      <img 
+                        src={club.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(club.name)}&background=random&color=fff&size=128`} 
+                        alt={club.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
                     <div className={styles.schedInfo}>
                       <h2 className={styles.schedTitle}>{club.name}</h2>
                       <p className={styles.schedMeta}>
@@ -231,7 +237,13 @@ export default function Home() {
                 return (
                   <div key={club.id} className={styles.schedCard} style={{ opacity: isPending ? 0.7 : 1 }}>
                     <div className={styles.schedTop}>
-                      <div className={styles.schedIcon}>🎾</div>
+                      <div className={styles.schedIcon} style={{ padding: 0, overflow: 'hidden', background: 'transparent' }}>
+                        <img 
+                          src={club.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(club.name)}&background=random&color=fff&size=128`} 
+                          alt={club.name}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </div>
                       <div className={styles.schedInfo}>
                         <h2 className={styles.schedTitle}>{club.name}</h2>
                         {club.description && (

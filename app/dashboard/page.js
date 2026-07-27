@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSchedules, createSchedule, deleteSchedule, getMembers, getEvents, updateClub } from '@/lib/firestore';
+import { getSchedules, createSchedule, deleteSchedule, getMembers, getEvents, updateClub, uploadClubImage } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import SettingsTab from '@/components/tabs/SettingsTab';
 import styles from './dashboard.module.css';
@@ -20,6 +20,54 @@ export default function Dashboard() {
   const [fetching, setFetching] = useState(true);
   const [creating, setCreating] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
+
+  // Club Settings Modal State
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [editClubName, setEditClubName] = useState('');
+  const [editClubDesc, setEditClubDesc] = useState('');
+  const [editClubImageFile, setEditClubImageFile] = useState(null);
+  const [editClubImageUrl, setEditClubImageUrl] = useState('');
+  const [updatingClub, setUpdatingClub] = useState(false);
+
+  const openSettingsModal = () => {
+    setEditClubName(currentClub?.name || '');
+    setEditClubDesc(currentClub?.description || '');
+    setEditClubImageUrl(currentClub?.imageUrl || '');
+    setEditClubImageFile(null);
+    setShowSettingsModal(true);
+  };
+
+  const handleUpdateClub = async (e) => {
+    e.preventDefault();
+    if (!isAdmin || !currentClub) return;
+    setUpdatingClub(true);
+    try {
+      let finalImageUrl = editClubImageUrl;
+      if (editClubImageFile) {
+        try {
+          finalImageUrl = await uploadClubImage(currentClubId, editClubImageFile);
+        } catch (uploadErr) {
+          console.warn('Storage upload failed, falling back to manual URL if provided', uploadErr);
+          if (!editClubImageUrl) throw uploadErr; // if no fallback url, throw
+        }
+      }
+      
+      const payload = { 
+        name: editClubName.trim(), 
+        description: editClubDesc.trim(),
+      };
+      if (finalImageUrl) payload.imageUrl = finalImageUrl;
+
+      await updateClub(currentClubId, payload);
+      setClubs(prev => prev.map(c => c.id === currentClubId ? { ...c, ...payload } : c));
+      setShowSettingsModal(false);
+    } catch (err) {
+      console.error(err);
+      alert('업데이트 실패: ' + err.message);
+    } finally {
+      setUpdatingClub(false);
+    }
+  };
 
   // Settings state
   const defaultDate = new Date().toLocaleDateString('en-CA');
@@ -123,19 +171,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleRenameClub = async () => {
-    if (!isAdmin || !currentClub) return;
-    const newName = prompt('새 클럽 이름을 입력하세요:', currentClub.name);
-    if (newName && newName.trim() !== '' && newName !== currentClub.name) {
-      try {
-        await updateClub(currentClubId, { name: newName.trim() });
-        setClubs(prev => prev.map(c => c.id === currentClubId ? { ...c, name: newName.trim() } : c));
-      } catch (err) {
-        console.error(err);
-        alert('이름 변경에 실패했습니다.');
-      }
-    }
-  };
+
 
   const handleScheduleManual = async (schedRounds) => {
     setCreating(true);
@@ -220,11 +256,11 @@ export default function Dashboard() {
               {isAdmin && (
                 <button 
                   className="btn btn-secondary btn-sm" 
-                  style={{ padding: '2px 8px', fontSize: '16px' }} 
-                  onClick={handleRenameClub}
-                  title="클럽 이름 변경"
+                  style={{ padding: '2px 8px', fontSize: '14px' }} 
+                  onClick={openSettingsModal}
+                  title="클럽 설정"
                 >
-                  ✏️
+                  ⚙️ 설정
                 </button>
               )}
             </h1>
@@ -380,6 +416,63 @@ function ScheduleCard({ s, isAdmin, onOpen, onDelete }) {
         <button className="btn btn-secondary" onClick={(e) => { e.stopPropagation(); onOpen(); }}>기록/입력</button>
         {isAdmin && <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); onDelete(); }}>삭제</button>}
       </div>
+      {/* 클럽 설정 모달 */}
+      {showSettingsModal && (
+        <div className="modal-overlay" onClick={() => setShowSettingsModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', width: '100%' }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: '800', marginBottom: '16px', color: 'var(--txt)' }}>⚙️ 클럽 설정</h2>
+            <form onSubmit={handleUpdateClub}>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '700', marginBottom: '8px', color: 'var(--txt2)' }}>클럽 이름</label>
+                <input 
+                  className="input" 
+                  value={editClubName} 
+                  onChange={e => setEditClubName(e.target.value)} 
+                  required
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '700', marginBottom: '8px', color: 'var(--txt2)' }}>클럽 설명</label>
+                <input 
+                  className="input" 
+                  value={editClubDesc} 
+                  onChange={e => setEditClubDesc(e.target.value)} 
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '700', marginBottom: '8px', color: 'var(--txt2)' }}>대표 이미지</label>
+                <input 
+                  type="file"
+                  accept="image/*"
+                  className="input" 
+                  style={{ padding: '8px', marginBottom: '8px', fontSize: '0.85rem' }}
+                  onChange={e => {
+                    if (e.target.files && e.target.files[0]) {
+                      setEditClubImageFile(e.target.files[0]);
+                    }
+                  }} 
+                />
+                <input 
+                  className="input" 
+                  placeholder="또는 이미지 URL을 직접 입력하세요" 
+                  value={editClubImageUrl} 
+                  onChange={e => setEditClubImageUrl(e.target.value)} 
+                  disabled={!!editClubImageFile}
+                />
+                <p style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginTop: '6px' }}>
+                  * 파일을 업로드하거나 웹 이미지 주소를 직접 붙여넣을 수 있습니다.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowSettingsModal(false)}>취소</button>
+                <button type="submit" className="btn btn-primary" disabled={updatingClub || !editClubName.trim()}>
+                  {updatingClub ? '저장 중...' : '저장하기'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
