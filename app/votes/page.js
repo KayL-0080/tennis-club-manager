@@ -229,6 +229,20 @@ export default function VotesPage() {
   const todayStr = new Date().toLocaleDateString('en-CA');
   const upcomingEvents = events.filter(e => e.date >= todayStr && !e.isCancelled);
 
+  const getPastelColorByDay = (dateStr) => {
+    const day = new Date(dateStr).getDay();
+    const colors = [
+      '#fff0f5', // 일 - 파스텔 핑크/레드
+      '#fff5e6', // 월 - 파스텔 오렌지
+      '#ffffe6', // 화 - 파스텔 옐로우
+      '#f0fff0', // 수 - 파스텔 그린
+      '#f0f8ff', // 목 - 파스텔 블루
+      '#e6e6fa', // 금 - 파스텔 라벤더(인디고)
+      '#f5f0ff', // 토 - 파스텔 바이올렛
+    ];
+    return colors[day];
+  };
+
   return (
     <div className={styles.page}>
       <Navbar />
@@ -260,7 +274,20 @@ export default function VotesPage() {
             {upcomingEvents.map(e => {
               const attCount = Object.values(e.attendees || {}).filter(v => v === 'Y').length;
               return (
-                <div key={e.id} className={`card ${styles.schedCard}`} onClick={() => openModal(e)}>
+                <div 
+                  key={e.id} 
+                  className={`card ${styles.schedCard}`} 
+                  style={{ backgroundColor: getPastelColorByDay(e.date), transition: 'transform 0.15s, box-shadow 0.15s' }}
+                  onClick={() => openModal(e)}
+                  onMouseOver={(ev) => {
+                    ev.currentTarget.style.transform = 'translateY(-2px)';
+                    ev.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)';
+                  }}
+                  onMouseOut={(ev) => {
+                    ev.currentTarget.style.transform = 'none';
+                    ev.currentTarget.style.boxShadow = 'var(--shadow)';
+                  }}
+                >
                   <div className={styles.schedTop}>
                     <div className={styles.schedIcon}>🗓️</div>
                     <div className={styles.schedInfo}>
