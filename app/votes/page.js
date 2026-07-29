@@ -243,6 +243,16 @@ export default function VotesPage() {
     return colors[day];
   };
 
+  const getDeadline = (dateStr) => {
+    const d = new Date(dateStr + 'T18:00:00');
+    d.setDate(d.getDate() - 1);
+    return d;
+  };
+
+  const isVotingClosed = (dateStr) => {
+    return new Date() > getDeadline(dateStr);
+  };
+
   return (
     <div className={styles.page}>
       <Navbar />
@@ -273,6 +283,8 @@ export default function VotesPage() {
           <div className={styles.grid}>
             {upcomingEvents.map(e => {
               const attCount = Object.values(e.attendees || {}).filter(v => v === 'Y').length;
+              const deadline = getDeadline(e.date);
+              const closed = isVotingClosed(e.date);
               return (
                 <div 
                   key={e.id} 
@@ -299,8 +311,13 @@ export default function VotesPage() {
                     ⏰ {e.startTime} ~ {e.endTime} <br/>
                     📍 {e.location}
                   </div>
-                  <div style={{ marginTop: '12px', fontSize: '16px', fontWeight: 'bold', color: 'var(--primary)' }}>
-                    참석 인원: {attCount}명
+                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--primary)' }}>
+                      참석 인원: {attCount}명
+                    </div>
+                    <div style={{ fontSize: '12px', color: closed ? '#e53e3e' : 'var(--text-muted)' }}>
+                      {closed ? '투표 마감됨' : `마감: ${deadline.getMonth() + 1}/${deadline.getDate()} 18:00`}
+                    </div>
                   </div>
                 </div>
               );
@@ -499,28 +516,37 @@ export default function VotesPage() {
                   </button>
                 </div>
 
-                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>투표 명단</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>투표 명단</h3>
+                  <div style={{ fontSize: '13px', color: isVotingClosed(selectedEvent.date) ? '#e53e3e' : 'var(--text-muted)', fontWeight: 'bold' }}>
+                    {isVotingClosed(selectedEvent.date) ? '투표가 마감되었습니다.' : `마감: ${getDeadline(selectedEvent.date).getMonth() + 1}/${getDeadline(selectedEvent.date).getDate()} 18:00`}
+                  </div>
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {members.map(m => {
                     const status = selectedEvent.attendees?.[m.id] || '?';
+                    const closed = isVotingClosed(selectedEvent.date);
                     return (
-                      <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', gap: '8px' }}>
+                      <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', gap: '8px', opacity: closed ? 0.7 : 1 }}>
                         <span style={{ fontWeight: '500', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
                         <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                           <button 
                             className={`btn btn-sm ${status === 'Y' ? 'btn-primary' : 'btn-secondary'}`}
                             style={{ opacity: status === 'Y' ? 1 : 0.6 }}
-                            onClick={() => handleToggleAttendance(m.id, 'Y')}
+                            onClick={() => !closed && handleToggleAttendance(m.id, 'Y')}
+                            disabled={closed}
                           >참석</button>
                           <button 
                             className={`btn btn-sm ${status === 'N' ? 'btn-danger' : 'btn-secondary'}`}
                             style={{ opacity: status === 'N' ? 1 : 0.6 }}
-                            onClick={() => handleToggleAttendance(m.id, 'N')}
+                            onClick={() => !closed && handleToggleAttendance(m.id, 'N')}
+                            disabled={closed}
                           >불참</button>
                           <button 
                             className={`btn btn-sm ${status === '?' ? '' : 'btn-secondary'}`}
                             style={{ opacity: status === '?' ? 1 : 0.6, background: status === '?' ? '#e2e8f0' : undefined, color: status === '?' ? '#1e293b' : undefined }}
-                            onClick={() => handleToggleAttendance(m.id, '?')}
+                            onClick={() => !closed && handleToggleAttendance(m.id, '?')}
+                            disabled={closed}
                           >미정</button>
                         </div>
                       </div>
