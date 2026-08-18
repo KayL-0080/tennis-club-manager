@@ -151,7 +151,7 @@ export default function StatsPage() {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px dashed var(--border)', padding: '16px 20px', paddingBottom: '16px' }}>
             <h2 style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--txt)', margin: 0 }}>전체 순위 및 참여 현황</h2>
-            <span style={{ fontSize: '0.72rem', color: 'var(--txt3)', fontWeight: '600' }}>(승점 기준 : 승 3점, 무 1점, 패 -3점)</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--txt3)', fontWeight: '600' }}>(승점 기준 : 평균포인트(승3, 무2, 패1) + 출전가산점(일당 0.5))</span>
           </div>
           {globalStandings.length === 0 ? (
             <p style={{ color: 'var(--txt3)', fontSize: '0.88rem', textAlign: 'center', padding: '20px 0', fontWeight: '600' }}>해당 기간에 기록된 데이터가 없습니다.</p>
