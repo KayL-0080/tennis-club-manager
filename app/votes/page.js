@@ -17,6 +17,15 @@ export default function VotesPage() {
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
 
+  // Overall Status State
+  const [showVoters, setShowVoters] = useState(false);
+  const [showNonVoters, setShowNonVoters] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toLocaleDateString('en-CA').substring(0, 7));
+
+  // Reminder Modal State
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderText, setReminderText] = useState('');
+
   // Settings & Creation states
   const [clubMeetings, setClubMeetings] = useState([]);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -99,15 +108,33 @@ export default function VotesPage() {
 
   const handleToggleAttendance = async (memberId, status) => {
     if (!selectedEvent) return;
+    
+    const currentStatus = selectedEvent.attendees?.[memberId];
+    if (currentStatus === status) return; // No change
+
+    const isInitialVote = currentStatus === undefined;
+    const prevChanges = selectedEvent.voteChanges?.[memberId] || 0;
+
+    if (!isAdmin && !isInitialVote && prevChanges >= 1) {
+      alert('일반 사용자는 최초 투표 이후 1회만 변경 가능합니다.');
+      return;
+    }
+
     const newAttendees = { ...(selectedEvent.attendees || {}) };
     newAttendees[memberId] = status;
-    setSelectedEvent({ ...selectedEvent, attendees: newAttendees });
+
+    const newVoteChanges = { ...(selectedEvent.voteChanges || {}) };
+    if (!isInitialVote) {
+      newVoteChanges[memberId] = prevChanges + 1;
+    }
+
+    setSelectedEvent({ ...selectedEvent, attendees: newAttendees, voteChanges: newVoteChanges });
     
     // Optimistically update list
-    setEvents(prev => prev.map(e => e.id === selectedEvent.id ? { ...e, attendees: newAttendees } : e));
+    setEvents(prev => prev.map(e => e.id === selectedEvent.id ? { ...e, attendees: newAttendees, voteChanges: newVoteChanges } : e));
     
     // Save to DB
-    await updateEventAttendees(currentClubId, selectedEvent.id, newAttendees);
+    await updateEvent(currentClubId, selectedEvent.id, { attendees: newAttendees, voteChanges: newVoteChanges });
   };
 
   const saveEdit = async () => {
@@ -227,7 +254,26 @@ export default function VotesPage() {
   }
 
   const todayStr = new Date().toLocaleDateString('en-CA');
-  const upcomingEvents = events.filter(e => e.date >= todayStr && !e.isCancelled);
+  const currentMonthStr = todayStr.substring(0, 7);
+  
+  const upcomingEvents = events.filter(e => e.date.substring(0, 7) >= currentMonthStr && !e.isCancelled);
+
+  const availableMonths = [...new Set(upcomingEvents.map(e => e.date.substring(0, 7)))].sort();
+  let displayEvents = selectedMonth === 'ALL' 
+    ? [...upcomingEvents] 
+    : upcomingEvents.filter(e => e.date.startsWith(selectedMonth));
+
+  displayEvents = displayEvents.sort((a, b) => {
+    const isAPast = a.date < todayStr;
+    const isBPast = b.date < todayStr;
+    if (isAPast && !isBPast) return 1;
+    if (!isAPast && isBPast) return -1;
+    if (!isAPast && !isBPast) {
+      return a.date.localeCompare(b.date);
+    } else {
+      return b.date.localeCompare(a.date);
+    }
+  });
 
   const getPastelColorByDay = (dateStr) => {
     const day = new Date(dateStr).getDay();
@@ -261,6 +307,9 @@ export default function VotesPage() {
           <div>
             <h1 className={styles.title}>🗓️ 참석 투표</h1>
             <p className={styles.sub}>다가오는 정기 모임 일정을 확인하고 참석 여부를 투표하세요</p>
+            <p style={{ color: '#e53e3e', fontSize: '14px', marginTop: '8px', fontWeight: 'bold' }}>
+              ※ 일반 사용자는 최초 투표 이후 1회 추가 변경만 가능합니다.
+            </p>
           </div>
           {isAdmin && (
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -280,49 +329,132 @@ export default function VotesPage() {
         {fetching ? (
           <div className={styles.center}><span className="spinner" /></div>
         ) : (
-          <div className={styles.grid}>
-            {upcomingEvents.map(e => {
-              const attCount = Object.values(e.attendees || {}).filter(v => v === 'Y').length;
-              const deadline = getDeadline(e.date);
-              const closed = isVotingClosed(e.date);
-              return (
-                <div 
-                  key={e.id} 
-                  className={`card ${styles.schedCard}`} 
-                  style={{ backgroundColor: getPastelColorByDay(e.date), transition: 'transform 0.15s, box-shadow 0.15s' }}
-                  onClick={() => openModal(e)}
-                  onMouseOver={(ev) => {
-                    ev.currentTarget.style.transform = 'translateY(-2px)';
-                    ev.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)';
-                  }}
-                  onMouseOut={(ev) => {
-                    ev.currentTarget.style.transform = 'none';
-                    ev.currentTarget.style.boxShadow = 'var(--shadow)';
-                  }}
-                >
-                  <div className={styles.schedTop}>
-                    <div className={styles.schedIcon}>🗓️</div>
-                    <div className={styles.schedInfo}>
-                      <h2 className={styles.schedTitle}>{e.title}</h2>
-                      <p className={styles.schedDate}>{e.date} ({new Date(e.date).toLocaleDateString('ko-KR', { weekday: 'short' })})</p>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '15px', color: 'var(--text-muted)' }}>
-                    ⏰ {e.startTime} ~ {e.endTime} <br/>
-                    📍 {e.location}
-                  </div>
-                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--primary)' }}>
-                      참석 인원: {attCount}명
-                    </div>
-                    <div style={{ fontSize: '12px', color: closed ? '#e53e3e' : 'var(--text-muted)' }}>
-                      {closed ? '투표 마감됨' : `마감: ${deadline.getMonth() + 1}/${deadline.getDate()} 18:00`}
-                    </div>
+          <>
+            {!fetching && displayEvents.length > 0 && (
+              <div className="card" style={{ marginBottom: '24px', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                  <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--navy)', margin: 0 }}>
+                    📊 {selectedMonth === 'ALL' ? '전체' : `${selectedMonth.split('-')[1]}월`} 일정 투표 현황
+                  </h2>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <select 
+                      className="input" 
+                      style={{ width: 'auto', padding: '4px 8px', height: 'auto', fontSize: '14px' }} 
+                      value={selectedMonth} 
+                      onChange={e => setSelectedMonth(e.target.value)}
+                    >
+                      <option value="ALL">전체 보기</option>
+                      {availableMonths.map(m => <option key={m} value={m}>{m.split('-')[0]}년 {m.split('-')[1]}월</option>)}
+                    </select>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+                {(() => {
+                  const voters = [];
+                  const nonVoters = [];
+                  members.forEach(m => {
+                    const hasVoted = displayEvents.some(e => e.attendees?.[m.id] === 'Y' || e.attendees?.[m.id] === 'N');
+                    if (hasVoted) voters.push(m);
+                    else nonVoters.push(m);
+                  });
+
+                  return (
+                    <>
+                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                        <div 
+                          style={{ flex: 1, padding: '12px', background: 'var(--bg)', borderRadius: '8px', cursor: 'pointer', border: showVoters ? '2px solid var(--primary)' : '1px solid var(--border)' }}
+                          onClick={() => { setShowVoters(!showVoters); setShowNonVoters(false); }}
+                        >
+                          <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>투표참여자</div>
+                          <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--primary)' }}>{voters.length}명</div>
+                        </div>
+                        <div 
+                          style={{ flex: 1, padding: '12px', background: 'var(--bg)', borderRadius: '8px', cursor: 'pointer', border: showNonVoters ? '2px solid var(--danger)' : '1px solid var(--border)' }}
+                          onClick={() => { setShowNonVoters(!showNonVoters); setShowVoters(false); }}
+                        >
+                          <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>투표미참여자</div>
+                          <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--danger)' }}>{nonVoters.length}명</div>
+                        </div>
+                      </div>
+                      
+                      {showVoters && (
+                        <div style={{ padding: '12px', background: 'var(--bg)', borderRadius: '8px', fontSize: '14px', marginBottom: '12px' }}>
+                          <strong style={{ display: 'block', marginBottom: '8px' }}>참여자 명단 ({voters.length}명)</strong>
+                          {voters.length > 0 ? voters.map(m => m.name).join(', ') : '없음'}
+                        </div>
+                      )}
+                      
+                      {showNonVoters && (
+                        <div style={{ padding: '12px', background: 'var(--bg)', borderRadius: '8px', fontSize: '14px', marginBottom: '12px' }}>
+                          <strong style={{ display: 'block', marginBottom: '8px' }}>미참여자 명단 ({nonVoters.length}명)</strong>
+                          {nonVoters.length > 0 ? nonVoters.map(m => m.name).join(', ') : '없음'}
+                        </div>
+                      )}
+
+                      {isAdmin && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <button className="btn btn-primary btn-sm" onClick={() => {
+                            const linkUrl = typeof window !== 'undefined' ? window.location.origin + '/votes' : '';
+                            const text = `[투표 참여 안내]\n현재 게시된 모임 일정에 한 번도 투표하지 않으신 분들이 있습니다!\n\n미투표자: ${nonVoters.map(m=>m.name).join(', ')}\n\n매니저 앱에 접속하셔서 다가오는 일정들에 대한 참석 여부를 꼭 투표해 주세요!\n\n🔗 접속 링크: ${linkUrl}`;
+                            setReminderText(text);
+                            setShowReminderModal(true);
+                          }}>
+                            💬 투표 독려 메시지 만들기
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+            <div className={styles.grid}>
+              {displayEvents.map(e => {
+                const attCount = Object.values(e.attendees || {}).filter(v => v === 'Y').length;
+                const absCount = Object.values(e.attendees || {}).filter(v => v === 'N').length;
+                const unkCount = members.length - attCount - absCount;
+                const deadline = getDeadline(e.date);
+                const closed = isVotingClosed(e.date);
+                return (
+                  <div 
+                    key={e.id} 
+                    className={`card ${styles.schedCard}`} 
+                    style={{ backgroundColor: getPastelColorByDay(e.date), transition: 'transform 0.15s, box-shadow 0.15s' }}
+                    onClick={() => openModal(e)}
+                    onMouseOver={(ev) => {
+                      ev.currentTarget.style.transform = 'translateY(-2px)';
+                      ev.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)';
+                    }}
+                    onMouseOut={(ev) => {
+                      ev.currentTarget.style.transform = 'none';
+                      ev.currentTarget.style.boxShadow = 'var(--shadow)';
+                    }}
+                  >
+                    <div className={styles.schedTop}>
+                      <div className={styles.schedIcon}>🗓️</div>
+                      <div className={styles.schedInfo}>
+                        <h2 className={styles.schedTitle}>{e.title}</h2>
+                        <p className={styles.schedDate}>{e.date} ({new Date(e.date).toLocaleDateString('ko-KR', { weekday: 'short' })})</p>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '15px', color: 'var(--text-muted)' }}>
+                      ⏰ {e.startTime} ~ {e.endTime} <br/>
+                      📍 {e.location}
+                    </div>
+                    <div style={{ marginTop: '12px', fontSize: '14px', display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>참석: {attCount}명</span>
+                        <span style={{ color: 'var(--danger, #ff4d4f)' }}>불참: {absCount}명</span>
+                        <span style={{ color: 'var(--text-muted)' }}>미정: {unkCount}명</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: closed ? '#e53e3e' : 'var(--text-muted)' }}>
+                        {closed ? '투표 마감됨' : `마감: ${deadline.getMonth() + 1}/${deadline.getDate()} 18:00`}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
       </main>
@@ -563,6 +695,29 @@ export default function VotesPage() {
           </div>
         </div>
       )}
+    {/* 투표 독려 메시지 모달 */}
+    {showReminderModal && (
+      <div className="modal-overlay" onClick={() => setShowReminderModal(false)}>
+        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', width: '100%' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>💬 투표 독려 메시지 복사</h2>
+          <textarea 
+            className="input" 
+            style={{ width: '100%', height: '180px', marginBottom: '16px', resize: 'none', fontSize: '14px' }} 
+            value={reminderText} 
+            onChange={e => setReminderText(e.target.value)}
+          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowReminderModal(false)}>닫기</button>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => {
+              navigator.clipboard.writeText(reminderText)
+                .then(() => alert('메시지가 복사되었습니다. 카카오톡 단톡방 등에 붙여넣기 하세요!'))
+                .catch(() => alert('복사에 실패했습니다.'));
+            }}>복사하기</button>
+          </div>
+        </div>
+      </div>
+    )}
+
     </div>
   );
 }
