@@ -1,7 +1,7 @@
 // app/editor/[id]/page.js — 대진표 스코어 입력 뷰어
 'use client';
 import { useState, useEffect, useCallback, use, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getSchedule, updateSchedule,
@@ -21,6 +21,9 @@ export default function EditorPage({ params }) {
   const { id } = use(params);
   const { isAdmin, isSuperAdmin, loading, currentClubId, clubs } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryClubId = searchParams.get('club');
+  const activeClubId = queryClubId || currentClubId;
 
   const [fetching, setFetching] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,17 +58,15 @@ export default function EditorPage({ params }) {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      if (!currentClubId) return;
+      if (!activeClubId) return;
       try {
-        // Removed initDefaultMembers
-        
         let mbrs = [];
-        try { mbrs = await getMembers(currentClubId); } catch(e) { console.warn(e); }
+        try { mbrs = await getMembers(activeClubId); } catch(e) { console.warn(e); }
         setMembers(mbrs);
 
         // 대진표 문서
         let data = null;
-        try { data = await getSchedule(currentClubId, id); } catch(e) { console.warn(e); }
+        try { data = await getSchedule(activeClubId, id); } catch(e) { console.warn(e); }
         
         if (!data) { router.replace('/dashboard'); return; }
         
@@ -96,13 +97,13 @@ export default function EditorPage({ params }) {
         setFetching(false);
       }
     })();
-  }, [id, currentClubId, router]);
+  }, [id, activeClubId, router]);
 
   useEffect(() => {
-    if (!loading && !fetching && !currentClubId) {
+    if (!loading && !fetching && !activeClubId) {
       router.replace('/');
     }
-  }, [loading, fetching, currentClubId, router]);
+  }, [loading, fetching, activeClubId, router]);
 
   /* ── Firestore 저장 ── */
   const save = useCallback(async (overrides = {}) => {
@@ -119,11 +120,11 @@ export default function EditorPage({ params }) {
       ...overrides,
     };
     try {
-      await updateSchedule(currentClubId, id, payload);
+      await updateSchedule(activeClubId, id, payload);
       setSaveLabel('저장됨 ✓');
       setTimeout(() => setSaveLabel(''), 2000);
     } finally { setSaving(false); }
-  }, [id, currentClubId, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history]);
+  }, [id, activeClubId, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history]);
 
   // participants에 있는 게스트를 members 배열에 임시로 포함시켜 하위 컴포넌트에 전달
   const extendedMembers = useMemo(() => {
@@ -136,7 +137,7 @@ export default function EditorPage({ params }) {
     return list;
   }, [members, participants]);
 
-  if (loading || fetching || !currentClubId) {
+  if (loading || fetching || !activeClubId) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span className="spinner" />
@@ -188,7 +189,8 @@ export default function EditorPage({ params }) {
               matchDate={matchDate}
               startTime={startTime}
               endTime={endTime}
-              clubName={clubs.find(c => c.id === currentClubId)?.name || ''}
+              clubId={activeClubId}
+              clubName={clubs.find(c => c.id === activeClubId)?.name || ''}
             />
           )}
           {activeTab === 'history' && (

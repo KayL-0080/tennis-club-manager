@@ -18,7 +18,7 @@ export default function BracketTab({
   members, participants, lastGenStats,
   scheduleRounds, scheduleCourts, setScheduleRounds, setScheduleCourts,
   onSave, onPrint, isAdmin,
-  matchDate, startTime, endTime, clubName
+  matchDate, startTime, endTime, clubId, clubName
 }) {
   const [showGuestModal, setShowGuestModal] = useState(false);
 
@@ -164,9 +164,18 @@ export default function BracketTab({
     [...m.teamA, ...m.teamB].forEach(id => { if (id && counts[id] !== undefined) counts[id]++; });
   }));
 
+  const getShareUrl = () => {
+    if (typeof window === 'undefined') return '';
+    const url = new URL(window.location.href);
+    if (clubId) {
+      url.searchParams.set('club', clubId);
+    }
+    return url.toString();
+  };
+
   const copyUrl = () => {
     if (typeof window === 'undefined') return;
-    navigator.clipboard.writeText(window.location.href)
+    navigator.clipboard.writeText(getShareUrl())
       .then(() => alert('URL이 클립보드에 복사되었습니다.'))
       .catch(() => alert('URL 복사에 실패했습니다.'));
   };
@@ -177,7 +186,7 @@ export default function BracketTab({
       navigator.share({
         title: '테니스 대진표',
         text: '생성된 테니스 대진표를 확인하세요.',
-        url: window.location.href,
+        url: getShareUrl(),
       }).catch(err => console.log('공유 취소 또는 실패', err));
     } else {
       alert('이 브라우저에서는 기본 공유 기능을 지원하지 않습니다. URL 복사를 이용해주세요.');
