@@ -26,7 +26,7 @@ export default function Navbar() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className={styles.logoTitle}>{isHome ? 'Tennis Club Manager' : `TCM (${clubName})`}</span>
           </div>
-          <div className={styles.version}>Ver.20260818-03</div>
+          <div className={styles.version}>Ver.20260819-01</div>
         </button>
         
         <div className={styles.right}>

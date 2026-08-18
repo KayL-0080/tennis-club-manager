@@ -56,11 +56,11 @@ export default function VotesPage() {
       
       const evts = await getEvents(currentClubId);
       
-      // Auto-generate missing events for the next 4 weeks based on settings
+      // Auto-generate missing events for the next 8 weeks based on settings
       const now = new Date();
       const generated = [];
       if (regMeetings.length > 0) {
-        for (let i = 0; i < 28; i++) {
+        for (let i = 0; i < 56; i++) {
           const d = new Date(now);
           d.setDate(d.getDate() + i);
           const day = d.getDay();
@@ -465,7 +465,7 @@ export default function VotesPage() {
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>⚙️ 정기 모임 설정</h2>
             <p style={{ fontSize: '15px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              여기서 설정한 요일과 시간에 맞춰 4주간의 투표 일정이 자동으로 생성됩니다.
+              여기서 설정한 요일과 시간에 맞춰 8주간의 투표 일정이 자동으로 생성됩니다.
             </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
