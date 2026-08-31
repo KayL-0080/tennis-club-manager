@@ -1,7 +1,13 @@
-/* components/tabs/tabs.module.css — Kyushu Style */
+/* components/tabs/tabs.module.css — Eutripus Aesthetic */
 
 /* ── 공통 섹션 ── */
-.section { padding: 20px 24px; }
+.section {
+  padding: 20px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+}
 
 .sectionTitle {
   font-size: 1.1rem;
@@ -15,7 +21,11 @@
   justify-content: space-between;
   gap: 12px;
 }
-.sectionNote { font-size: 0.76rem; color: var(--txt3); font-weight: 600; }
+.sectionNote {
+  font-size: 0.76rem;
+  color: var(--txt3);
+  font-weight: 600;
+}
 
 /* ── 툴바 ── */
 .toolbar {
@@ -60,7 +70,7 @@
   padding: 14px 18px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
 }
 .toolbarLabel {
   font-size: 0.72rem;
@@ -79,8 +89,8 @@
   padding: 10px 14px;
   border-radius: var(--radius-sm);
 }
-.ok  { color: var(--green); background: rgba(46,141,87,.1); border: 1px solid rgba(46,141,87,.2); }
-.bad { color: var(--red); background: rgba(232,82,42,.1); border: 1px solid rgba(232,82,42,.2); }
+.ok  { color: var(--prt); background: rgba(0, 102, 0, 0.08); border: 1px solid rgba(0, 102, 0, 0.2); }
+.bad { color: var(--bcn); background: rgba(198, 11, 30, 0.08); border: 1px solid rgba(198, 11, 30, 0.2); }
 
 /* ── 그룹 목록 ── */
 .groupList { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
@@ -88,7 +98,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--glass);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
@@ -114,7 +124,16 @@
   flex-direction: column;
   gap: 6px;
   margin-bottom: 0 !important;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+}
+.statCard::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--prt));
 }
 .statNum { font-size: 1.6rem; font-weight: 800; color: var(--blue); }
 .statSub { font-size: 0.72rem; color: var(--txt3); font-weight: 600; }
@@ -137,7 +156,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--glass);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
@@ -149,7 +168,7 @@
 
 /* ── 대진표 ── */
 .roundLabel {
-  background: linear-gradient(135deg, rgba(58,123,213,.15), rgba(32,178,170,.05)) !important;
+  background: linear-gradient(135deg, rgba(41, 128, 185, 0.12), rgba(0, 102, 0, 0.05)) !important;
   color: var(--blue) !important;
   font-weight: 800;
   white-space: nowrap;
@@ -163,7 +182,7 @@
   min-width: 260px;
   background: var(--surface) !important;
 }
-tr:nth-child(even) .matchCell { background: var(--bg) !important; }
+tr:nth-child(even) .matchCell { background: rgba(245, 244, 240, 0.5) !important; }
 
 .matchCellContent {
   display: flex;
@@ -184,7 +203,14 @@ tr:nth-child(even) .matchCell { background: var(--bg) !important; }
   line-height: 1.2;
   position: relative;
 }
-.winner { font-weight: 800; color: var(--green); }
+
+@media (min-width: 992px) {
+  .teamLine {
+    flex-direction: row;
+    gap: 12px;
+  }
+}
+.winner { font-weight: 800; color: var(--prt); }
 
 .playerSel {
   font-size: 0.76rem;
@@ -203,16 +229,16 @@ tr:nth-child(even) .matchCell { background: var(--bg) !important; }
 }
 .playerSel:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(58,123,213,.15);
+  box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.15);
 }
 
 .bgTeamA {
-  background-color: rgba(58,123,213,0.06) !important;
-  border-color: rgba(58,123,213,0.2) !important;
+  background-color: rgba(41, 128, 185, 0.08) !important;
+  border-color: rgba(41, 128, 185, 0.25) !important;
 }
 .bgTeamB {
-  background-color: rgba(232,82,42,0.06) !important;
-  border-color: rgba(232,82,42,0.2) !important;
+  background-color: rgba(198, 11, 30, 0.08) !important;
+  border-color: rgba(198, 11, 30, 0.25) !important;
 }
 .playerSel option { background: #fff; color: var(--txt); }
 
@@ -242,7 +268,7 @@ tr:nth-child(even) .matchCell { background: var(--bg) !important; }
   margin: 0;
 }
 .scoreInput {
-  width: 26px;
+  width: 44px;
   height: 28px;
   box-sizing: border-box;
   text-align: center;
@@ -262,7 +288,7 @@ tr:nth-child(even) .matchCell { background: var(--bg) !important; }
 }
 .scoreInput:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(58,123,213,.15);
+  box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.15);
 }
 
 .scoreSep { 
@@ -290,10 +316,10 @@ tr:nth-child(even) .matchCell { background: var(--bg) !important; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
 }
-.statGreen { border-color: rgba(46,141,87,.3); background: rgba(46,141,87,.05); }
-.statRed   { border-color: rgba(232,82,42,.3);   background: rgba(232,82,42,.05); }
+.statGreen { border-color: rgba(0, 102, 0, 0.3); background: rgba(0, 102, 0, 0.05); }
+.statRed   { border-color: rgba(198, 11, 30, 0.3);   background: rgba(198, 11, 30, 0.05); }
 .statNum2  { font-size: 1.6rem; font-weight: 800; color: var(--txt); }
-.statGreen .statNum2 { color: var(--green); }
-.statRed   .statNum2 { color: var(--red); }
+.statGreen .statNum2 { color: var(--prt); }
+.statRed   .statNum2 { color: var(--bcn); }

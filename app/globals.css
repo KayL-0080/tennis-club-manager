@@ -1,192 +1,373 @@
-/* app/globals.css — 프리미엄 테니스 클럽 매니저 UI (Kyushu Aesthetic) */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap');
+/* app/globals.css — Apple iOS 26 Liquid Glassmorphism Design System */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700;800;900&family=SF+Pro+Text:wght@400;500;600;700&display=swap');
 
 :root {
-  /* Kyushu Trip Color Tokens */
-  --red:    #e8522a;
-  --red-lt: #ff7a52;
-  --teal:   #20b2aa;
-  --green:  #2e8b57;
-  --gold:   #e08500;
-  --blue:   #3a7bd5;
-  --sakura: #ff8da1;
-
-  --bg:      #f4f5f8;
-  --surface: #ffffff;
-  --bg-card: #ffffff;
-  --border:  rgba(0,0,0,0.08);
-  --border-hover: rgba(0,0,0,0.15);
-  --glass:   rgba(255,255,255,0.85);
-
-  --txt:     #1a1a24;
-  --txt2:    #5a5a6b;
-  --txt3:    #8c8c9e;
-
-  /* App specific mappings */
-  --navy: var(--blue);
-  --navy-light: rgba(58,123,213,.1);
-  --text: var(--txt);
-  --text-muted: var(--txt2);
-  --primary: var(--blue);
+  /* ── iOS 26 System Palette ── */
+  --ios-blue:       #007aff;
+  --ios-blue-dark:  #0062d2;
+  --ios-blue-glow:  rgba(0, 122, 255, 0.25);
   
-  --radius-sm: 12px;
-  --radius:    16px;
-  --radius-lg: 22px;
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-}
+  --ios-indigo:     #5856d6;
+  --ios-purple:     #af52de;
+  --ios-pink:       #ff2d55;
+  --ios-red:        #ff3b30;
+  --ios-orange:     #ff9500;
+  --ios-yellow:     #ffcc00;
+  --ios-green:      #34c759;
+  --ios-mint:       #00c7be;
+  --ios-teal:       #30b0c7;
+  --ios-cyan:       #32ade6;
 
-.theme-dark {
-  /* Minimal dark theme fallback, can be expanded later */
-  --bg: #121212;
-  --surface: #1e1e1e;
-  --bg-card: #1e1e1e;
-  --txt: #ffffff;
-  --txt2: #bbbbbb;
-  --border: rgba(255,255,255,0.1);
-  --glass: rgba(30,30,30,0.85);
+  /* ── System Canvas & Materials (Frosted Liquid Glass) ── */
+  --bg:             #f2f4f8;
+  --bg-gradient:    radial-gradient(at 0% 0%, rgba(0, 122, 255, 0.06) 0px, transparent 50%),
+                    radial-gradient(at 100% 0%, rgba(88, 86, 214, 0.05) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, rgba(52, 199, 89, 0.05) 0px, transparent 50%),
+                    #f2f4f8;
+  
+  --surface:        rgba(255, 255, 255, 0.78);
+  --surface-hover:  rgba(255, 255, 255, 0.92);
+  --bg-card:        rgba(255, 255, 255, 0.75);
+  --card:           rgba(255, 255, 255, 0.75);
+  --card-opaque:    #ffffff;
+  
+  --glass:          rgba(255, 255, 255, 0.65);
+  --glass-blur:     blur(28px) saturate(190%);
+  --glass-specular: inset 0 1px 1.5px rgba(255, 255, 255, 0.95);
+  
+  --border:         rgba(0, 0, 0, 0.07);
+  --border-glass:   rgba(255, 255, 255, 0.85);
+  --border-hover:   rgba(0, 122, 255, 0.35);
+
+  /* ── iOS 26 Typography Tokens ── */
+  --txt:            #1c1c1e;
+  --txt2:           #636366;
+  --txt3:           #8e8e93;
+  --txt4:           #aeaeb2;
+  
+  /* App Backward Compatibility Mappings */
+  --bcn:            var(--ios-red);
+  --bcn-lt:         #ff6961;
+  --prt:            var(--ios-green);
+  --prt-lt:         #6ee7b7;
+  --gold:           var(--ios-orange);
+  --blue:           var(--ios-blue);
+  --blue-lt:        #60a5fa;
+  --navy:           #1e293b;
+  --text:           var(--txt);
+  --text-muted:     var(--txt2);
+  --primary:        var(--ios-blue);
+
+  /* ── Apple Squircle Radii ── */
+  --radius-xs:      8px;
+  --radius-sm:      12px;
+  --radius:         16px;
+  --radius-lg:      24px;
+  --radius-xl:      32px;
+  --radius-full:    9999px;
+
+  /* ── iOS Spring Shadows ── */
+  --shadow-glass:   0 10px 30px -4px rgba(0, 0, 0, 0.05), 0 2px 8px -2px rgba(0, 0, 0, 0.03);
+  --shadow-float:   0 16px 40px -6px rgba(0, 0, 0, 0.08), 0 6px 16px -4px rgba(0, 0, 0, 0.04);
+  --shadow-glow:    0 8px 24px -2px var(--ios-blue-glow);
+  --safe-bottom:    env(safe-area-inset-bottom, 0px);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+html { 
+  font-size: 16px; 
+  scroll-behavior: smooth; 
+  -webkit-text-size-adjust: 100%;
+}
 body {
-  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+  background: var(--bg-gradient);
+  background-attachment: fixed;
   color: var(--txt);
-  line-height: 1.6;
+  line-height: 1.5;
+  letter-spacing: -0.015em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   overflow-x: hidden;
 }
 
-@media (max-width: 768px) {
+@media (min-width: 769px) {
   body {
-    padding-bottom: calc(60px + var(--safe-bottom));
+    padding-left: 260px !important;
   }
 }
 
-/* ── 카드 (Card) ── */
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 4px 18px rgba(0,0,0,0.05);
-  margin-bottom: 20px;
-  overflow: hidden;
-  transition: box-shadow 0.2s ease;
+@media (max-width: 768px) {
+  body {
+    padding-bottom: calc(75px + var(--safe-bottom));
+  }
 }
 
-/* ── 버튼 (Button) ── */
+/* ── 애니메이션 & 햅틱 키프레임 ── */
+@keyframes fadeInSlideUp {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes springHover {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1.015); }
+}
+
+@keyframes pulseAura {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.05); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── iOS 26 Glassmorphic Card ── */
+.card {
+  background: var(--bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-glass), var(--glass-specular);
+  margin-bottom: 20px;
+  overflow: hidden;
+  position: relative;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeInSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow-float), var(--glass-specular);
+}
+
+.card-hero {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.6) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+}
+
+/* ── iOS 26 Haptic Buttons ── */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
   font-family: inherit;
   font-size: .88rem;
-  font-weight: 700;
+  font-weight: 600;
   padding: 10px 18px;
-  border-radius: var(--radius-sm);
-  border: none;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.01em;
   text-decoration: none;
   white-space: nowrap;
-  background: linear-gradient(135deg, var(--blue), #2c5fb8);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(58,123,213,.2);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  user-select: none;
 }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; transform: none; }
-.btn:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(58,123,213,.3); }
-.btn:active:not(:disabled) { transform: translateY(0); }
 
+.btn:disabled { 
+  opacity: 0.45; 
+  cursor: not-allowed; 
+  box-shadow: none !important; 
+  transform: none !important; 
+}
+
+.btn:hover:not(:disabled) { 
+  transform: translateY(-1.5px) scale(1.01); 
+}
+
+.btn:active:not(:disabled) { 
+  transform: translateY(0) scale(0.96); 
+  transition-duration: 0.1s;
+}
+
+/* Primary Button: Apple Electric Blue */
 .btn-primary {
-  background: linear-gradient(135deg, var(--blue), #2c5fb8);
-  color: #fff;
+  background: linear-gradient(135deg, var(--ios-blue) 0%, var(--ios-blue-dark) 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(0, 122, 255, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.5);
 }
 
+/* Secondary Button: Frosted Glass Pill */
 .btn-secondary {
-  background: var(--glass);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: var(--txt);
-  border: 1px solid var(--border);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.8);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 122, 255, 0.3);
+  color: var(--ios-blue);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
+/* Danger Button: iOS Red */
 .btn-danger {
-  background: linear-gradient(135deg, var(--red), var(--red-lt));
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(232,82,42,.25);
+  background: linear-gradient(135deg, var(--ios-red) 0%, #d32f2f 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px rgba(255, 59, 48, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.35);
   font-size: .82rem;
   padding: 6px 14px;
 }
 .btn-danger:hover:not(:disabled) {
-  box-shadow: 0 6px 16px rgba(232,82,42,.4);
+  box-shadow: 0 6px 18px rgba(255, 59, 48, 0.45);
 }
 
-.btn-sm  { font-size: .78rem; padding: 6px 14px; border-radius: 10px; }
-.btn-lg  { font-size: 1rem; padding: 14px 24px; border-radius: var(--radius); }
+/* Success Button: iOS Emerald Green */
+.btn-success {
+  background: linear-gradient(135deg, var(--ios-green) 0%, #28a745 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 14px rgba(52, 199, 89, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.btn-sm   { font-size: .78rem; padding: 6px 14px; border-radius: var(--radius-full); }
+.btn-lg   { font-size: 1rem; padding: 14px 26px; border-radius: var(--radius-full); font-weight: 700; }
 .btn-full { width: 100%; }
 
-/* ── 입력 필드 (Input) ── */
+/* ── iOS 26 Inset Inputs & Selects ── */
 .input, .select {
   width: 100%;
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: var(--radius-sm);
   padding: 10px 14px;
   color: var(--txt);
   font-size: .88rem;
   font-family: inherit;
-  transition: border-color .2s, box-shadow .2s;
+  font-weight: 500;
+  transition: all 0.2s ease;
   outline: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
 }
-.input::placeholder { color: var(--txt3); }
+
+.input::placeholder { color: var(--txt4); }
+
 .input:focus, .select:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(58,123,213,.12);
+  background: #ffffff;
+  border-color: var(--ios-blue);
+  box-shadow: 0 0 0 3.5px rgba(0, 122, 255, 0.18), inset 0 1px 1px rgba(0, 0, 0, 0.02);
 }
+
 .select {
   appearance: none;
   cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238c8c9e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.5L6 6L10.5 1.5' stroke='%23007aff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
   padding-right: 36px;
 }
-.input-sm { padding: 6px 10px; font-size: .8rem; }
 
-/* ── 폼 그룹 ── */
+.input-sm { padding: 6px 10px; font-size: .8rem; border-radius: 10px; }
+
+/* ── 폼 그룹 & 레이블 ── */
 .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .form-label {
-  font-size: .66rem; font-weight: 700; color: var(--txt3);
-  text-transform: uppercase; letter-spacing: .1em;
+  font-size: .72rem; 
+  font-weight: 700; 
+  color: var(--txt2);
+  letter-spacing: -0.01em;
 }
 
-/* ── 배지 (Badge) ── */
+/* ── iOS 26 Segmented Control ── */
+.ios-segmented {
+  display: inline-flex;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-full);
+  gap: 2px;
+}
+.ios-segmented-item {
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--txt2);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ios-segmented-item.active {
+  background: #ffffff;
+  color: var(--txt);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* ── iOS 26 Badges & Floating Chips ── */
 .badge {
   display: inline-flex;
   align-items: center;
-  font-size: .62rem;
+  gap: 4px;
+  font-size: .68rem;
   font-weight: 700;
-  padding: 3px 9px;
-  border-radius: 12px;
-  letter-spacing: .02em;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  letter-spacing: -0.01em;
 }
-.badge-blue   { background: rgba(58,123,213,.14); color: #206bcb; border: 1px solid rgba(58,123,213,.2); }
-.badge-green  { background: rgba(46,141,87,.14); color: #1e6b3f; border: 1px solid rgba(46,141,87,.2); }
-.badge-red    { background: rgba(232,82,42,.14); color: #c63a15; border: 1px solid rgba(232,82,42,.2); }
-.badge-gold   { background: rgba(224,133,0,.14); color: #b87300; border: 1px solid rgba(224,133,0,.2); }
-.badge-purple { background: rgba(255,141,161,.14); color: #d64060; border: 1px solid rgba(255,141,161,.3); }
+.badge-blue   { background: rgba(0, 122, 255, 0.12); color: #0062d2; border: 1px solid rgba(0, 122, 255, 0.22); }
+.badge-green  { background: rgba(52, 199, 89, 0.12); color: #166534; border: 1px solid rgba(52, 199, 89, 0.25); }
+.badge-red    { background: rgba(255, 59, 48, 0.12); color: #c53030; border: 1px solid rgba(255, 59, 48, 0.25); }
+.badge-gold   { background: rgba(255, 149, 0, 0.14); color: #c05621; border: 1px solid rgba(255, 149, 0, 0.28); }
+.badge-purple { background: rgba(175, 82, 222, 0.12); color: #6b21a8; border: 1px solid rgba(175, 82, 222, 0.22); }
 
-/* ── 구분선 ── */
+.hero-chip {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03), var(--glass-specular);
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  font-size: .75rem;
+  color: var(--txt);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── 섹션 헤드 & 구분선 ── */
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--txt3);
+  letter-spacing: -0.01em;
+  margin-bottom: 14px;
+}
+.section-head::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.06), transparent);
+}
+
 .divider {
   height: 1px;
-  background: linear-gradient(to right, transparent, var(--border), transparent);
-  margin: 24px 0;
+  background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.06), transparent);
+  margin: 20px 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -194,83 +375,90 @@ body {
   font-size: .8rem;
 }
 
-/* ── 테이블 ── */
-.table-wrap { overflow-x: auto; padding: 0 4px; }
+/* ── iOS 26 Glass Tables ── */
+.table-wrap { overflow-x: auto; padding: 0 2px; }
 table { border-collapse: collapse; width: 100%; }
 th, td {
-  border: 1px solid var(--border);
   padding: 12px 14px;
   font-size: .88rem;
   text-align: center;
 }
 th {
-  background: linear-gradient(135deg, rgba(58,123,213,.08), rgba(32,178,170,.05));
-  color: var(--navy);
-  font-weight: 700;
-  border-bottom: 2px solid var(--blue);
+  background: rgba(240, 242, 246, 0.6);
+  color: var(--txt2);
+  font-weight: 600;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: .8rem;
 }
-td { color: var(--txt); background: var(--bg-card); }
-tr:nth-child(even) td { background: var(--bg); }
-tr:hover td { background: rgba(58,123,213,.04); }
+td { 
+  color: var(--txt); 
+  background: rgba(255, 255, 255, 0.4); 
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  transition: background-color 0.2s ease;
+}
+tr:hover td { background: rgba(0, 122, 255, 0.04); }
 
-/* ── 스피너 ── */
-@keyframes spin { to { transform: rotate(360deg); } }
+/* ── 스피너 (Spinner) ── */
 .spinner {
-  width: 24px; height: 24px;
-  border: 3px solid rgba(58,123,213,0.2);
-  border-top-color: var(--blue);
+  width: 28px; height: 28px;
+  border: 3px solid rgba(0, 122, 255, 0.15);
+  border-top-color: var(--ios-blue);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   display: inline-block;
 }
 .spinner-white {
-  border-color: rgba(255,255,255,0.3);
-  border-top-color: #fff;
-}
-
-/* ── 유틸 ── */
-.text-green  { color: var(--green); }
-.text-red    { color: var(--red); }
-.text-muted  { color: var(--txt2); }
-.text-accent { color: var(--blue); }
-.font-bold   { font-weight: 700; }
-.flex        { display: flex; }
-.flex-col    { flex-direction: column; }
-.items-center{ align-items: center; }
-.justify-between { justify-content: space-between; }
-
-/* ── 모달 ── */
-.modal-overlay {
-  position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-}
-.modal-content {
-  background: var(--surface);
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
+  border-color: rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
 }
 
 /* ── 알림 박스 (Alert) ── */
 .alert {
-  display: flex; gap: 10px; align-items: flex-start;
-  border-radius: var(--radius-sm); padding: 14px 16px;
-  font-size: .88rem;
+  display: flex; 
+  gap: 10px; 
+  align-items: flex-start;
+  border-radius: var(--radius); 
+  padding: 14px 18px;
+  font-size: .86rem; 
   margin-bottom: 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
-.alert-warn  { background: rgba(245,166,35,.1); border: 1px solid rgba(245,166,35,.25); color: #b87300; }
-.alert-error { background: rgba(232,82,42,.1); border: 1px solid rgba(232,82,42,.25); color: #c63a15; }
-.alert-ok    { background: rgba(46,141,87,.1); border: 1px solid rgba(46,141,87,.25); color: #1e6b3f; }
+.alert-info  { background: rgba(0, 122, 255, 0.08); border: 1px solid rgba(0, 122, 255, 0.2); color: #0062d2; }
+.alert-warn  { background: rgba(255, 149, 0, 0.09); border: 1px solid rgba(255, 149, 0, 0.22); color: #c05621; }
+.alert-error { background: rgba(255, 59, 48, 0.08); border: 1px solid rgba(255, 59, 48, 0.2); color: #c53030; }
+.alert-ok    { background: rgba(52, 199, 89, 0.09); border: 1px solid rgba(52, 199, 89, 0.22); color: #166534; }
+
+/* ── iOS 26 Modal ── */
+.modal-overlay {
+  position: fixed; 
+  inset: 0; 
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  padding: 20px;
+}
+.modal-content {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18), var(--glass-specular);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: fadeInSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
 @media print {
-  body { background: #fff; color: #000; padding: 0; }
+  body { background: #fff; color: #000; padding: 0 !important; }
   .no-print { display: none !important; }
   .card { border: 1px solid #ccc; box-shadow: none; margin-bottom: 20px; }
   th { background: #eee !important; color: #000 !important; border-bottom: 2px solid #000; }

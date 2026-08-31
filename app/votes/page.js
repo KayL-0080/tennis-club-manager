@@ -277,15 +277,7 @@ export default function VotesPage() {
 
   const getPastelColorByDay = (dateStr) => {
     const day = new Date(dateStr).getDay();
-    const colors = [
-      '#fff0f5', // 일 - 파스텔 핑크/레드
-      '#fff5e6', // 월 - 파스텔 오렌지
-      '#ffffe6', // 화 - 파스텔 옐로우
-      '#f0fff0', // 수 - 파스텔 그린
-      '#f0f8ff', // 목 - 파스텔 블루
-      '#e6e6fa', // 금 - 파스텔 라벤더(인디고)
-      '#f5f0ff', // 토 - 파스텔 바이올렛
-    ];
+    const colors = ['#fdfaff', '#fff8f8', '#fffbf5', '#fffdf5', '#f8fdf9', '#f7fbff', '#f6f8ff'];
     return colors[day];
   };
 

@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
   background: var(--bg);
 }
 
@@ -62,11 +62,6 @@
   letter-spacing: -0.02em;
 }
 
-.headerActions {
-  display: flex;
-  gap: 12px;
-}
-
 .topLoginBtn {
   background: var(--glass);
   border: 1px solid var(--border);
@@ -90,173 +85,96 @@
   z-index: 10;
   flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 40px 24px 80px;
+  justify-content: center;
+  padding: 24px;
   gap: 60px;
-  max-width: 1200px;
+  max-width: 1100px;
   margin: 0 auto;
   width: 100%;
 }
 
-/* Hero Section */
-.heroSection {
-  text-align: center;
-  animation: slideDown 0.6s cubic-bezier(0.16,1,0.3,1) both;
+.heroText {
+  flex: 1;
+  color: var(--txt);
+  max-width: 500px;
+  animation: slideRight 0.6s cubic-bezier(0.16,1,0.3,1) both;
 }
 
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-40px); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-40px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .heroFlag {
   display: inline-block;
-  font-size: 3rem;
-  margin-bottom: 16px;
+  font-size: 2.8rem;
+  margin-bottom: 12px;
   animation: floatY 3s ease-in-out infinite;
 }
 @keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
 
 .heroLabel {
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--blue);
   font-weight: 800;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .heroTitle {
-  font-size: clamp(2.8rem, 7vw, 4rem);
-  font-weight: 900;
-  line-height: 1.15;
-  margin-bottom: 20px;
+  font-size: clamp(2.5rem, 6vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 16px;
   background: linear-gradient(130deg, #1a1a24 0%, var(--red) 50%, var(--blue) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.03em;
 }
 
 .heroDesc {
-  font-size: 1.15rem;
-  line-height: 1.7;
+  font-size: 1rem;
+  line-height: 1.6;
   color: var(--txt2);
-  max-width: 650px;
-  margin: 0 auto;
+  margin-bottom: 32px;
   font-weight: 500;
 }
 
-/* Carousel Section */
-.carouselSection {
-  width: 100vw; /* full bleed */
-  margin-left: calc(-50vw + 50%);
-  margin-right: calc(-50vw + 50%);
-  padding: 20px 0;
-  animation: fadeIn 0.8s ease 0.3s both;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.carouselContainer {
-  display: flex;
-  gap: 24px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding: 20px 50vw 40px 24px; /* extra padding to right for scroll boundary */
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-  scroll-behavior: smooth;
-}
-
-.carouselContainer::-webkit-scrollbar {
-  display: none;
-}
-/* Ensure the first item has left margin to align if we wanted, but padding is usually better */
-.carouselContainer::after {
-  content: '';
-  flex: 0 0 24px; /* right spacer */
-}
-
-.carouselCard {
-  scroll-snap-align: center;
-  flex: 0 0 320px;
-  background: var(--glass);
-  border: 1px solid rgba(255,255,255,0.8);
-  border-radius: var(--radius-lg);
-  padding: 32px 24px;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.04);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+.featureList {
   display: flex;
   flex-direction: column;
+  gap: 12px;
 }
 
-.carouselCard:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 48px rgba(0,0,0,0.08);
-}
-
-.cardIcon {
-  font-size: 2.5rem;
-  margin-bottom: 20px;
-}
-
-.cardStep {
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: var(--primary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: 8px;
-}
-
-.cardTitle {
-  font-size: 1.25rem;
-  font-weight: 800;
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.88rem;
   color: var(--txt);
-  margin-bottom: 12px;
-  line-height: 1.4;
+  background: var(--glass);
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.03);
 }
 
-.cardDesc {
-  font-size: 0.95rem;
-  color: var(--txt2);
-  line-height: 1.6;
-  flex: 1;
-}
-
-.cardHighlight {
-  display: inline-block;
-  background: var(--primary-light);
-  color: var(--primary);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 700;
-  font-size: 0.85em;
-  margin-top: 16px;
+.featureIcon {
+  font-size: 1.6rem;
 }
 
 /* Auth Card */
-.authSection {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.5s both;
+.authContainer {
+  flex: 0 0 400px;
+  animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both;
 }
 
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(40px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-.authContainer {
-  width: 100%;
-  max-width: 420px;
 }
 
 .authCard {
@@ -328,37 +246,21 @@
 
 /* 반응형 */
 @media (max-width: 900px) {
-  .header {
+  .mainContent {
     flex-direction: column;
-    gap: 16px;
     padding: 24px 20px;
+    gap: 40px;
+    margin-top: 20px;
   }
-  .headerActions {
-    display: flex;
-    gap: 12px;
+  .header {
+    padding: 20px;
   }
   .heroTitle {
     font-size: 2.5rem;
   }
-  .carouselContainer {
-    padding-left: 20px;
-  }
-  .carouselCard {
-    flex: 0 0 280px;
-    padding: 24px 20px;
-  }
-}
-
-@media (min-width: 1400px) {
-  .carouselContainer {
-    justify-content: center;
-    padding-right: 24px;
-  }
-  .carouselContainer::after {
-    display: none;
-  }
-  .carouselCard {
-    flex: 0 0 300px;
-    scroll-snap-align: start;
+  .authContainer {
+    flex: 1;
+    width: 100%;
+    max-width: 440px;
   }
 }

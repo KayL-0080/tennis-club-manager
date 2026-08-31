@@ -1,155 +1,212 @@
-/* components/Navbar.module.css — Kyushu Style Sticky Header */
-.nav {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: rgba(244, 245, 248, 0.92);
-  backdrop-filter: blur(12px) saturate(160%);
-  border-bottom: 1px solid var(--border);
-  padding: 0 4px;
-}
+/* components/Navbar.module.css — Apple iOS 26 Floating Glass Navigation */
 
-.inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 10px 16px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
+@media (min-width: 769px) {
+  .nav {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    bottom: 16px;
+    width: 228px;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.05), var(--glass-specular);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
 
-.logo {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: var(--txt);
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  letter-spacing: -0.02em;
-  transition: opacity 0.15s;
-}
-.logo:hover { opacity: 0.85; }
+  .inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 22px 14px;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 18px;
+  }
 
-.logoTitle {
-  background: linear-gradient(130deg, #1a1a24 0%, #3a7bd5 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+  .logoContainer {
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  }
 
-.version {
-  font-size: 0.68rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--gold);
-  font-weight: 700;
-}
+  .logo {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    width: 100%;
+    padding: 0;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .logo:hover { transform: scale(1.02); }
 
-.right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+  .logoText {
+    font-size: 1.12rem;
+    font-weight: 800;
+    color: var(--txt);
+    letter-spacing: -0.02em;
+    margin-top: 2px;
+    background: linear-gradient(135deg, #1c1c1e 0%, #007aff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    display: inline-block;
+  }
 
-.userInfo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+  .logoSub {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--ios-orange);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 1px;
+    display: inline-block;
+  }
 
-.avatar {
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, var(--blue), #2c5fb8);
-  color: #fff;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  flex-shrink: 0;
-  border: 1px solid rgba(255,255,255,0.3);
-  box-shadow: 0 2px 8px rgba(58,123,213,0.3);
-}
+  .desktopMenu {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    overflow-y: auto;
+  }
 
-.displayName {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--txt);
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .userSection {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+  }
 
-/* Nav Tab buttons for desktop menu */
-.navTab {
-  flex-shrink: 0;
-  background: var(--glass);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 8px 14px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--txt2);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-}
-.navTab:hover {
-  background: #fff;
-  color: var(--blue);
-  border-color: rgba(58,123,213,0.3);
-  transform: translateY(-1px);
-}
-.navTab.active {
-  background: linear-gradient(135deg, var(--blue), #2c5fb8);
-  border-color: var(--blue);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(58,123,213,.3);
-}
+  .userContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
-.desktopMenu {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+  .userInfo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: var(--radius-sm);
+  }
 
-.mobileBottomTab {
-  display: none;
+  .avatar {
+    width: 30px;
+    height: 30px;
+    background: linear-gradient(135deg, var(--ios-blue), var(--ios-indigo));
+    color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+  }
+
+  .displayName {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--txt);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobileBottomTab {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
-  .inner { flex-direction: column; align-items: center; padding: 12px; }
-  .logo { align-items: center; }
-  .displayName { display: none; }
-  .desktopMenu { display: none; }
-  
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(242, 244, 248, 0.75);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 0 6px;
+  }
+
+  .inner {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .logoContainer {
+    display: flex;
+    align-items: center;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+  }
+
+  .logoText {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--txt);
+    letter-spacing: -0.02em;
+    display: inline-block;
+  }
+
+  .logoSub {
+    display: none;
+  }
+
+  .desktopMenu {
+    display: none;
+  }
+
+  .userSection {
+    display: none;
+  }
+
+  /* ── Floating Capsule Dock for Mobile (iOS Dynamic Island Style) ── */
   .mobileBottomTab {
     display: flex;
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    min-height: 60px;
-    padding-top: 6px;
-    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
-    background: rgba(244, 245, 248, 0.92);
-    backdrop-filter: blur(12px) saturate(160%);
-    border-top: 1px solid var(--border);
-    box-shadow: 0 -4px 16px rgba(0,0,0,0.05);
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 16px;
+    right: 16px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(28px) saturate(200%);
+    -webkit-backdrop-filter: blur(28px) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 36px;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.12), inset 0 1px 1.5px rgba(255, 255, 255, 0.95);
     z-index: 9999;
     justify-content: space-around;
     align-items: center;
+    padding: 0 8px;
+    animation: fadeInSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .tabBtn {
@@ -162,18 +219,26 @@
     border: none;
     color: var(--txt3);
     font-size: 0.65rem;
-    font-weight: 700;
-    gap: 4px;
+    font-weight: 600;
+    gap: 3px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 6px 0;
+    border-radius: var(--radius-full);
   }
   
-  .tabBtn:hover, .tabBtn.active {
-    color: var(--blue);
-    transform: translateY(-2px);
+  .tabBtn.active {
+    color: var(--ios-blue);
+    font-weight: 700;
+  }
+
+  .tabBtn.active .tabIcon {
+    transform: scale(1.15);
+    filter: drop-shadow(0 2px 6px rgba(0, 122, 255, 0.35));
   }
 
   .tabIcon {
     font-size: 1.25rem;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
