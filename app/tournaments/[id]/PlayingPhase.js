@@ -289,6 +289,210 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     setLocalMatches(newMatches);
   };
 
+  const updateIndividualMatchPlayer = (matchIdx, field, newPlayerId) => {
+    if (!isAdmin) return;
+    const newMatches = [...localMatches];
+    newMatches[matchIdx] = {
+      ...newMatches[matchIdx],
+      [field]: newPlayerId || null
+    };
+    setLocalMatches(newMatches);
+  };
+
+  const unassignIndividualCourts = () => {
+    if (!isAdmin) return;
+    if (!confirm('모든 대진의 코트 배정을 해제(초기화)하시겠습니까?')) return;
+    const newMatches = localMatches.map(m => ({
+      ...m,
+      court: '',
+      courtId: '',
+      setIndex: null
+    }));
+    setLocalMatches(newMatches);
+  };
+
+  const attendeeOptions = useMemo(() => {
+    const ids = tournament.attendees || [];
+    let list = ids.map(id => byId[id]).filter(Boolean);
+    if (list.length === 0) {
+      list = members.filter(m => m.role !== '준회원' && m.role !== '게스트');
+    }
+    return [...list].sort((a, b) => {
+      const ntrpA = parseFloat(a.ntrp) || 2.0;
+      const ntrpB = parseFloat(b.ntrp) || 2.0;
+      if (ntrpB !== ntrpA) return ntrpB - ntrpA;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }, [tournament.attendees, members, byId]);
+
+  const formatMatchTimeSlot = (startTime, setIndex) => {
+    const sIdx = setIndex || 1;
+    const base = startTime || tournament.startTime || tournament.time || '19:00';
+    try {
+      const [h, m] = base.split(':').map(Number);
+      const startMins = h * 60 + m + (sIdx - 1) * 30;
+      const endMins = startMins + 30;
+
+      const fmt = (mins) => {
+        const hh = String(Math.floor(mins / 60) % 24).padStart(2, '0');
+        const mm = String(mins % 60).padStart(2, '0');
+        return `${hh}:${mm}`;
+      };
+      return `${fmt(startMins)} ~ ${fmt(endMins)}`;
+    } catch (e) {
+      return `${sIdx}경기`;
+    }
+  };
+
+  const autoAssignIndividualCourts = () => {
+    if (!isAdmin) return;
+    const courtsList = tournament.courtDetails || [
+      { id: 'c1', name: '1코트', games: 4 },
+      { id: 'c2', name: '2코트', games: 4 }
+    ];
+    if (courtsList.length === 0) {
+      alert('코트 정보가 없습니다.');
+      return;
+    }
+
+    const newMatches = [...localMatches];
+    newMatches.sort((a, b) => (a.round || 1) - (b.round || 1));
+
+    const courtOccupied = {};
+    const playerOccupied = {};
+
+    newMatches.forEach((m) => {
+      const matchPlayers = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
+      let targetSlot = m.round || 1;
+      let assignedCourt = null;
+
+      while (!assignedCourt && targetSlot < 100) {
+        const hasPlayerConflict = matchPlayers.some(pId => playerOccupied[targetSlot] && playerOccupied[targetSlot].has(pId));
+        if (!hasPlayerConflict) {
+          for (const court of courtsList) {
+            if (!courtOccupied[targetSlot]?.[court.name]) {
+              assignedCourt = court;
+              break;
+            }
+          }
+        }
+        if (!assignedCourt) {
+          targetSlot++;
+        }
+      }
+
+      if (assignedCourt) {
+        m.court = assignedCourt.name;
+        m.courtId = assignedCourt.id;
+        m.setIndex = targetSlot;
+
+        if (!courtOccupied[targetSlot]) courtOccupied[targetSlot] = {};
+        courtOccupied[targetSlot][assignedCourt.name] = true;
+
+        if (!playerOccupied[targetSlot]) playerOccupied[targetSlot] = new Set();
+        matchPlayers.forEach(pId => playerOccupied[targetSlot].add(pId));
+      }
+    });
+
+    setLocalMatches(newMatches);
+  };
+
+  const conflictMap = useMemo(() => {
+    if (type !== 'individual') return { hasConflict: false, matchConflicts: {}, conflictDetails: [] };
+
+    const slotMap = {};
+
+    localMatches.forEach((m, mIdx) => {
+      if (!m.court) return;
+      const slot = m.setIndex || m.round || 1;
+      if (!slotMap[slot]) slotMap[slot] = {};
+
+      const players = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
+
+      players.forEach(pId => {
+        if (!slotMap[slot][pId]) slotMap[slot][pId] = [];
+        slotMap[slot][pId].push({
+          matchId: m.id,
+          matchIdx: mIdx,
+          court: m.court,
+          round: m.round || 1
+        });
+      });
+    });
+
+    const matchConflicts = {};
+    const conflictDetails = [];
+
+    Object.keys(slotMap).forEach(slot => {
+      const playersInSlot = slotMap[slot];
+      Object.keys(playersInSlot).forEach(pId => {
+        const occurrences = playersInSlot[pId];
+        if (occurrences.length > 1) {
+          const courts = occurrences.map(o => o.court).filter(Boolean);
+          const uniqueCourts = Array.from(new Set(courts));
+          const pName = byId[pId]?.name || '선수';
+          const timeStr = formatMatchTimeSlot(tournament.startTime, parseInt(slot));
+
+          conflictDetails.push({
+            playerId: pId,
+            playerName: pName,
+            slot,
+            timeStr,
+            courts: uniqueCourts
+          });
+
+          occurrences.forEach(occ => {
+            if (!matchConflicts[occ.matchId]) matchConflicts[occ.matchId] = {};
+            matchConflicts[occ.matchId][pId] = uniqueCourts;
+          });
+        }
+      });
+    });
+
+    return {
+      hasConflict: conflictDetails.length > 0,
+      matchConflicts,
+      conflictDetails
+    };
+  }, [localMatches, type, tournament.startTime, byId]);
+
+  const availableRounds = useMemo(() => {
+    const rSet = new Set(localMatches.map(m => m.round || 1));
+    return Array.from(rSet).sort((a, b) => a - b);
+  }, [localMatches]);
+
+  const [draggingRound, setDraggingRound] = useState(null);
+  const [dragOverRound, setDragOverRound] = useState(null);
+  const [indViewMode, setIndViewMode] = useState('court'); // 'court' | 'round'
+
+  const handleReorderRounds = (fromRound, toRound) => {
+    if (!isAdmin || fromRound === toRound) return;
+    const fromIdx = availableRounds.indexOf(fromRound);
+    const toIdx = availableRounds.indexOf(toRound);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const newRoundsOrder = [...availableRounds];
+    const [moved] = newRoundsOrder.splice(fromIdx, 1);
+    newRoundsOrder.splice(toIdx, 0, moved);
+
+    const roundMapping = {};
+    newRoundsOrder.forEach((oldR, newIdx) => {
+      roundMapping[oldR] = newIdx + 1;
+    });
+
+    const newMatches = localMatches.map(m => {
+      const currentR = m.round || 1;
+      const newR = roundMapping[currentR] || currentR;
+      return {
+        ...m,
+        round: newR
+      };
+    });
+
+    newMatches.sort((a, b) => (a.round || 1) - (b.round || 1));
+    setLocalMatches(newMatches);
+  };
+
   const getSetTimeSlot = (startTime, setIdx) => {
     if (!startTime) return `${setIdx}`;
     try {
@@ -428,24 +632,202 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     </div>
   );
 
-  const renderIndividualMatch = (m) => (
-     <div key={m.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <select className="input input-sm" style={{ width: '80px', fontSize: '11px', padding: '2px 4px', height: '22px' }} value={m.court || ''} onChange={e => updateMatchCourt(m._originalIdx, e.target.value)} disabled={!isAdmin}>
+  const renderIndividualMatch = (m) => {
+    const timeStr = formatMatchTimeSlot(tournament.startTime, m.setIndex || m.round);
+    const hasScores = m.scoreA !== null && m.scoreB !== null;
+    const isWinA = hasScores && m.scoreA > m.scoreB;
+    const isWinB = hasScores && m.scoreB > m.scoreA;
+
+    const matchConflictInfo = conflictMap.matchConflicts[m.id] || null;
+    const hasConflict = !!matchConflictInfo;
+
+    const renderPlayerSlot = (field, pid, defaultLabel) => {
+      const isPlayerConflicting = matchConflictInfo && matchConflictInfo[pid];
+
+      if (isAdmin) {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%' }}>
+            <select
+              className="input input-sm"
+              style={{
+                width: '100%',
+                fontSize: '12px',
+                padding: '2px 4px',
+                height: '26px',
+                fontWeight: 'bold',
+                textAlign: 'center',
+                textAlignLast: 'center',
+                backgroundColor: isPlayerConflicting ? '#fee2e2' : '#fff',
+                borderColor: isPlayerConflicting ? '#ef4444' : 'var(--border)',
+                color: isPlayerConflicting ? '#b91c1c' : 'var(--txt)'
+              }}
+              value={pid || ''}
+              onChange={e => updateIndividualMatchPlayer(m._originalIdx, field, e.target.value)}
+            >
+              <option value="">{defaultLabel} 선택</option>
+              {attendeeOptions.map(mem => (
+                <option key={mem.id} value={mem.id}>
+                  {mem.name} ({mem.ntrp || 2.0}/{mem.gender === 'F' ? '여' : '남'})
+                </option>
+              ))}
+            </select>
+            {isPlayerConflicting && (
+              <span style={{ fontSize: '10px', color: '#dc2626', fontWeight: 'bold' }}>
+                ⚠️ 동시간 중복 ({isPlayerConflicting.join(', ')})
+              </span>
+            )}
+          </div>
+        );
+      }
+
+      return (
+        <div style={{
+          fontWeight: 800,
+          color: isPlayerConflicting ? '#dc2626' : 'var(--txt)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '4px',
+          flexWrap: 'wrap'
+        }}>
+          <span>{byId[pid]?.name || defaultLabel}</span>
+          {pid && <span style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 600 }}>({byId[pid]?.ntrp || 2.0})</span>}
+          {isPlayerConflicting && (
+            <span style={{ fontSize: '10px', color: '#dc2626', background: '#fee2e2', padding: '1px 4px', borderRadius: '4px' }}>
+              ⚠️ 중복
+            </span>
+          )}
+        </div>
+      );
+    };
+
+    const getDisplayCategory = () => {
+      if (m.category) return m.category;
+      const players = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean).map(id => byId[id]).filter(Boolean);
+      if (players.length < 4) return null;
+      const males = players.filter(p => p.gender === 'M').length;
+      const females = players.filter(p => p.gender === 'F').length;
+      if (males === 4) return '남복';
+      if (females === 4) return '여복';
+      if (males === 2 && females === 2) return '혼복';
+      return '잡복';
+    };
+
+    const matchCategory = getDisplayCategory();
+
+    return (
+      <div 
+        key={m.id} 
+        style={{ 
+          border: hasConflict ? '1.5px solid #ef4444' : '1px solid var(--border)', 
+          borderRadius: '10px', 
+          padding: '10px 14px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '8px', 
+          backgroundColor: hasConflict ? '#fffdfd' : '#fff',
+          boxShadow: hasConflict ? '0 2px 8px rgba(239, 68, 68, 0.1)' : '0 2px 6px rgba(0,0,0,0.02)'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px' }}>
+              R{m.round || 1}
+            </span>
+            {matchCategory && (
+              <span style={{
+                fontSize: '11px',
+                fontWeight: 'bold',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                backgroundColor: matchCategory === '남복' ? '#dbeafe' : matchCategory === '여복' ? '#fce7f3' : matchCategory === '혼복' ? '#f3e8ff' : '#fef3c7',
+                color: matchCategory === '남복' ? '#1d4ed8' : matchCategory === '여복' ? '#be185d' : matchCategory === '혼복' ? '#7e22ce' : '#b45309',
+                border: `1px solid ${matchCategory === '남복' ? '#bfdbfe' : matchCategory === '여복' ? '#fbcfe8' : matchCategory === '혼복' ? '#e9d5ff' : '#fde68a'}`
+              }}>
+                {matchCategory === '남복' && '남복 👨👨'}
+                {matchCategory === '여복' && '여복 👩👩'}
+                {matchCategory === '혼복' && '혼복 👫'}
+                {matchCategory === '잡복' && '잡복 🎾'}
+              </span>
+            )}
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--txt)' }}>
+              ⏰ {timeStr}
+            </span>
+            {m.setIndex && (
+              <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
+                ({m.setIndex}경기)
+              </span>
+            )}
+            {hasConflict && (
+              <span style={{ fontSize: '11px', fontWeight: 'bold', background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                ⚠️ 동시간대 중복
+              </span>
+            )}
+          </div>
+
+          <select 
+            className="input input-sm" 
+            style={{ 
+              width: '90px', 
+              fontSize: '11px', 
+              padding: '2px 6px', 
+              height: '24px',
+              fontWeight: 600,
+              cursor: isAdmin ? 'pointer' : 'default',
+              pointerEvents: isAdmin ? 'auto' : 'none',
+              appearance: isAdmin ? 'auto' : 'none',
+              opacity: 1,
+              backgroundColor: m.court ? '#f0fdf4' : '#fff',
+              borderColor: m.court ? '#86efac' : 'var(--border)',
+              color: m.court ? '#166534' : 'var(--txt)'
+            }} 
+            value={m.court || ''} 
+            onChange={e => updateMatchCourt(m._originalIdx, e.target.value)} 
+            disabled={!isAdmin}
+          >
             <option value="">코트 미정</option>
             {courtDetails.map((c, idx) => <option key={c.id || idx} value={c.name}>{c.name}</option>)}
           </select>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-          <div style={{ flex: 1, textAlign: 'center', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
-            <span style={{ fontWeight: 'bold' }}>{byId[m.playerA1]?.name || '선수1'}</span>
-            {m.playerA2 && <span style={{ fontWeight: 'bold' }}>{byId[m.playerA2]?.name || '선수2'}</span>}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+          {/* Team/Pair A */}
+          <div style={{ 
+            flex: 1, 
+            textAlign: 'center', 
+            fontSize: '13px', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '4px',
+            padding: '6px 8px',
+            borderRadius: '8px',
+            backgroundColor: isWinA ? 'rgba(0, 122, 255, 0.08)' : 'rgba(0,0,0,0.02)',
+            border: isWinA ? '1px solid rgba(0, 122, 255, 0.3)' : '1px solid transparent'
+          }}>
+            {renderPlayerSlot('playerA1', m.playerA1, '선수1')}
+            {renderPlayerSlot('playerA2', m.playerA2, '선수2')}
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+          {/* Score inputs */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
              <select
                className="input input-sm"
-               style={{ width: '36px', height: '36px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold', padding: 0 }}
+               style={{ 
+                 width: '38px', 
+                 height: '40px', 
+                 textAlign: 'center', 
+                 fontSize: '14px', 
+                 fontWeight: 800, 
+                 padding: 0,
+                 borderRadius: '6px',
+                 opacity: 1,
+                 cursor: isAdmin ? 'pointer' : 'default',
+                 pointerEvents: isAdmin ? 'auto' : 'none',
+                 appearance: isAdmin ? 'auto' : 'none',
+                 backgroundColor: m.scoreA !== null ? '#f8fafc' : '#ffffff',
+                 color: m.scoreA !== null ? 'var(--blue)' : 'var(--txt3)',
+                 borderColor: isWinA ? 'var(--blue)' : 'var(--border)'
+               }}
                value={m.scoreA !== null ? m.scoreA : ''}
                onChange={e => updateMatchScore(m._originalIdx, 'scoreA', e.target.value)}
                disabled={!isAdmin}
@@ -455,10 +837,25 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                  <option key={i} value={i}>{i}</option>
                ))}
              </select>
-             <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--txt3)' }}>vs</span>
+             <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--txt3)' }}>:</span>
              <select
                className="input input-sm"
-               style={{ width: '36px', height: '36px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold', padding: 0 }}
+               style={{ 
+                 width: '38px', 
+                 height: '40px', 
+                 textAlign: 'center', 
+                 fontSize: '14px', 
+                 fontWeight: 800, 
+                 padding: 0,
+                 borderRadius: '6px',
+                 opacity: 1,
+                 cursor: isAdmin ? 'pointer' : 'default',
+                 pointerEvents: isAdmin ? 'auto' : 'none',
+                 appearance: isAdmin ? 'auto' : 'none',
+                 backgroundColor: m.scoreB !== null ? '#f8fafc' : '#ffffff',
+                 color: m.scoreB !== null ? 'var(--red)' : 'var(--txt3)',
+                 borderColor: isWinB ? 'var(--red)' : 'var(--border)'
+               }}
                value={m.scoreB !== null ? m.scoreB : ''}
                onChange={e => updateMatchScore(m._originalIdx, 'scoreB', e.target.value)}
                disabled={!isAdmin}
@@ -470,13 +867,26 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
              </select>
           </div>
 
-          <div style={{ flex: 1, textAlign: 'center', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
-            <span style={{ fontWeight: 'bold' }}>{byId[m.playerB1]?.name || '선수1'}</span>
-            {m.playerB2 && <span style={{ fontWeight: 'bold' }}>{byId[m.playerB2]?.name || '선수2'}</span>}
+          {/* Team/Pair B */}
+          <div style={{ 
+            flex: 1, 
+            textAlign: 'center', 
+            fontSize: '13px', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '4px',
+            padding: '6px 8px',
+            borderRadius: '8px',
+            backgroundColor: isWinB ? 'rgba(255, 59, 48, 0.08)' : 'rgba(0,0,0,0.02)',
+            border: isWinB ? '1px solid rgba(255, 59, 48, 0.3)' : '1px solid transparent'
+          }}>
+            {renderPlayerSlot('playerB1', m.playerB1, '선수1')}
+            {renderPlayerSlot('playerB2', m.playerB2, '선수2')}
           </div>
         </div>
-     </div>
-  );
+      </div>
+    );
+  };
 
   const teamStats = useMemo(() => {
     if (type !== 'team') return [];
@@ -581,9 +991,29 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
           4단계. 실시간 순위 및 {isAdmin ? '점수 입력' : '경기 현황'}
         </h2>
         {isAdmin && (
-          <div style={{ display: 'flex', gap: '4px' }}>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {type === 'individual' && (
+              <>
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc', fontWeight: 'bold' }}
+                  onClick={autoAssignIndividualCourts}
+                >
+                  🎲 코트 자동 배정
+                </button>
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  style={{ background: '#fef2f2', color: '#b91c1c', borderColor: '#fca5a5', fontWeight: 'bold' }}
+                  onClick={unassignIndividualCourts}
+                >
+                  🧹 코트 배정 해제
+                </button>
+              </>
+            )}
             <button className="btn btn-secondary btn-sm" onClick={() => {
-              if (confirm('대진표 생성 단계로 돌아가시겠습니까? 현재 점수는 보존됩니다.')) onUpdate({ status: 'picking' });
+              if (confirm('이전 설정 단계로 돌아가시겠습니까? 현재 입력된 점수는 보존됩니다.')) {
+                onUpdate({ status: type === 'individual' ? 'draft' : 'picking' });
+              }
             }}>👈 이전</button>
             <button className="btn btn-secondary btn-sm" onClick={handleSave}>저장</button>
             <button className="btn btn-primary btn-sm" onClick={handleFinish}>종료</button>
@@ -958,38 +1388,265 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
         {type === 'individual' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {courtDetails.map((court, cIdx) => {
-              const courtNum = court.name;
-              const courtMatches = matchesForRender.filter(m => m.court === courtNum);
-              return (
-                <div key={court.id || cIdx} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', backgroundColor: '#f8fafc' }}>
-                  <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    🎾 {courtNum} 대진 ({courtMatches.length})
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {courtMatches.map(m => renderIndividualMatch(m))}
-                    {courtMatches.length === 0 && (
-                      <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '10px 0' }}>배정된 대진이 없습니다.</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
             
-            {(() => {
-              const unassignedMatches = matchesForRender.filter(m => !m.court);
-              if (unassignedMatches.length === 0) return null;
-              return (
-                <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '12px', backgroundColor: '#fafafa' }}>
-                  <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-                    ❓ 코트 미정 대진 ({unassignedMatches.length})
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {unassignedMatches.map(m => renderIndividualMatch(m))}
-                  </div>
+            {/* 1. 중복 선수 점검 알림 배너 */}
+            {conflictMap.hasConflict ? (
+              <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '10px', boxShadow: '0 2px 6px rgba(239, 68, 68, 0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', color: '#991b1b', fontSize: '13px', marginBottom: '6px' }}>
+                  <span>⚠️ 동시간대 중복 출전 선수 감지 ({conflictMap.conflictDetails.length}건)</span>
                 </div>
-              );
-            })()}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#b91c1c' }}>
+                  {conflictMap.conflictDetails.map((c, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                      • <strong>{c.playerName}</strong> 선수: <strong>{c.timeStr} ({c.slot}경기)</strong> 시간대에 <strong>{c.courts.join(' & ')}</strong>에 중복 배정되었습니다.
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: '8px 14px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#166534', flexWrap: 'wrap', gap: '6px' }}>
+                <span style={{ fontWeight: 600 }}>✅ 동시간대 선수 중복 출전 없음 (정상)</span>
+                <span style={{ color: 'var(--txt3)' }}>
+                  총 {localMatches.length}경기 중 {localMatches.filter(m => m.court).length}경기 코트 배정 완료
+                </span>
+              </div>
+            )}
+
+            {/* 2. 라운드 순서 변경 (드래그 & 드롭) 바 및 보기 모드 탭 */}
+            <div style={{ backgroundColor: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)' }}>🔄 라운드 순서 변경</span>
+                  <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
+                    {isAdmin ? '라운드 카드를 드래그 & 드롭하여 순서를 변경하세요.' : '라운드 순서'}
+                  </span>
+                </div>
+
+                {/* 뷰 모드 스위처 */}
+                <div style={{ display: 'flex', backgroundColor: '#e2e8f0', borderRadius: '8px', padding: '2px', gap: '2px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIndViewMode('court')}
+                    style={{
+                      border: 'none',
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: indViewMode === 'court' ? 'bold' : 'normal',
+                      backgroundColor: indViewMode === 'court' ? '#fff' : 'transparent',
+                      color: indViewMode === 'court' ? 'var(--navy)' : 'var(--txt3)',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      boxShadow: indViewMode === 'court' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    🎾 코트별 보기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIndViewMode('round')}
+                    style={{
+                      border: 'none',
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: indViewMode === 'round' ? 'bold' : 'normal',
+                      backgroundColor: indViewMode === 'round' ? '#fff' : 'transparent',
+                      color: indViewMode === 'round' ? 'var(--navy)' : 'var(--txt3)',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      boxShadow: indViewMode === 'round' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    🔄 라운드별 보기
+                  </button>
+                </div>
+              </div>
+
+              {/* 드래그 가능한 라운드 칩 목록 */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {availableRounds.map((r) => {
+                  const isBeingDragged = draggingRound === r;
+                  const isOver = dragOverRound === r;
+                  const countInR = localMatches.filter(m => (m.round || 1) === r).length;
+
+                  return (
+                    <div
+                      key={r}
+                      draggable={isAdmin}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', String(r));
+                        setDraggingRound(r);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                      }}
+                      onDragEnter={() => setDragOverRound(r)}
+                      onDragLeave={() => setDragOverRound(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const fromR = parseInt(e.dataTransfer.getData('text/plain')) || draggingRound;
+                        if (fromR && fromR !== r) {
+                          handleReorderRounds(fromR, r);
+                        }
+                        setDraggingRound(null);
+                        setDragOverRound(null);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        backgroundColor: isOver ? '#dbeafe' : isBeingDragged ? '#e2e8f0' : '#fff',
+                        border: isOver ? '2px dashed #3b82f6' : '1px solid var(--border)',
+                        borderRadius: '8px',
+                        cursor: isAdmin ? 'grab' : 'default',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                        userSelect: 'none',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title={isAdmin ? `${r}라운드를 드래그하여 다른 라운드 위치로 이동` : `${r}라운드`}
+                    >
+                      {isAdmin && <span style={{ color: 'var(--txt3)', fontSize: '11px' }}>☰</span>}
+                      <span style={{ fontWeight: 800, fontSize: '12px', color: 'var(--txt)' }}>
+                        {r}라운드
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
+                        ({countInR}경기)
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. 모드별 대진 목록 렌더링 */}
+            {indViewMode === 'court' ? (
+              <>
+                {courtDetails.map((court, cIdx) => {
+                  const courtNum = court.name;
+                  const courtMatches = matchesForRender
+                    .filter(m => m.court === courtNum)
+                    .sort((a, b) => (a.setIndex || a.round || 0) - (b.setIndex || b.round || 0));
+
+                  return (
+                    <div key={court.id || cIdx} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '14px', backgroundColor: '#f8fafc' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '6px' }}>
+                        <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
+                          🎾 {courtNum} 대진 ({courtMatches.length}경기)
+                        </h3>
+                        {courtMatches.length > 0 && (
+                          <span style={{ fontSize: '12px', color: 'var(--txt3)', fontWeight: 600 }}>
+                            시작 시간: ⏰ {formatMatchTimeSlot(tournament.startTime, courtMatches[0].setIndex || 1).split('~')[0].trim()}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {courtMatches.map(m => renderIndividualMatch(m))}
+                        {courtMatches.length === 0 && (
+                          <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '14px 0' }}>배정된 대진이 없습니다.</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {(() => {
+                  const unassignedMatches = matchesForRender.filter(m => !m.court);
+                  if (unassignedMatches.length === 0) return null;
+                  return (
+                    <div style={{ border: '1px dashed var(--border)', borderRadius: '10px', padding: '14px', backgroundColor: '#f8fafc' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                        <h3 style={{ margin: 0, fontSize: '14px', color: 'var(--txt2)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          ❓ 코트 미정 대진 ({unassignedMatches.length}경기)
+                        </h3>
+                        {isAdmin && (
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <button 
+                              className="btn btn-primary btn-sm" 
+                              style={{ fontSize: '12px', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              onClick={autoAssignIndividualCourts}
+                            >
+                              🎲 코트 자동 배정 실행
+                            </button>
+                            <button 
+                              className="btn btn-secondary btn-sm" 
+                              style={{ fontSize: '12px', padding: '4px 10px', color: '#b91c1c', borderColor: '#fca5a5' }}
+                              onClick={unassignIndividualCourts}
+                            >
+                              🧹 배정 해제
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {unassignedMatches.map(m => renderIndividualMatch(m))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              /* 라운드별 보기 모드 */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {availableRounds.map((r) => {
+                  const roundMatches = matchesForRender
+                    .filter(m => (m.round || 1) === r)
+                    .sort((a, b) => (a.setIndex || a.round || 0) - (b.setIndex || b.round || 0));
+
+                  const isOver = dragOverRound === r;
+                  const isBeingDragged = draggingRound === r;
+
+                  return (
+                    <div
+                      key={r}
+                      draggable={isAdmin}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', String(r));
+                        setDraggingRound(r);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                      }}
+                      onDragEnter={() => setDragOverRound(r)}
+                      onDragLeave={() => setDragOverRound(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const fromR = parseInt(e.dataTransfer.getData('text/plain')) || draggingRound;
+                        if (fromR && fromR !== r) {
+                          handleReorderRounds(fromR, r);
+                        }
+                        setDraggingRound(null);
+                        setDragOverRound(null);
+                      }}
+                      style={{
+                        border: isOver ? '2px dashed #3b82f6' : '1px solid var(--border)',
+                        borderRadius: '10px',
+                        padding: '14px',
+                        backgroundColor: isOver ? '#eff6ff' : isBeingDragged ? '#f1f5f9' : '#f8fafc',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '6px' }}>
+                        <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
+                          {isAdmin && <span style={{ color: 'var(--txt3)', fontSize: '12px', cursor: 'grab' }}>☰</span>}
+                          🔄 {r}라운드 대진 ({roundMatches.length}경기)
+                        </h3>
+                        <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
+                          {isAdmin ? '드래그하여 라운드 순서 변경 가능' : ''}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {roundMatches.map(m => renderIndividualMatch(m))}
+                        {roundMatches.length === 0 && (
+                          <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '14px 0' }}>해당 라운드에 대진이 없습니다.</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

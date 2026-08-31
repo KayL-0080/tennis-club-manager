@@ -445,37 +445,226 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
   const generateIndividualMatches = async () => {
     if (!isAdmin) return;
     
-    const attMembers = attendees.map(id => byId[id]).filter(Boolean);
-    attMembers.sort((a, b) => (b.ntrp || 0) - (a.ntrp || 0));
+    const attMembers = attendees.map(id => byId[id] || { id, name: '선수', gender: 'M', ntrp: 2.0 }).filter(Boolean);
+    if (attMembers.length < 4) {
+      alert('참가자가 최소 4명 이상이어야 대진표를 생성할 수 있습니다.');
+      return;
+    }
+
+    const courtDetails = tournament.courtDetails || [
+      { id: 'c1', name: '1코트', games: 4 },
+      { id: 'c2', name: '2코트', games: 4 }
+    ];
 
     const matches = [];
-    
-    for (let r = 0; r < indRounds; r++) {
-        const pool = [...attMembers].sort(() => Math.random() - 0.5);
-        const top = pool.slice(0, Math.ceil(pool.length / 2));
-        const bot = pool.slice(Math.ceil(pool.length / 2));
-        
-        const pairs = [];
-        for (let i = 0; i < Math.min(top.length, bot.length); i++) {
-           pairs.push([top[i].id, bot[i].id]);
-        }
-        if (top.length > bot.length) pairs.push([top[top.length-1].id, null]);
+    const playerMatchCount = {};
+    const partnerHistory = {};
 
-        for (let i = 0; i < pairs.length - 1; i += 2) {
-            matches.push({
-                id: `r${r}-m${i/2}`,
-                round: r + 1,
-                type: 'individual',
-                playerA1: pairs[i][0],
-                playerA2: pairs[i][1],
-                playerB1: pairs[i+1][0],
-                playerB2: pairs[i+1][1],
-                scoreA: null,
-                scoreB: null
-            });
+    attMembers.forEach(m => {
+      playerMatchCount[m.id] = 0;
+      partnerHistory[m.id] = {};
+    });
+
+    const matchesPerRound = Math.floor(attMembers.length / 4);
+
+    for (let r = 0; r < indRounds; r++) {
+      // 1. Select players for this round: sort by least played, with random tie-breaker
+      const sortedCandidates = [...attMembers].sort((a, b) => {
+        const countDiff = playerMatchCount[a.id] - playerMatchCount[b.id];
+        if (countDiff !== 0) return countDiff;
+        return Math.random() - 0.5;
+      });
+
+      const roundPlayers = sortedCandidates.slice(0, matchesPerRound * 4);
+      roundPlayers.forEach(p => playerMatchCount[p.id]++);
+
+      // Split into males and females for this round
+      let roundMales = roundPlayers.filter(p => p.gender === 'M').sort((a, b) => (parseFloat(b.ntrp) || 2.0) - (parseFloat(a.ntrp) || 2.0));
+      let roundFemales = roundPlayers.filter(p => p.gender === 'F').sort((a, b) => (parseFloat(b.ntrp) || 2.0) - (parseFloat(a.ntrp) || 2.0));
+
+      const roundMatches = [];
+
+      // Even round (0, 2, 4): Prioritize 남복 & 여복
+      // Odd round (1, 3, 5): Prioritize 혼복 (2M + 2F)
+      const preferMixed = (r % 2 === 1);
+
+      let targetMixedCount = 0;
+      if (preferMixed) {
+        targetMixedCount = Math.min(Math.floor(roundMales.length / 2), Math.floor(roundFemales.length / 2));
+      } else {
+        const remM = roundMales.length % 4;
+        const remF = roundFemales.length % 4;
+        if (remM >= 2 && remF >= 2) {
+          targetMixedCount = 1;
         }
+      }
+
+      // 1. Create Mixed Doubles (혼복) matches
+      for (let mIdx = 0; mIdx < targetMixedCount; mIdx++) {
+        if (roundMales.length >= 2 && roundFemales.length >= 2) {
+          const m1 = roundMales.shift();
+          const m2 = roundMales.shift();
+          const f1 = roundFemales.shift();
+          const f2 = roundFemales.shift();
+
+          // NTRP Balancing: Higher Male (m1) + Lower Female (f2) vs Lower Male (m2) + Higher Female (f1)
+          const pA1 = m1.id;
+          const pA2 = f2.id;
+          const pB1 = m2.id;
+          const pB2 = f1.id;
+
+          partnerHistory[pA1][pA2] = (partnerHistory[pA1][pA2] || 0) + 1;
+          partnerHistory[pB1][pB2] = (partnerHistory[pB1][pB2] || 0) + 1;
+
+          roundMatches.push({
+            category: '혼복',
+            playerA1: pA1,
+            playerA2: pA2,
+            playerB1: pB1,
+            playerB2: pB2
+          });
+        }
+      }
+
+      // 2. Create Men's Doubles (남복) matches for groups of 4 males
+      while (roundMales.length >= 4) {
+        const group = [roundMales.shift(), roundMales.shift(), roundMales.shift(), roundMales.shift()];
+        group.sort((a, b) => (parseFloat(b.ntrp) || 2.0) - (parseFloat(a.ntrp) || 2.0));
+
+        // NTRP Balancing: 1st + 4th vs 2nd + 3rd
+        const pA1 = group[0].id;
+        const pA2 = group[3].id;
+        const pB1 = group[1].id;
+        const pB2 = group[2].id;
+
+        partnerHistory[pA1][pA2] = (partnerHistory[pA1][pA2] || 0) + 1;
+        partnerHistory[pB1][pB2] = (partnerHistory[pB1][pB2] || 0) + 1;
+
+        roundMatches.push({
+          category: '남복',
+          playerA1: pA1,
+          playerA2: pA2,
+          playerB1: pB1,
+          playerB2: pB2
+        });
+      }
+
+      // 3. Create Women's Doubles (여복) matches for groups of 4 females
+      while (roundFemales.length >= 4) {
+        const group = [roundFemales.shift(), roundFemales.shift(), roundFemales.shift(), roundFemales.shift()];
+        group.sort((a, b) => (parseFloat(b.ntrp) || 2.0) - (parseFloat(a.ntrp) || 2.0));
+
+        // NTRP Balancing: 1st + 4th vs 2nd + 3rd
+        const pA1 = group[0].id;
+        const pA2 = group[3].id;
+        const pB1 = group[1].id;
+        const pB2 = group[2].id;
+
+        partnerHistory[pA1][pA2] = (partnerHistory[pA1][pA2] || 0) + 1;
+        partnerHistory[pB1][pB2] = (partnerHistory[pB1][pB2] || 0) + 1;
+
+        roundMatches.push({
+          category: '여복',
+          playerA1: pA1,
+          playerA2: pA2,
+          playerB1: pB1,
+          playerB2: pB2
+        });
+      }
+
+      // 4. Handle remaining players (잡복 / 혼복)
+      const leftovers = [...roundMales, ...roundFemales];
+      while (leftovers.length >= 4) {
+        const group = [leftovers.shift(), leftovers.shift(), leftovers.shift(), leftovers.shift()];
+        const malesInGroup = group.filter(p => p.gender === 'M');
+        const femalesInGroup = group.filter(p => p.gender === 'F');
+
+        let category = '잡복';
+        let pA1, pA2, pB1, pB2;
+
+        if (malesInGroup.length === 2 && femalesInGroup.length === 2) {
+          category = '혼복';
+          malesInGroup.sort((a, b) => (parseFloat(b.ntrp) || 2.0) - (parseFloat(a.ntrp) || 2.0));
+          femalesInGroup.sort((a, b) => (parseFloat(b.ntrp) || 2.0) - (parseFloat(a.ntrp) || 2.0));
+          pA1 = malesInGroup[0].id;
+          pA2 = femalesInGroup[1].id;
+          pB1 = malesInGroup[1].id;
+          pB2 = femalesInGroup[0].id;
+        } else {
+          group.sort((a, b) => (parseFloat(b.ntrp) || 2.0) - (parseFloat(a.ntrp) || 2.0));
+          pA1 = group[0].id;
+          pA2 = group[3].id;
+          pB1 = group[1].id;
+          pB2 = group[2].id;
+        }
+
+        partnerHistory[pA1][pA2] = (partnerHistory[pA1][pA2] || 0) + 1;
+        partnerHistory[pB1][pB2] = (partnerHistory[pB1][pB2] || 0) + 1;
+
+        roundMatches.push({
+          category,
+          playerA1: pA1,
+          playerA2: pA2,
+          playerB1: pB1,
+          playerB2: pB2
+        });
+      }
+
+      // Add to matches array
+      roundMatches.forEach((rm, idx) => {
+        matches.push({
+          id: `r${r}-m${idx}`,
+          round: r + 1,
+          type: 'individual',
+          category: rm.category,
+          playerA1: rm.playerA1,
+          playerA2: rm.playerA2,
+          playerB1: rm.playerB1,
+          playerB2: rm.playerB2,
+          scoreA: null,
+          scoreB: null
+        });
+      });
     }
-    await onUpdate({ matches, status: 'playing' });
+
+    // Auto assign courts without player conflicts
+    const courtOccupied = {};
+    const playerOccupied = {};
+
+    matches.forEach((m) => {
+      const matchPlayers = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
+      let targetSlot = m.round || 1;
+      let assignedCourt = null;
+
+      while (!assignedCourt && targetSlot < 100) {
+        const hasPlayerConflict = matchPlayers.some(pId => playerOccupied[targetSlot] && playerOccupied[targetSlot].has(pId));
+        if (!hasPlayerConflict) {
+          for (const court of courtDetails) {
+            if (!courtOccupied[targetSlot]?.[court.name]) {
+              assignedCourt = court;
+              break;
+            }
+          }
+        }
+        if (!assignedCourt) {
+          targetSlot++;
+        }
+      }
+
+      if (assignedCourt) {
+        m.court = assignedCourt.name;
+        m.courtId = assignedCourt.id;
+        m.setIndex = targetSlot;
+
+        if (!courtOccupied[targetSlot]) courtOccupied[targetSlot] = {};
+        courtOccupied[targetSlot][assignedCourt.name] = true;
+
+        if (!playerOccupied[targetSlot]) playerOccupied[targetSlot] = new Set();
+        matchPlayers.forEach(pId => playerOccupied[targetSlot].add(pId));
+      }
+    });
+
+    await onUpdate({ matches, status: 'playing', courtDetails, gamesPerTeam: indRounds });
   };
 
   const unassignedPlayers = attendees.filter(aid => !teams.some(t => t.players.includes(aid)));

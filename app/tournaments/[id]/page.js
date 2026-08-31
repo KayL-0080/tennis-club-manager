@@ -83,9 +83,14 @@ export default function TournamentDetailPage() {
                   tournament.status === 'picking' ? 'badge badge-blue' :
                   tournament.status === 'playing' ? 'badge badge-green' : 'badge'
                 } style={tournament.status === 'completed' ? { background: '#f1f5f9', color: '#475569' } : {}}>
-                  {tournament.status === 'draft' ? '📝 1~2단계. 참가자 및 환경설정' :
-                   tournament.status === 'picking' ? '🤝 3단계. 팀원 배정 및 선수 구성' :
-                   tournament.status === 'playing' ? '🎾 4단계. 실시간 순위 및 경기 진행' : '✅ 5단계. 대회 종료'}
+                  {tournament.type === 'team' ? (
+                    tournament.status === 'draft' ? '📝 1~2단계. 일정/참석자 및 코트 설정' :
+                    tournament.status === 'picking' ? '🤝 3단계. 팀원 배정 및 라인업 구성' :
+                    tournament.status === 'playing' ? '🎾 4단계. 실시간 순위 및 경기 진행' : '✅ 5단계. 대회 종료'
+                  ) : (
+                    tournament.status === 'draft' ? '📝 1~2단계. 일정/참석자 및 코트/경기수 설정' :
+                    tournament.status === 'playing' ? '🎾 4단계. 실시간 대진표 및 경기 진행' : '✅ 5단계. 대회 종료'
+                  )}
                 </span>
               </div>
             </div>
