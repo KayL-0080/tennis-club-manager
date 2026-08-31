@@ -33,7 +33,7 @@ export default function Navbar() {
                   <span className={styles.logoText}>TCM</span>
                   <span className={styles.logoSub}>{isHome ? '홈' : clubName}</span>
                 </div>
-                <div style={{ fontSize: '0.65rem', color: 'var(--txt3)', marginTop: '2px' }}>Ver.20260831-02</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--txt3)', marginTop: '2px' }}>Ver.20260831-03</div>
               </div>
             </div>
           </button>
@@ -76,6 +76,13 @@ export default function Navbar() {
               onClick={() => router.push('/votes')}
             >
               🗓️ 투표
+            </button>
+            <button 
+              className={`btn btn-sm ${pathname.startsWith('/tournaments') ? 'btn-primary' : 'btn-secondary'}`} 
+              style={{ width: '100%', justifyContent: 'flex-start', padding: '10px 16px', borderRadius: 'var(--radius-full)', fontSize: '13px', margin: '3px 0', fontWeight: pathname.startsWith('/tournaments') ? '700' : '500' }}
+              onClick={() => router.push('/tournaments')}
+            >
+              🏆 대회
             </button>
             <button 
               className={`btn btn-sm ${pathname.startsWith('/members') ? 'btn-primary' : 'btn-secondary'}`} 
@@ -138,6 +145,10 @@ export default function Navbar() {
           <button className={`${styles.tabBtn} ${pathname.startsWith('/votes') ? styles.active : ''}`} onClick={() => router.push('/votes')}>
             <div className={styles.tabIcon}>🗓️</div>
             <span>투표</span>
+          </button>
+          <button className={`${styles.tabBtn} ${pathname.startsWith('/tournaments') ? styles.active : ''}`} onClick={() => router.push('/tournaments')}>
+            <div className={styles.tabIcon}>🏆</div>
+            <span>대회</span>
           </button>
           <button className={`${styles.tabBtn} ${pathname.startsWith('/members') ? styles.active : ''}`} onClick={() => router.push('/members')}>
             <div className={styles.tabIcon}>👥</div>
