@@ -226,6 +226,13 @@ const getDayName = (dateStr) => {
   return dayNames[dateObj.getDay()] || '';
 };
 
+export const DEFAULT_MATCH_RULES = {
+  doublesHandicap: '• 남남 vs 여여 경기 시 여여 쪽에 30point(30:0) 선점으로 시작 (듀스코트에서 서브/리시브 시작)\n• 남남 vs 남여 경기 시 남여 쪽에 15point(15:0) 선점으로 시작 (애드코트에서 서브/리시브 시작)\n• 남여 vs 여여 경기 시 여여 쪽에 15point(15:0) 선점으로 시작 (애드코트에서 서브/리시브 시작)',
+  tiebreak: '• 5:5 동점(또는 마지막 게임 동점) 상황 시 타이브레이크 경기 진행\n• 7점 먼저 선취 시 해당 세트 승리',
+  noAd: '• 40:40 듀스 시 No-Ad(1포인트 결정)\n• 혼복(남여) 경기 시 리시버 동성 선택 (서버 성별에 맞추어 남남/여여 리시브)',
+  custom: '• 풋폴트 주의, 라인 콜은 해당 코트 선수 판정 존중, 경기 전 웜업 3분 준수'
+};
+
 export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
   const { currentClubId } = useAuth();
   const isIndividual = tournament.type === 'individual';
@@ -244,6 +251,10 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
   const [gamesPerTeam, setGamesPerTeam] = useState(tournament.gamesPerTeam || 4);
   const [entryFee, setEntryFee] = useState(tournament.entryFee !== undefined ? tournament.entryFee : 10000);
   const [bankAccount, setBankAccount] = useState(tournament.bankAccount || '');
+  const [matchRules, setMatchRules] = useState(() => ({
+    ...DEFAULT_MATCH_RULES,
+    ...(tournament.matchRules || {})
+  }));
   const [showFeeNoticeModal, setShowFeeNoticeModal] = useState(false);
   const [feeNoticeText, setFeeNoticeText] = useState('');
   const [fetchingVotes, setFetchingVotes] = useState(false);
@@ -445,15 +456,18 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
 
   const handleOpenFeeNoticeModal = () => {
     const dayName = getDayName(date);
-    const attendeeNames = attendees.map(id => byId[id]?.name).filter(Boolean);
+    const attendeeNames = attendees
+      .map(id => byId[id]?.name)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'ko'));
     const dayDisplay = dayName ? ` (${dayName})` : '';
     const feeDisplay = entryFee > 0 ? `${Number(entryFee).toLocaleString()}원` : '무료';
     const totalExpected = attendees.length * entryFee;
 
-    const text = `[🏆 ${tournament.title || '정기 대회'} 참가비 입금 안내]
+    const text = `[🏆 ${tournament.title || '정기 대회'} 참가비 입금 및 대회 안내]
 
 안녕하세요, 회원 여러분!
-이번 ${date}${dayDisplay} 정기 대회의 참가비 입금 안내드립니다.
+이번 ${date}${dayDisplay} 정기 대회의 참가비 입금 및 경기 진행 규칙을 안내드립니다.
 
 📅 대회 일시: ${date}${dayDisplay} ⏰ ${startTime} ~ ${endTime}
 🎾 대회 방식: ${isIndividual ? '개인전' : '팀전'}
@@ -461,11 +475,21 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
 🏦 입금 계좌: ${bankAccount || '(계좌 정보 미입력 - 현장 납부 또는 운영진 문의)'}
 ⏰ 입금 기한: 대회 시작 전까지
 
-👥 참가 선수 명단 (총 ${attendees.length}명 / 총 ${totalExpected.toLocaleString()}원):
-${attendeeNames.length > 0 ? attendeeNames.join(', ') : '참가자 미정'}
+📜 [경기 진행 규칙 안내]
+1️⃣ 복식 핸디캡 룰:
+${matchRules.doublesHandicap}
 
-※ 원활한 대회 준비(코트 예약 및 시상/간식 등)를 위해 기한 내 입금 부탁드립니다. 감사합니다! 🎾
-🔗 대회 현황 확인: https://tmradal.vercel.app`;
+2️⃣ 타이브레이크 룰:
+${matchRules.tiebreak}
+
+3️⃣ No-Ad 룰:
+${matchRules.noAd}${matchRules.custom ? `\n\n4️⃣ 추가 및 매너 수칙:\n${matchRules.custom}` : ''}
+
+👥 참가 선수 명단 (총 ${attendees.length}명 / 총 예상 ${totalExpected.toLocaleString()}원):
+${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`).join('\n') : '참가자 미정'}
+
+※ 원활한 대회 준비를 위해 기한 내 입금 부탁드립니다. 감사합니다! 🎾
+🔗 실시간 대진 및 순위 확인: https://tmradal.vercel.app`;
 
     setFeeNoticeText(text);
     setShowFeeNoticeModal(true);
@@ -505,6 +529,7 @@ ${attendeeNames.length > 0 ? attendeeNames.join(', ') : '참가자 미정'}
         endTime,
         entryFee,
         bankAccount,
+        matchRules,
         courts: courtDetails.length,
         courtDetails,
         gamesPerTeam,
@@ -529,6 +554,7 @@ ${attendeeNames.length > 0 ? attendeeNames.join(', ') : '참가자 미정'}
         endTime,
         entryFee,
         bankAccount,
+        matchRules,
         courts: courtDetails.length,
         courtDetails,
         gamesPerTeam,
@@ -537,7 +563,11 @@ ${attendeeNames.length > 0 ? attendeeNames.join(', ') : '참가자 미정'}
     }
   };
 
-  const memberList = members.filter(m => m.role !== '준회원' && m.role !== '게스트');
+  const memberList = useMemo(() => {
+    return members
+      .filter(m => m.role !== '준회원' && m.role !== '게스트')
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+  }, [members]);
 
   return (
     <>
@@ -672,7 +702,202 @@ ${attendeeNames.length > 0 ? attendeeNames.join(', ') : '참가자 미정'}
             </div>
           </div>
 
-          {/* Card 2: 📝 1단계. 대회 일정, 시간 및 참가자/조장 확정 (하단 메인 카드) */}
+          {/* Card 2: 📜 정기 대회 경기 진행 규칙 설정 (복식 핸디캡 / 타이브레이크 / No-Ad) */}
+          <div className="card" style={{ padding: '18px 20px', border: '1px solid #c7d2fe', backgroundColor: '#f5f7ff', boxShadow: '0 2px 4px rgba(99, 102, 241, 0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>📜</span>
+                <h3 style={{ margin: 0, color: '#3730a3', fontSize: '16px', fontWeight: 800 }}>
+                  경기 진행 규칙 설정 (복식 핸디캡 / 타이브레이크 / No-Ad)
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '11px', padding: '4px 10px', backgroundColor: '#fff', color: '#4338ca', borderColor: '#c7d2fe' }}
+                onClick={() => setMatchRules(DEFAULT_MATCH_RULES)}
+                disabled={!isAdmin}
+                title="기본 권장 규칙으로 초기화"
+              >
+                🔄 기본 룰로 리셋
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              
+              {/* 1. 복식 경기룰 설정 (핸디캡 등) */}
+              <div style={{ backgroundColor: '#fff', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e0e7ff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🎾 1. 복식 경기룰 (성비 핸디캡)</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', padding: '2px 8px' }}
+                      disabled={!isAdmin}
+                      onClick={() => setMatchRules(prev => ({
+                        ...prev,
+                        doublesHandicap: '• 남남 vs 여여: 여여 30point(30:0) 선점 시작 (듀스코트에서 서브/리시브 시작)\n• 남남 vs 남여: 남여 15point(15:0) 선점 시작 (애드코트에서 서브/리시브 시작)\n• 남여 vs 여여: 여여 15point(15:0) 선점 시작 (애드코트에서 서브/리시브 시작)'
+                      }))}
+                    >
+                      기본 핸디캡 적용
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', padding: '2px 8px' }}
+                      disabled={!isAdmin}
+                      onClick={() => setMatchRules(prev => ({
+                        ...prev,
+                        doublesHandicap: '• 모든 경기 핸디캡 없이 동일하게 0:0으로 시작'
+                      }))}
+                    >
+                      핸디캡 없음
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  className="input"
+                  style={{ width: '100%', minHeight: '68px', fontSize: '12px', lineHeight: '1.5', padding: '8px', boxSizing: 'border-box', backgroundColor: '#fbfcfe' }}
+                  value={matchRules.doublesHandicap}
+                  onChange={e => setMatchRules(prev => ({ ...prev, doublesHandicap: e.target.value }))}
+                  disabled={!isAdmin}
+                  placeholder="복식 핸디캡 규칙을 입력하세요."
+                />
+              </div>
+
+              {/* 2. 타이브레이크 경기룰 설정 */}
+              <div style={{ backgroundColor: '#fff', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e0e7ff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>⚡ 2. 타이브레이크 경기룰</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', padding: '2px 8px' }}
+                      disabled={!isAdmin}
+                      onClick={() => setMatchRules(prev => ({
+                        ...prev,
+                        tiebreak: '• 5:5 동점(또는 마지막 게임 동점) 상황 시 타이브레이크 경기 진행\n• 7점 먼저 선취 시 해당 세트 승리'
+                      }))}
+                    >
+                      5:5 7점 선취
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', padding: '2px 8px' }}
+                      disabled={!isAdmin}
+                      onClick={() => setMatchRules(prev => ({
+                        ...prev,
+                        tiebreak: '• 4:4 동점 상황 시 타이브레이크 경기 진행\n• 7점 먼저 선취 시 해당 세트 승리'
+                      }))}
+                    >
+                      4:4 7점 선취
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', padding: '2px 8px' }}
+                      disabled={!isAdmin}
+                      onClick={() => setMatchRules(prev => ({
+                        ...prev,
+                        tiebreak: '• 타이브레이크 없이 해당 게임 점수로 승패 결정 (동점 시 무승부)'
+                      }))}
+                    >
+                      타이브레이크 없음
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  className="input"
+                  style={{ width: '100%', minHeight: '52px', fontSize: '12px', lineHeight: '1.5', padding: '8px', boxSizing: 'border-box', backgroundColor: '#fbfcfe' }}
+                  value={matchRules.tiebreak}
+                  onChange={e => setMatchRules(prev => ({ ...prev, tiebreak: e.target.value }))}
+                  disabled={!isAdmin}
+                  placeholder="타이브레이크 규칙을 입력하세요."
+                />
+              </div>
+
+              {/* 3. No-Ad 시 경기룰 설정 */}
+              <div style={{ backgroundColor: '#fff', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e0e7ff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🎯 3. No-Ad 시 경기룰</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', padding: '2px 8px' }}
+                      disabled={!isAdmin}
+                      onClick={() => setMatchRules(prev => ({
+                        ...prev,
+                        noAd: '• 40:40 듀스 시 No-Ad(1포인트 결정)\n• 혼복(남여) 경기 시 리시버 동성 선택 (서버 성별에 맞추어 남남/여여 리시브)'
+                      }))}
+                    >
+                      No-Ad (혼복 동성리시브)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', padding: '2px 8px' }}
+                      disabled={!isAdmin}
+                      onClick={() => setMatchRules(prev => ({
+                        ...prev,
+                        noAd: '• 40:40 듀스 시 리시버가 원하는 코트(서브/리시버) 자유 선택'
+                      }))}
+                    >
+                      리시버 자유선택
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', padding: '2px 8px' }}
+                      disabled={!isAdmin}
+                      onClick={() => setMatchRules(prev => ({
+                        ...prev,
+                        noAd: '• 듀스 적용 (2점 차이 승리, Ad 코트 진행)'
+                      }))}
+                    >
+                      듀스(Advantage) 적용
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  className="input"
+                  style={{ width: '100%', minHeight: '52px', fontSize: '12px', lineHeight: '1.5', padding: '8px', boxSizing: 'border-box', backgroundColor: '#fbfcfe' }}
+                  value={matchRules.noAd}
+                  onChange={e => setMatchRules(prev => ({ ...prev, noAd: e.target.value }))}
+                  disabled={!isAdmin}
+                  placeholder="No-Ad 룰을 입력하세요."
+                />
+              </div>
+
+              {/* 4. 추가 경기 룰 및 매너 수칙 (선택) */}
+              <div style={{ backgroundColor: '#fff', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e0e7ff' }}>
+                <label style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)', marginBottom: '6px', display: 'block' }}>
+                  📝 4. 추가 안내 및 매너 수칙 (선택)
+                </label>
+                <input
+                  type="text"
+                  className="input input-sm"
+                  style={{ width: '100%', fontSize: '12px', backgroundColor: '#fbfcfe' }}
+                  value={matchRules.custom || ''}
+                  onChange={e => setMatchRules(prev => ({ ...prev, custom: e.target.value }))}
+                  disabled={!isAdmin}
+                  placeholder="예: 풋폴트 주의, 라인 콜은 해당 코트 선수 판정 존중, 경기 전 웜업 3분 준수"
+                />
+              </div>
+
+            </div>
+          </div>
+
+          {/* Card 3: 📝 1단계. 대회 일정, 시간 및 참가자/조장 확정 (하단 메인 카드) */}
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
               <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>
@@ -873,6 +1098,9 @@ ${attendeeNames.length > 0 ? attendeeNames.join(', ') : '참가자 미정'}
               {!isIndividual && (
                 <> | 👑 <strong>지정된 조장 ({captains.length}명):</strong> {captains.map(cid => byId[cid]?.name).join(', ')}</>
               )}
+            </div>
+            <div style={{ fontSize: '12px', color: '#15803d' }}>
+              📜 <strong>경기 규칙:</strong> 복식 핸디캡, 타이브레이크, No-Ad 규칙 설정됨
             </div>
           </div>
 

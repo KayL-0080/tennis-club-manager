@@ -33,7 +33,7 @@ export default function Navbar() {
                   <span className={styles.logoText}>TCM</span>
                   <span className={styles.logoSub}>{isHome ? '홈' : clubName}</span>
                 </div>
-                <div style={{ fontSize: '0.65rem', color: 'var(--txt3)', marginTop: '2px' }}>Ver.20260901-01</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--txt3)', marginTop: '2px' }}>Ver.20260901-02</div>
               </div>
             </div>
           </button>

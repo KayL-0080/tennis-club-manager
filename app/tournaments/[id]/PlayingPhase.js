@@ -17,6 +17,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
   const [localMatches, setLocalMatches] = useState(matches || []);
   const [maxGames, setMaxGames] = useState(tournament.maxGames || 6);
+  const [showRules, setShowRules] = useState(false);
   const [courtSets, setCourtSets] = useState(() => {
     const init = {};
     const courtDetails = tournament.courtDetails || [
@@ -80,16 +81,43 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     }));
   };
 
+  const handleMaxGamesChange = (newMax) => {
+    setMaxGames(newMax);
+    setLocalMatches(prev => prev.map(m => {
+      let updated = { ...m };
+      if (updated.scoreA !== null && updated.scoreA > newMax) {
+        updated.scoreA = newMax;
+      }
+      if (updated.scoreB !== null && updated.scoreB > newMax) {
+        updated.scoreB = newMax;
+      }
+      if (updated.sets && Array.isArray(updated.sets)) {
+        updated.sets = updated.sets.map(s => {
+          let sCopy = { ...s };
+          if (sCopy.scoreA !== null && sCopy.scoreA > newMax) sCopy.scoreA = newMax;
+          if (sCopy.scoreB !== null && sCopy.scoreB > newMax) sCopy.scoreB = newMax;
+          return sCopy;
+        });
+      }
+      return updated;
+    }));
+  };
+
   const updateMatchScore = (matchIdx, field, val) => {
     const newMatches = [...localMatches];
-    newMatches[matchIdx][field] = val !== '' ? parseInt(val) : null;
+    let scoreVal = val !== '' ? parseInt(val) : null;
+    if (scoreVal !== null) {
+      scoreVal = Math.max(0, Math.min(maxGames, scoreVal));
+    }
+    newMatches[matchIdx][field] = scoreVal;
     setLocalMatches(newMatches);
   };
 
   const handleUpdateMatchSlot = (courtId, courtName, setIdx, field, val) => {
-    const parsedVal = (field === 'scoreA' || field === 'scoreB')
-      ? (val !== '' ? parseInt(val) : null)
-      : (val !== '' ? val : null);
+    let parsedVal = val !== '' ? val : null;
+    if (field === 'scoreA' || field === 'scoreB') {
+      parsedVal = val !== '' ? Math.max(0, Math.min(maxGames, parseInt(val))) : null;
+    }
 
     // If changing a player, verify no duplicates in the same set or same match
     if (['playerA1', 'playerA2', 'playerB1', 'playerB2'].includes(field) && parsedVal) {
@@ -518,7 +546,11 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
   const updateTeamSetScore = (matchIdx, setIdx, field, val) => {
     const newMatches = [...localMatches];
-    newMatches[matchIdx].sets[setIdx][field] = val !== '' ? parseInt(val) : null;
+    let scoreVal = val !== '' ? parseInt(val) : null;
+    if (scoreVal !== null) {
+      scoreVal = Math.max(0, Math.min(maxGames, scoreVal));
+    }
+    newMatches[matchIdx].sets[setIdx][field] = scoreVal;
     setLocalMatches(newMatches);
   };
 
@@ -552,7 +584,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                       disabled={!isAdmin}
                     >
                       <option value="">-</option>
-                      {Array.from({ length: maxGames + 3 }).map((_, i) => (
+                      {Array.from({ length: maxGames + 1 }).map((_, i) => (
                         <option key={i} value={i}>{i}</option>
                       ))}
                     </select>
@@ -565,7 +597,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                       disabled={!isAdmin}
                     >
                       <option value="">-</option>
-                      {Array.from({ length: maxGames + 3 }).map((_, i) => (
+                      {Array.from({ length: maxGames + 1 }).map((_, i) => (
                         <option key={i} value={i}>{i}</option>
                       ))}
                     </select>
@@ -818,7 +850,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                  textAlign: 'center', 
                  fontSize: '14px', 
                  fontWeight: 800, 
-                 padding: 0,
+                 padding: 0, 
                  borderRadius: '6px',
                  opacity: 1,
                  cursor: isAdmin ? 'pointer' : 'default',
@@ -833,7 +865,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                disabled={!isAdmin}
              >
                <option value="">-</option>
-               {Array.from({ length: maxGames + 3 }).map((_, i) => (
+               {Array.from({ length: maxGames + 1 }).map((_, i) => (
                  <option key={i} value={i}>{i}</option>
                ))}
              </select>
@@ -846,7 +878,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                  textAlign: 'center', 
                  fontSize: '14px', 
                  fontWeight: 800, 
-                 padding: 0,
+                 padding: 0, 
                  borderRadius: '6px',
                  opacity: 1,
                  cursor: isAdmin ? 'pointer' : 'default',
@@ -861,7 +893,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                disabled={!isAdmin}
              >
                <option value="">-</option>
-               {Array.from({ length: maxGames + 3 }).map((_, i) => (
+               {Array.from({ length: maxGames + 1 }).map((_, i) => (
                  <option key={i} value={i}>{i}</option>
                ))}
              </select>
@@ -1025,10 +1057,71 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '16px', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0 }}>경기 방식(게임수):</label>
-            <select className="input input-sm" style={{ width: '100px' }} value={maxGames} onChange={e => setMaxGames(parseInt(e.target.value) || 6)}>
+            <select className="input input-sm" style={{ width: '100px' }} value={maxGames} onChange={e => handleMaxGamesChange(parseInt(e.target.value) || 6)}>
               {[4, 5, 6, 7, 8].map(g => <option key={g} value={g}>{g}게임 선승</option>)}
             </select>
           </div>
+        </div>
+      )}
+
+      {/* 📜 경기 진행 규칙 안내 배너 */}
+      {tournament.matchRules && (
+        <div style={{ marginBottom: '16px', border: '1px solid #c7d2fe', borderRadius: '8px', backgroundColor: '#f5f7ff', overflow: 'hidden' }}>
+          <div 
+            style={{ 
+              padding: '9px 14px', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              cursor: 'pointer',
+              userSelect: 'none'
+            }}
+            onClick={() => setShowRules(prev => !prev)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800, fontSize: '13px', color: '#3730a3' }}>
+              <span>📜 경기 진행 규칙 안내 (복식 핸디캡 / 타이브레이크 / No-Ad)</span>
+            </div>
+            <span style={{ fontSize: '12px', color: '#4338ca', fontWeight: 700 }}>
+              {showRules ? '접기 ▲' : '규칙 보기 ▼'}
+            </span>
+          </div>
+
+          {showRules && (
+            <div style={{ padding: '12px 14px', borderTop: '1px solid #e0e7ff', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px', color: '#1e1b4b', backgroundColor: '#fff' }}>
+              {tournament.matchRules.doublesHandicap && (
+                <div>
+                  <strong style={{ color: '#4338ca' }}>🎾 1. 복식 핸디캡 룰:</strong>
+                  <div style={{ whiteSpace: 'pre-line', marginTop: '3px', color: 'var(--txt)', paddingLeft: '8px', lineHeight: '1.5' }}>
+                    {tournament.matchRules.doublesHandicap}
+                  </div>
+                </div>
+              )}
+              {tournament.matchRules.tiebreak && (
+                <div>
+                  <strong style={{ color: '#4338ca' }}>⚡ 2. 타이브레이크 룰:</strong>
+                  <div style={{ whiteSpace: 'pre-line', marginTop: '3px', color: 'var(--txt)', paddingLeft: '8px', lineHeight: '1.5' }}>
+                    {tournament.matchRules.tiebreak}
+                  </div>
+                </div>
+              )}
+              {tournament.matchRules.noAd && (
+                <div>
+                  <strong style={{ color: '#4338ca' }}>🎯 3. No-Ad 룰:</strong>
+                  <div style={{ whiteSpace: 'pre-line', marginTop: '3px', color: 'var(--txt)', paddingLeft: '8px', lineHeight: '1.5' }}>
+                    {tournament.matchRules.noAd}
+                  </div>
+                </div>
+              )}
+              {tournament.matchRules.custom && (
+                <div>
+                  <strong style={{ color: '#4338ca' }}>📝 4. 추가 수칙:</strong>
+                  <div style={{ whiteSpace: 'pre-line', marginTop: '3px', color: 'var(--txt)', paddingLeft: '8px', lineHeight: '1.5' }}>
+                    {tournament.matchRules.custom}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1275,7 +1368,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                   disabled={!isAdmin || !m.teamAId || !m.teamBId}
                                 >
                                   <option value="">-</option>
-                                  {Array.from({ length: maxGames + 3 }).map((_, i) => (
+                                  {Array.from({ length: maxGames + 1 }).map((_, i) => (
                                     <option key={i} value={i}>{i}</option>
                                   ))}
                                 </select>
@@ -1307,7 +1400,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                   disabled={!isAdmin || !m.teamAId || !m.teamBId}
                                 >
                                   <option value="">-</option>
-                                  {Array.from({ length: maxGames + 3 }).map((_, i) => (
+                                  {Array.from({ length: maxGames + 1 }).map((_, i) => (
                                     <option key={i} value={i}>{i}</option>
                                   ))}
                                 </select>
