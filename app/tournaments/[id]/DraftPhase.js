@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getEvents } from '@/lib/firestore';
+import { getEvents, getClubSettings } from '@/lib/firestore';
 
 export function generateIndividualTournamentMatches(attendeeIds, byId, roundsCount, courtDetails) {
   const attMembers = attendeeIds.map(id => byId[id] || { id, name: '선수', gender: 'M', ntrp: 2.0 }).filter(Boolean);
@@ -217,6 +217,15 @@ export function generateIndividualTournamentMatches(attendeeIds, byId, roundsCou
   return matches;
 }
 
+const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+const getDayName = (dateStr) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length < 3) return '';
+  const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+  return dayNames[dateObj.getDay()] || '';
+};
+
 export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
   const { currentClubId } = useAuth();
   const isIndividual = tournament.type === 'individual';
@@ -233,6 +242,10 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
   const [startTime, setStartTime] = useState(tournament.startTime || tournament.time || '19:00');
   const [endTime, setEndTime] = useState(tournament.endTime || '22:00');
   const [gamesPerTeam, setGamesPerTeam] = useState(tournament.gamesPerTeam || 4);
+  const [entryFee, setEntryFee] = useState(tournament.entryFee !== undefined ? tournament.entryFee : 10000);
+  const [bankAccount, setBankAccount] = useState(tournament.bankAccount || '');
+  const [showFeeNoticeModal, setShowFeeNoticeModal] = useState(false);
+  const [feeNoticeText, setFeeNoticeText] = useState('');
   const [fetchingVotes, setFetchingVotes] = useState(false);
   const [lastVotedInfo, setLastVotedInfo] = useState('');
 
@@ -283,11 +296,32 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
     }
   };
 
-  // Initial load: if tournament attendees is empty, try auto-fetching from votes
+  // Initial load: fetch default bank account from Club Settings if not set, and auto-fetch attendees
   useEffect(() => {
-    if ((!tournament.attendees || tournament.attendees.length === 0) && date) {
-      fetchVotedAttendees(date, true);
-    }
+    (async () => {
+      // 1. Fetch default bank account from member management settings if not set in tournament
+      if (!tournament.bankAccount) {
+        try {
+          const clubSettings = await getClubSettings(currentClubId);
+          if (clubSettings && (clubSettings.bankAccount || clubSettings.accountHolder)) {
+            const defaultBank = [
+              clubSettings.bankAccount,
+              clubSettings.accountHolder ? `(${clubSettings.accountHolder})` : ''
+            ].filter(Boolean).join(' ');
+            if (defaultBank) {
+              setBankAccount(defaultBank);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load club settings bank account:', err);
+        }
+      }
+
+      // 2. If tournament attendees is empty, auto-fetch from votes
+      if ((!tournament.attendees || tournament.attendees.length === 0) && date) {
+        fetchVotedAttendees(date, true);
+      }
+    })();
   }, []);
 
   const calcAutoValues = (start, end, courtsList, customAttendeesCount) => {
@@ -409,6 +443,34 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
     });
   };
 
+  const handleOpenFeeNoticeModal = () => {
+    const dayName = getDayName(date);
+    const attendeeNames = attendees.map(id => byId[id]?.name).filter(Boolean);
+    const dayDisplay = dayName ? ` (${dayName})` : '';
+    const feeDisplay = entryFee > 0 ? `${Number(entryFee).toLocaleString()}원` : '무료';
+    const totalExpected = attendees.length * entryFee;
+
+    const text = `[🏆 ${tournament.title || '정기 대회'} 참가비 입금 안내]
+
+안녕하세요, 회원 여러분!
+이번 ${date}${dayDisplay} 정기 대회의 참가비 입금 안내드립니다.
+
+📅 대회 일시: ${date}${dayDisplay} ⏰ ${startTime} ~ ${endTime}
+🎾 대회 방식: ${isIndividual ? '개인전' : '팀전'}
+💰 1인 참가비: ${feeDisplay}
+🏦 입금 계좌: ${bankAccount || '(계좌 정보 미입력 - 현장 납부 또는 운영진 문의)'}
+⏰ 입금 기한: 대회 시작 전까지
+
+👥 참가 선수 명단 (총 ${attendees.length}명 / 총 ${totalExpected.toLocaleString()}원):
+${attendeeNames.length > 0 ? attendeeNames.join(', ') : '참가자 미정'}
+
+※ 원활한 대회 준비(코트 예약 및 시상/간식 등)를 위해 기한 내 입금 부탁드립니다. 감사합니다! 🎾
+🔗 대회 현황 확인: https://tmradal.vercel.app`;
+
+    setFeeNoticeText(text);
+    setShowFeeNoticeModal(true);
+  };
+
   const handleGoToStep2 = () => {
     if (attendees.length < 4) {
       alert('최소 4명 이상의 참가자를 선택해주세요.');
@@ -441,6 +503,8 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
         date,
         startTime,
         endTime,
+        entryFee,
+        bankAccount,
         courts: courtDetails.length,
         courtDetails,
         gamesPerTeam,
@@ -463,6 +527,8 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
         date,
         startTime,
         endTime,
+        entryFee,
+        bankAccount,
         courts: courtDetails.length,
         courtDetails,
         gamesPerTeam,
@@ -474,188 +540,320 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
   const memberList = members.filter(m => m.role !== '준회원' && m.role !== '게스트');
 
   return (
-    <div className="card" style={{ padding: '20px' }}>
+    <>
       {draftStep === 1 ? (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>
-              1단계. 대회 일정, 시간 및 참가자{isIndividual ? '' : ' / 조장'} 확정
-            </h2>
-            <span className={isIndividual ? 'badge badge-purple' : 'badge badge-blue'} style={{ fontSize: '12px' }}>
-              {isIndividual ? '👤 개인전 모드' : '👥 팀전 모드'}
-            </span>
-          </div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
-            
-            {/* 1. 대회 일정 및 투표 참석자 자동 불러오기 */}
-            <div style={{ width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>대회 일정</label>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '12px', padding: '3px 10px', background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe', fontWeight: 'bold' }}
-                  onClick={() => fetchVotedAttendees(date, false)}
-                  disabled={fetchingVotes || !isAdmin}
-                >
-                  {fetchingVotes ? '⏳ 불러오는 중...' : '📥 해당 일정 투표 참석자 불러오기'}
-                </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Card 1: 💰 정기 대회 참가비 설정 (화면 최상단 독립 카드) */}
+          <div className="card" style={{ padding: '18px 20px', border: '1px solid #fed7aa', backgroundColor: '#fffbf5', boxShadow: '0 2px 4px rgba(249, 115, 22, 0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>💰</span>
+                <h3 style={{ margin: 0, color: '#9a3412', fontSize: '16px', fontWeight: 800 }}>
+                  정기 대회 참가비 설정 및 입금 안내
+                </h3>
               </div>
-              <input
-                type="date"
-                className="input"
-                value={date}
-                onChange={e => {
-                  setDate(e.target.value);
-                  fetchVotedAttendees(e.target.value, true);
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{
+                  fontSize: '12px',
+                  padding: '5px 12px',
+                  background: '#fef3c7',
+                  color: '#b45309',
+                  borderColor: '#fde68a',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                 }}
-                disabled={!isAdmin}
-                style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
-              />
-              {lastVotedInfo && (
-                <div style={{ marginTop: '4px', fontSize: '11px', color: lastVotedInfo.includes('⚠️') ? '#b91c1c' : '#166534', fontWeight: 600 }}>
-                  {lastVotedInfo}
-                </div>
-              )}
-            </div>
-            
-            {/* 2. 대회 시간 */}
-            <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>대회 시간</label>
-                <span style={{ fontSize: '11px', color: 'var(--blue)', background: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
-                  ⏰ 총 {durationInfo.text} (1경기 30분 기준, 코트당 {maxAllowedSets}경기 소화 가능)
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                 <input type="time" className="input" value={startTime} onChange={e => updateTimeAndAutoCalculate(e.target.value, endTime)} disabled={!isAdmin} style={{ flex: 1, minWidth: '0' }} />
-                 <span>~</span>
-                 <input type="time" className="input" value={endTime} onChange={e => updateTimeAndAutoCalculate(startTime, e.target.value)} disabled={!isAdmin} style={{ flex: 1, minWidth: '0' }} />
-              </div>
+                onClick={handleOpenFeeNoticeModal}
+              >
+                📢 참가비 입금 안내문 생성 및 공유
+              </button>
             </div>
 
-            {/* 3. 참가자 성비 현황 실시간 배너 */}
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* 참가비 입력 및 빠른 선택 프리셋 버튼 */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>
+                    1인 참가비 (직접 입력 또는 빠른 선택)
+                  </label>
+                  <span style={{ fontSize: '12px', color: '#c2410c', fontWeight: 700 }}>
+                    설정 금액: {entryFee > 0 ? `${Number(entryFee).toLocaleString()}원` : '무료'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: '1 1 180px', minWidth: '150px' }}>
+                    <input
+                      type="number"
+                      step="1000"
+                      min="0"
+                      className="input"
+                      value={entryFee}
+                      onChange={e => setEntryFee(Math.max(0, parseInt(e.target.value) || 0))}
+                      disabled={!isAdmin}
+                      placeholder="참가비 입력 (원)"
+                      style={{ width: '100%', fontWeight: 'bold', fontSize: '14px', backgroundColor: '#fff' }}
+                    />
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--txt2)', whiteSpace: 'nowrap' }}>원</span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {[
+                      { amount: 0, label: '무료' },
+                      { amount: 5000, label: '5천원' },
+                      { amount: 10000, label: '1만원' },
+                      { amount: 15000, label: '1.5만원' },
+                      { amount: 20000, label: '2만원' },
+                      { amount: 30000, label: '3만원' }
+                    ].map(preset => (
+                      <button
+                        key={preset.amount}
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          padding: '4px 9px',
+                          fontSize: '11px',
+                          backgroundColor: entryFee === preset.amount ? '#ea580c' : '#fff',
+                          color: entryFee === preset.amount ? '#fff' : 'var(--txt)',
+                          borderColor: entryFee === preset.amount ? '#ea580c' : '#fdba74',
+                          fontWeight: entryFee === preset.amount ? 'bold' : 'normal'
+                        }}
+                        onClick={() => setEntryFee(preset.amount)}
+                        disabled={!isAdmin}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 입금 계좌 정보 입력 (회원관리 회비 계좌 기본 연동) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--txt)' }}>
+                    🏦 입금 계좌 정보 (회원관리 회비 계좌 기본 연동)
+                  </label>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    안내문 공유 시 자동 포함됩니다.
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  className="input input-sm"
+                  value={bankAccount}
+                  onChange={e => setBankAccount(e.target.value)}
+                  disabled={!isAdmin}
+                  placeholder="예: 카카오뱅크 3333-01-1234567 (홍길동)"
+                  style={{ width: '100%', fontSize: '13px', backgroundColor: '#fff' }}
+                />
+              </div>
+
+              {/* 실시간 총 예상 참가비 요약 배너 */}
               <div style={{ 
-                padding: '12px 14px', 
+                padding: '10px 14px', 
                 backgroundColor: '#fff', 
-                border: '1px solid #cbd5e1', 
                 borderRadius: '8px', 
+                border: '1px solid #fed7aa', 
                 display: 'flex', 
                 justifyContent: 'space-between', 
                 alignItems: 'center', 
-                flexWrap: 'wrap', 
-                gap: '8px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                fontSize: '12px',
+                color: 'var(--txt)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)' }}>
-                    🎾 선택된 참가자: <strong>{totalCount}명</strong>
-                  </span>
-                  <span style={{ fontSize: '12px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
-                    👨 남 {selectedMales.length}명 ({malePct}%)
-                  </span>
-                  <span style={{ fontSize: '12px', background: '#fdf2f8', color: '#be185d', border: '1px solid #fbcfe8', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
-                    👩 여 {selectedFemales.length}명 ({femalePct}%)
-                  </span>
+                <span>👥 <strong>총 예상 참가비</strong> (현재 선택 <strong>{totalCount}명</strong> × {entryFee.toLocaleString()}원)</span>
+                <strong style={{ color: '#ea580c', fontSize: '15px' }}>
+                  {(totalCount * entryFee).toLocaleString()}원
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: 📝 1단계. 대회 일정, 시간 및 참가자/조장 확정 (하단 메인 카드) */}
+          <div className="card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>
+                1단계. 대회 일정, 시간 및 참가자{isIndividual ? '' : ' / 조장'} 확정
+              </h2>
+              <span className={isIndividual ? 'badge badge-purple' : 'badge badge-blue'} style={{ fontSize: '12px' }}>
+                {isIndividual ? '👤 개인전 모드' : '👥 팀전 모드'}
+              </span>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+              
+              {/* 1. 대회 일정 및 투표 참석자 자동 불러오기 */}
+              <div style={{ width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>대회 일정</label>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '12px', padding: '3px 10px', background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe', fontWeight: 'bold' }}
+                    onClick={() => fetchVotedAttendees(date, false)}
+                    disabled={fetchingVotes || !isAdmin}
+                  >
+                    {fetchingVotes ? '⏳ 불러오는 중...' : '📥 해당 일정 투표 참석자 불러오기'}
+                  </button>
                 </div>
-                {!isIndividual && (
-                  <span style={{ fontSize: '12px', color: captains.length >= 2 ? '#166534' : '#b45309', fontWeight: 'bold', background: captains.length >= 2 ? '#dcfce7' : '#fef3c7', padding: '2px 10px', borderRadius: '12px', border: `1px solid ${captains.length >= 2 ? '#bbf7d0' : '#fde68a'}` }}>
-                    👑 조장 {captains.length}명 지정됨 {captains.length < 2 && '(최소 2명 필요)'}
-                  </span>
+                <input
+                  type="date"
+                  className="input"
+                  value={date}
+                  onChange={e => {
+                    setDate(e.target.value);
+                    fetchVotedAttendees(e.target.value, true);
+                  }}
+                  disabled={!isAdmin}
+                  style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
+                />
+                {lastVotedInfo && (
+                  <div style={{ marginTop: '4px', fontSize: '11px', color: lastVotedInfo.includes('⚠️') ? '#b91c1c' : '#166534', fontWeight: 600 }}>
+                    {lastVotedInfo}
+                  </div>
                 )}
               </div>
-            </div>
-
-            {/* 4. 참가자 명단 선택 및 조장 지정 그리드 */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '4px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>
-                  참가자 명단 {isIndividual ? '체크' : '및 조장(👑) 지정'}
-                </label>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  {isIndividual ? '회원을 클릭하여 참가 여부를 선택하세요.' : '회원을 클릭하여 참석을 선택하고, 왕관(👑) 아이콘을 눌러 조장을 지정하세요.'}
-                </span>
+              
+              {/* 2. 대회 시간 */}
+              <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>대회 시간</label>
+                  <span style={{ fontSize: '11px', color: 'var(--blue)', background: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
+                    ⏰ 총 {durationInfo.text} (1경기 30분 기준, 코트당 {maxAllowedSets}경기 소화 가능)
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                   <input type="time" className="input" value={startTime} onChange={e => updateTimeAndAutoCalculate(e.target.value, endTime)} disabled={!isAdmin} style={{ flex: 1, minWidth: '0' }} />
+                   <span>~</span>
+                   <input type="time" className="input" value={endTime} onChange={e => updateTimeAndAutoCalculate(startTime, e.target.value)} disabled={!isAdmin} style={{ flex: 1, minWidth: '0' }} />
+                </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
-                {memberList.map(m => {
-                  const isSelected = attendees.includes(m.id);
-                  const isCaptain = captains.includes(m.id);
-                  const isFemale = m.gender === 'F';
+              {/* 3. 참가자 성비 현황 실시간 배너 */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+                <div style={{ 
+                  padding: '12px 14px', 
+                  backgroundColor: '#fff', 
+                  border: '1px solid #cbd5e1', 
+                  borderRadius: '8px', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  flexWrap: 'wrap', 
+                  gap: '8px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)' }}>
+                      🎾 선택된 참가자: <strong>{totalCount}명</strong>
+                    </span>
+                    <span style={{ fontSize: '12px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
+                      👨 남 {selectedMales.length}명 ({malePct}%)
+                    </span>
+                    <span style={{ fontSize: '12px', background: '#fdf2f8', color: '#be185d', border: '1px solid #fbcfe8', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
+                      👩 여 {selectedFemales.length}명 ({femalePct}%)
+                    </span>
+                  </div>
+                  {!isIndividual && (
+                    <span style={{ fontSize: '12px', color: captains.length >= 2 ? '#166534' : '#b45309', fontWeight: 'bold', background: captains.length >= 2 ? '#dcfce7' : '#fef3c7', padding: '2px 10px', borderRadius: '12px', border: `1px solid ${captains.length >= 2 ? '#bbf7d0' : '#fde68a'}` }}>
+                      👑 조장 {captains.length}명 지정됨 {captains.length < 2 && '(최소 2명 필요)'}
+                    </span>
+                  )}
+                </div>
+              </div>
 
-                  return (
-                    <div 
-                      key={m.id} 
-                      onClick={() => toggleAttendee(m.id)}
-                      style={{ 
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        gap: '6px',
-                        padding: '8px 10px', 
-                        border: '1.5px solid',
-                        borderColor: isSelected ? (isFemale ? '#f472b6' : '#60a5fa') : 'var(--border)',
-                        backgroundColor: isSelected ? (isFemale ? '#fdf2f8' : '#eff6ff') : '#fff',
-                        borderRadius: '8px',
-                        cursor: isAdmin ? 'pointer' : 'default',
-                        userSelect: 'none',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: isSelected ? 800 : 500, fontSize: '13px', color: isSelected ? 'var(--navy)' : 'var(--txt)' }}>
-                          {m.name}
-                        </span>
-                        <span style={{ fontSize: '10px', color: isFemale ? '#be185d' : '#1d4ed8', fontWeight: 700 }}>
-                          {isFemale ? '여' : '남'} ({m.ntrp || 2.0})
-                        </span>
+              {/* 4. 참가자 명단 선택 및 조장 지정 그리드 */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '4px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>
+                    참가자 명단 {isIndividual ? '체크' : '및 조장(👑) 지정'}
+                  </label>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {isIndividual ? '회원을 클릭하여 참가 여부를 선택하세요.' : '회원을 클릭하여 참석을 선택하고, 왕관(👑) 아이콘을 눌러 조장을 지정하세요.'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
+                  {memberList.map(m => {
+                    const isSelected = attendees.includes(m.id);
+                    const isCaptain = captains.includes(m.id);
+                    const isFemale = m.gender === 'F';
+
+                    return (
+                      <div 
+                        key={m.id} 
+                        onClick={() => toggleAttendee(m.id)}
+                        style={{ 
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: '6px',
+                          padding: '8px 10px', 
+                          border: '1.5px solid',
+                          borderColor: isSelected ? (isFemale ? '#f472b6' : '#60a5fa') : 'var(--border)',
+                          backgroundColor: isSelected ? (isFemale ? '#fdf2f8' : '#eff6ff') : '#fff',
+                          borderRadius: '8px',
+                          cursor: isAdmin ? 'pointer' : 'default',
+                          userSelect: 'none',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: isSelected ? 800 : 500, fontSize: '13px', color: isSelected ? 'var(--navy)' : 'var(--txt)' }}>
+                            {m.name}
+                          </span>
+                          <span style={{ fontSize: '10px', color: isFemale ? '#be185d' : '#1d4ed8', fontWeight: 700 }}>
+                            {isFemale ? '여' : '남'} ({m.ntrp || 2.0})
+                          </span>
+                        </div>
+                        
+                        {!isIndividual && isSelected && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCaptain(m.id);
+                            }}
+                            disabled={!isAdmin}
+                            style={{
+                              border: 'none',
+                              background: isCaptain ? '#f59e0b' : '#e2e8f0',
+                              color: isCaptain ? '#fff' : '#64748b',
+                              borderRadius: '4px',
+                              padding: '3px 6px',
+                              fontSize: '11px',
+                              cursor: isAdmin ? 'pointer' : 'default',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '2px',
+                              fontWeight: 'bold',
+                              marginTop: '2px'
+                            }}
+                          >
+                            👑 {isCaptain ? '조장 지정됨' : '조장 지정'}
+                          </button>
+                        )}
                       </div>
-                      
-                      {!isIndividual && isSelected && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCaptain(m.id);
-                          }}
-                          disabled={!isAdmin}
-                          style={{
-                            border: 'none',
-                            background: isCaptain ? '#f59e0b' : '#e2e8f0',
-                            color: isCaptain ? '#fff' : '#64748b',
-                            borderRadius: '4px',
-                            padding: '3px 6px',
-                            fontSize: '11px',
-                            cursor: isAdmin ? 'pointer' : 'default',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '2px',
-                            fontWeight: 'bold',
-                            marginTop: '2px'
-                          }}
-                        >
-                          👑 {isCaptain ? '조장 지정됨' : '조장 지정'}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
+
             </div>
 
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary" onClick={handleGoToStep2}>
+                다음 (2단계 코트 및 경기수 설정 👉)
+              </button>
+            </div>
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="btn btn-primary" onClick={handleGoToStep2}>
-              다음 (2단계 코트 및 경기수 설정 👉)
-            </button>
-          </div>
-        </>
+        </div>
       ) : (
-        <>
+        <div className="card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>
               2단계. 코트 및 {isIndividual ? '개인별' : '조별'} 경기수 설정
@@ -668,7 +866,7 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
           {/* 1단계 완료 요약 정보 */}
           <div style={{ marginBottom: '20px', padding: '12px 16px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontSize: '13px', color: '#166534', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div>
-              <strong>⚙️ 1단계 설정 요약:</strong> 📅 {date} | ⏰ {startTime}~{endTime} ({durationInfo.text})
+              <strong>⚙️ 1단계 설정 요약:</strong> 📅 {date} | ⏰ {startTime}~{endTime} ({durationInfo.text}) | 💰 1인 {entryFee > 0 ? `${entryFee.toLocaleString()}원` : '무료'} (총 {(totalCount * entryFee).toLocaleString()}원)
             </div>
             <div>
               🎾 <strong>참석 명단:</strong> 총 {totalCount}명 (남 {selectedMales.length}명 / 여 {selectedFemales.length}명)
@@ -778,8 +976,79 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
               </button>
             )}
           </div>
-        </>
+        </div>
       )}
-    </div>
+
+      {/* 참가비 입금 안내문 생성 및 공유 모달 */}
+      {showFeeNoticeModal && (
+        <div className="modal-overlay" onClick={() => setShowFeeNoticeModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px', width: '100%' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 'bold', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                📢 정기 대회 참가비 입금 안내문
+              </h2>
+              <button 
+                className="modal-close" 
+                onClick={() => setShowFeeNoticeModal(false)} 
+                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+                아래 생성된 안내문을 확인 및 필요시 수정한 후, <strong>복사하기</strong> 또는 <strong>공유하기</strong> 버튼을 눌러 회원들에게 전달하세요.
+              </p>
+
+              <textarea
+                className="input"
+                style={{
+                  width: '100%',
+                  height: '240px',
+                  resize: 'vertical',
+                  padding: '12px',
+                  lineHeight: '1.6',
+                  fontFamily: 'inherit',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#f8fafc',
+                  border: '1.5px solid var(--border)'
+                }}
+                value={feeNoticeText}
+                onChange={(e) => setFeeNoticeText(e.target.value)}
+              />
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
+              <button className="btn btn-secondary" onClick={() => setShowFeeNoticeModal(false)}>
+                닫기
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => {
+                  navigator.clipboard.writeText(feeNoticeText)
+                    .then(() => alert('📋 참가비 안내문이 클립보드에 복사되었습니다.\n카카오톡이나 밴드 등에 붙여넣기(Ctrl+V) 하세요!'))
+                    .catch(() => alert('복사에 실패했습니다.'));
+                }}
+              >
+                📋 복사하기
+              </button>
+              {typeof navigator !== 'undefined' && navigator.share && (
+                <button 
+                  className="btn btn-primary" 
+                  style={{ background: '#fee500', color: '#3c1e1e', borderColor: '#fee500', fontWeight: 'bold' }} 
+                  onClick={() => {
+                    navigator.share({ title: `${tournament.title || '정기 대회'} 참가비 입금 안내`, text: feeNoticeText }).catch(console.error);
+                  }}
+                >
+                  💬 공유하기
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
