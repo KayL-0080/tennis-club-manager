@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [jointCount, setJointCount] = useState(0);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
+  const [allowSingles, setAllowSingles] = useState(false);
 
   const load = useCallback(async () => {
     if (!currentClubId) {
@@ -361,9 +362,12 @@ export default function Dashboard() {
               womensDoublesCount={womensDoublesCount} setWomensDoublesCount={setWomensDoublesCount}
               mixedCount={mixedCount} setMixedCount={setMixedCount}
               jointCount={jointCount} setJointCount={setJointCount}
+              allowSingles={allowSingles} setAllowSingles={setAllowSingles}
               startTime={startTime} setStartTime={setStartTime}
               endTime={endTime} setEndTime={setEndTime}
               groups={groups} setGroups={setGroups}
+              clubId={currentClubId}
+              onReloadMembers={load}
               onScheduleGenerated={handleScheduleGenerated}
               onScheduleManual={handleScheduleManual}
               onSave={() => { alert('대진표 목록에 저장되었습니다.'); setActiveTab('list'); }}

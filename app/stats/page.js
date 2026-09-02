@@ -2,13 +2,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getMembers, getSchedules } from '@/lib/firestore';
+import { getMembers, getSchedules, initDefaultMembers } from '@/lib/firestore';
 import { computeGlobalStandings } from '@/lib/scheduler';
 import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function StatsPage() {
-  const { loading, currentClubId } = useAuth();
+  const { loading } = useAuth();
   const router = useRouter();
   
   const [fetching, setFetching] = useState(true);
@@ -20,45 +20,52 @@ export default function StatsPage() {
   const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    if (!currentClubId) return;
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const formatDate = (d) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+    setStartDate(formatDate(firstDay));
+    setEndDate(formatDate(lastDay));
+
     (async () => {
+      if (!currentClubId) {
+        setFetching(false);
+        return;
+      }
       try {
         setFetching(true);
-        const mbrs = await getMembers(currentClubId);
-        const scheds = await getSchedules(currentClubId);
+        const [mbrs, scheds] = await Promise.all([
+          getMembers(currentClubId),
+          getSchedules(currentClubId)
+        ]);
         setMembers(mbrs);
         setSchedules(scheds);
       } catch (err) {
         console.error('Failed to load stats data:', err);
-        alert('데이터를 불러오지 못했습니다. Firestore 권한 설정을 확인해주세요.');
       } finally {
         setFetching(false);
       }
     })();
   }, [currentClubId]);
 
-  useEffect(() => {
-    if (!loading && !fetching && !currentClubId) {
-      router.replace('/');
-    }
-  }, [loading, fetching, currentClubId, router]);
-
   const globalStandings = useMemo(() => {
     if (!members.length) return [];
-    return computeGlobalStandings(schedules, members, startDate, endDate);
+    const allStandings = computeGlobalStandings(schedules, members, startDate, endDate);
+    return allStandings.filter(s => {
+      const m = members.find(member => member.id === s.id);
+      if (!m) return false;
+      return m.role !== '준회원' && m.role !== '게스트';
+    });
   }, [schedules, members, startDate, endDate]);
-
-  if (!currentClubId) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-        <span className="spinner" />
-      </div>
-    );
-  }
 
   if (fetching) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span className="spinner" />
       </div>
     );
@@ -79,22 +86,22 @@ export default function StatsPage() {
 
         {/* 필터 영역 */}
         <div className="card" style={{ marginBottom: '24px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: '0.88rem', color: 'var(--txt)' }}>📅 조회 기간</strong>
+          <strong style={{ fontSize: '14px', color: 'var(--text)' }}>📅 조회 기간</strong>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input 
               className="input input-sm" 
               type="date" 
               value={startDate} 
               onChange={e => setStartDate(e.target.value)} 
-              style={{ width: '130px', padding: '6px 10px' }} 
+              style={{ width: '130px' }} 
             />
-            <span style={{ color: 'var(--txt3)' }}>~</span>
+            <span style={{ color: 'var(--text-muted)' }}>~</span>
             <input 
               className="input input-sm" 
               type="date" 
               value={endDate} 
               onChange={e => setEndDate(e.target.value)} 
-              style={{ width: '130px', padding: '6px 10px' }} 
+              style={{ width: '130px' }} 
             />
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -127,19 +134,44 @@ export default function StatsPage() {
 
         {/* Top 3 영역 */}
         {top3.length > 0 && (
-          <div style={{ marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '12px', color: 'var(--txt)' }}>🏆 해당 기간 Top 3</h2>
+          <div style={{ marginBottom: '28px' }}>
+            <div className="section-head">
+              <span>🏆 명예의 전당 (Top 3)</span>
+            </div>
             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               {top3.map((s, idx) => (
-                <div key={s.id} className="card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ fontSize: '36px', width: '48px', textAlign: 'center', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))' }}>
+                <div 
+                  key={s.id} 
+                  className="card" 
+                  style={{ 
+                    flex: '1 1 220px', 
+                    padding: '20px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '16px',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <div style={{ 
+                    fontSize: '28px', 
+                    width: '48px', 
+                    height: '48px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    borderRadius: '16px',
+                    background: idx === 0 ? 'rgba(255, 149, 0, 0.12)' : idx === 1 ? 'rgba(142, 142, 147, 0.12)' : 'rgba(175, 82, 222, 0.12)',
+                    boxShadow: idx === 0 ? '0 4px 14px rgba(255, 149, 0, 0.25)' : 'none'
+                  }}>
                     {idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: '800', margin: '0 0 6px 0', color: 'var(--txt)' }}>{s.name} ({s.points}점)</h3>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--txt2)', margin: 0, fontWeight: '600' }}>
-                      {s.win}승 {s.draw}무 {s.loss}패 (득실 {s.diff > 0 ? `+${s.diff}` : s.diff})
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px 0', letterSpacing: '-0.02em', color: 'var(--txt)' }}>{s.name}</h3>
+                    <p style={{ fontSize: '12px', color: 'var(--txt2)', margin: 0 }}>
+                      {s.win}승 {s.draw}무 {s.loss}패 <strong style={{ color: 'var(--ios-blue)' }}>(승점 {Number.isInteger(s.points) ? s.points : s.points.toFixed(1)}점)</strong>
                     </p>
+                    <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>득실: {s.diff > 0 ? `+${s.diff}` : s.diff}</span>
                   </div>
                 </div>
               ))}
@@ -148,23 +180,24 @@ export default function StatsPage() {
         )}
 
         {/* 전체 누적 순위표 */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px dashed var(--border)', padding: '16px 20px', paddingBottom: '16px' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--txt)', margin: 0 }}>전체 순위 및 참여 현황</h2>
-            <span style={{ fontSize: '0.72rem', color: 'var(--txt3)', fontWeight: '600' }}>(승점 기준 : 평균포인트(승3, 무2, 패1) + 출전가산점(일당 0.5))</span>
+        <div className="card" style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>전체 순위 및 참여 현황</h2>
+            <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>(※ 승점 산정 기준: 평균포인트(승3, 무2, 패1) + 출전가산점(참여일수당 1점))</span>
           </div>
           {globalStandings.length === 0 ? (
-            <p style={{ color: 'var(--txt3)', fontSize: '0.88rem', textAlign: 'center', padding: '20px 0', fontWeight: '600' }}>해당 기간에 기록된 데이터가 없습니다.</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>해당 기간에 기록된 데이터가 없습니다.</p>
           ) : (
-            <div className="table-wrap" style={{ paddingBottom: '16px' }}>
+            <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: 60 }}>순위</th>
+                    <th style={{ width: 50 }}>순위</th>
                     <th>이름</th>
                     <th>참여 일수</th>
                     <th>경기수</th>
                     <th>승점</th>
+                    <th>승률</th>
                     <th>승</th>
                     <th>무</th>
                     <th>패</th>
@@ -175,16 +208,17 @@ export default function StatsPage() {
                   {globalStandings.map((s, i) => (
                     <tr key={s.id}>
                       <td><strong>{i + 1}</strong></td>
-                      <td>
-                        <span style={{ fontWeight: '700' }}>{s.name}</span> <span style={{ fontSize: '0.76rem', color: 'var(--txt3)' }}>({s.gender === 'F' ? '여' : '남'})</span>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {s.name} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({s.gender === 'F' ? '여' : '남'})</span>
                       </td>
                       <td><strong>{s.attendedDays}</strong>일</td>
                       <td>{s.played}</td>
-                      <td><strong style={{ color: 'var(--gold)' }}>{s.points}</strong>점</td>
-                      <td><span style={{ color: 'var(--blue)', fontWeight: '700' }}>{s.win}</span></td>
-                      <td><span style={{ color: 'var(--txt3)', fontWeight: '600' }}>{s.draw}</span></td>
-                      <td><span style={{ color: 'var(--red)', fontWeight: '700' }}>{s.loss}</span></td>
-                      <td><strong style={{ color: s.diff > 0 ? 'var(--blue)' : s.diff < 0 ? 'var(--red)' : 'inherit' }}>{s.diff > 0 ? `+${s.diff}` : s.diff}</strong></td>
+                      <td><strong>{Number.isInteger(s.points) ? s.points : s.points.toFixed(1)}</strong></td>
+                      <td>{s.played > 0 ? Math.round(s.winRate * 100) : 0}%</td>
+                      <td><span style={{ color: 'var(--primary)' }}>{s.win}</span></td>
+                      <td><span style={{ color: '#888' }}>{s.draw}</span></td>
+                      <td><span style={{ color: '#e53e3e' }}>{s.loss}</span></td>
+                      <td><strong style={{ color: s.diff > 0 ? 'var(--primary)' : s.diff < 0 ? '#e53e3e' : 'inherit' }}>{s.diff > 0 ? `+${s.diff}` : s.diff}</strong></td>
                     </tr>
                   ))}
                 </tbody>

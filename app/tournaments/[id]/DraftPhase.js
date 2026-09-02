@@ -217,6 +217,113 @@ export function generateIndividualTournamentMatches(attendeeIds, byId, roundsCou
   return matches;
 }
 
+export function generateFixedPairTournamentMatches(pairs, byId, roundsCount, courtDetails) {
+  if (!pairs || pairs.length < 2) return [];
+
+  // Filter valid pairs (having both player1 and player2)
+  const validPairs = pairs.filter(p => p.player1 && p.player2);
+  if (validPairs.length < 2) return [];
+
+  const n = validPairs.length;
+  // If odd, add a dummy bye
+  const isOdd = n % 2 !== 0;
+  const list = isOdd ? [...validPairs, null] : [...validPairs];
+  const totalSlots = list.length;
+  const singleCycleRounds = totalSlots - 1;
+
+  const matches = [];
+
+  for (let r = 0; r < roundsCount; r++) {
+    const cycleRound = r % singleCycleRounds;
+    // Standard Circle Method round-robin
+    const roundPairs = [];
+    for (let i = 0; i < totalSlots / 2; i++) {
+      const idxA = (cycleRound + i) % (totalSlots - 1);
+      let idxB = (totalSlots - 1 - i + cycleRound) % (totalSlots - 1);
+      if (i === 0) {
+        idxB = totalSlots - 1;
+      }
+
+      const pairA = list[idxA];
+      const pairB = list[idxB];
+
+      if (pairA && pairB) {
+        roundPairs.push([pairA, pairB]);
+      }
+    }
+
+    roundPairs.forEach(([pA, pB], mIdx) => {
+      // Determine category
+      const players = [pA.player1, pA.player2, pB.player1, pB.player2].map(id => byId[id]).filter(Boolean);
+      let category = '복식';
+      if (players.length === 4) {
+        const males = players.filter(p => p.gender === 'M').length;
+        const females = players.filter(p => p.gender === 'F').length;
+        if (males === 4) category = '남복';
+        else if (females === 4) category = '여복';
+        else if (males === 2 && females === 2) category = '혼복';
+        else category = '잡복';
+      }
+
+      matches.push({
+        id: `r${r}-m${mIdx}`,
+        round: r + 1,
+        type: 'fixed_pair',
+        pairAId: pA.id,
+        pairBId: pB.id,
+        pairAName: pA.name || `${byId[pA.player1]?.name}/${byId[pA.player2]?.name}`,
+        pairBName: pB.name || `${byId[pB.player1]?.name}/${byId[pB.player2]?.name}`,
+        category,
+        playerA1: pA.player1,
+        playerA2: pA.player2,
+        playerB1: pB.player1,
+        playerB2: pB.player2,
+        scoreA: null,
+        scoreB: null
+      });
+    });
+  }
+
+  // Auto assign courts and time slots (setIndex)
+  const courtOccupied = {};
+  const playerOccupied = {};
+
+  matches.forEach((m) => {
+    const matchPlayers = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
+    let targetSlot = m.round || 1;
+    let assignedCourt = null;
+
+    while (!assignedCourt && targetSlot < 100) {
+      const hasPlayerConflict = matchPlayers.some(pId => playerOccupied[targetSlot] && playerOccupied[targetSlot].has(pId));
+      if (!hasPlayerConflict) {
+        for (const court of courtDetails) {
+          if (!courtOccupied[targetSlot]?.[court.name]) {
+            assignedCourt = court;
+            break;
+          }
+        }
+      }
+      if (!assignedCourt) {
+        targetSlot++;
+      }
+    }
+
+    if (assignedCourt) {
+      m.court = assignedCourt.name;
+      m.courtId = assignedCourt.id;
+      m.setIndex = targetSlot;
+
+      if (!courtOccupied[targetSlot]) courtOccupied[targetSlot] = {};
+      courtOccupied[targetSlot][assignedCourt.name] = true;
+
+      if (!playerOccupied[targetSlot]) playerOccupied[targetSlot] = new Set();
+      matchPlayers.forEach(pId => playerOccupied[targetSlot].add(pId));
+    }
+  });
+
+  return matches;
+}
+
 const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 const getDayName = (dateStr) => {
   if (!dateStr) return '';
@@ -235,7 +342,11 @@ export const DEFAULT_MATCH_RULES = {
 
 export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
   const { currentClubId } = useAuth();
-  const isIndividual = tournament.type === 'individual';
+  const isTeam = tournament.type === 'team';
+  const isFixedPair = tournament.type === 'fixed_pair';
+  const isIndividualRotation = tournament.type === 'individual';
+  const isIndividual = !isTeam;
+
   const byId = useMemo(() => {
     const map = {};
     members.forEach(m => map[m.id] = m);
@@ -245,6 +356,9 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
   const [draftStep, setDraftStep] = useState(1);
   const [attendees, setAttendees] = useState(tournament.attendees || []);
   const [captains, setCaptains] = useState(tournament.captains || []);
+  const [pairs, setPairs] = useState(tournament.pairs || []);
+  const [fixedPairMethod, setFixedPairMethod] = useState('auto_balance'); // 'auto_balance' | 'seed_draw'
+  const [mainPlayers, setMainPlayers] = useState([]);
   const [date, setDate] = useState(tournament.date || new Date().toLocaleDateString('en-CA'));
   const [startTime, setStartTime] = useState(tournament.startTime || tournament.time || '19:00');
   const [endTime, setEndTime] = useState(tournament.endTime || '22:00');
@@ -273,6 +387,11 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
   const totalCount = attendees.length;
   const malePct = totalCount > 0 ? Math.round((selectedMales.length / totalCount) * 100) : 0;
   const femalePct = totalCount > 0 ? Math.round((selectedFemales.length / totalCount) * 100) : 0;
+
+  const targetPairCount = Math.floor(attendees.length / 2);
+  const partnerPool = useMemo(() => {
+    return attendees.filter(id => !mainPlayers.includes(id));
+  }, [attendees, mainPlayers]);
 
   // Auto-fetch voted attendees for a given date
   const fetchVotedAttendees = async (targetDate, silent = false) => {
@@ -434,6 +553,7 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
       const updated = isSelected ? prev.filter(id => id !== memberId) : [...prev, memberId];
       if (isSelected) {
         setCaptains(c => c.filter(id => id !== memberId));
+        setMainPlayers(m => m.filter(id => id !== memberId));
       }
       const { autoGames } = calcAutoValues(startTime, endTime, courtDetails, updated.length);
       setGamesPerTeam(autoGames);
@@ -454,6 +574,168 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
     });
   };
 
+  const toggleMainPlayer = (memberId) => {
+    if (!isAdmin || !isFixedPair) return;
+    setMainPlayers(prev => {
+      if (prev.includes(memberId)) {
+        return prev.filter(id => id !== memberId);
+      } else {
+        if (prev.length >= targetPairCount) {
+          alert(`참가 인원(${attendees.length}명) 기준 주선수는 최대 ${targetPairCount}명까지 지정할 수 있습니다.`);
+          return prev;
+        }
+        return [...prev, memberId];
+      }
+    });
+  };
+
+  const autoSelectTopNtrAsMain = () => {
+    if (!isAdmin || attendees.length < 2) return;
+    const sorted = [...attendees].sort((a, b) => {
+      const ntrpA = parseFloat(byId[a]?.ntrp) || 2.0;
+      const ntrpB = parseFloat(byId[b]?.ntrp) || 2.0;
+      return ntrpB - ntrpA;
+    });
+    setMainPlayers(sorted.slice(0, targetPairCount));
+  };
+
+  const drawRandomPartners = () => {
+    if (!isAdmin) return;
+    if (mainPlayers.length < 2) {
+      alert(`주선수(시드)를 최소 2명 이상 선택해주세요. (현재 ${mainPlayers.length}명 / 권장 ${targetPairCount}명)`);
+      return;
+    }
+    if (mainPlayers.length !== targetPairCount) {
+      if (!confirm(`현재 주선수가 ${mainPlayers.length}명 선택되었습니다. (권장: ${targetPairCount}명)\n이대로 나머지 인원을 파트너로 랜덤 추첨하시겠습니까?`)) {
+        return;
+      }
+    }
+
+    // Pool of remaining players
+    const currentPartnerPool = attendees.filter(id => !mainPlayers.includes(id));
+    
+    // Fisher-Yates shuffle
+    const shuffled = [...currentPartnerPool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    const generatedPairs = mainPlayers.map((p1Id, idx) => ({
+      id: `pair-${idx + 1}`,
+      name: `${idx + 1}페어`,
+      player1: p1Id,
+      player2: shuffled[idx] || ''
+    }));
+
+    // If there are leftovers in shuffled
+    let extraIdx = mainPlayers.length + 1;
+    for (let i = mainPlayers.length; i < shuffled.length; i += 2) {
+      generatedPairs.push({
+        id: `pair-${extraIdx}`,
+        name: `${extraIdx}페어`,
+        player1: shuffled[i] || '',
+        player2: shuffled[i + 1] || ''
+      });
+      extraIdx++;
+    }
+
+    setPairs(generatedPairs);
+  };
+
+  const autoMatchFixedPairs = (currentAttendees = attendees) => {
+    if (!isAdmin) return;
+    if (currentAttendees.length < 2) {
+      alert('최소 2명 이상의 참가자를 선택해야 페어를 구성할 수 있습니다.');
+      return;
+    }
+
+    const attendeeObjs = currentAttendees
+      .map(id => byId[id] || { id, name: '선수', gender: 'M', ntrp: 2.0 })
+      .sort((a, b) => (parseFloat(b.ntrp) || 2.0) - (parseFloat(a.ntrp) || 2.0));
+
+    const males = attendeeObjs.filter(p => p.gender === 'M');
+    const females = attendeeObjs.filter(p => p.gender === 'F');
+
+    const generatedPairs = [];
+    let pairIdx = 1;
+
+    // Case 1: Equal number of males and females (e.g. 4M, 4F) -> Pair high M with low F (Balanced Mixed Doubles)
+    if (males.length === females.length && males.length > 0) {
+      for (let i = 0; i < males.length; i++) {
+        const m = males[i];
+        const f = females[females.length - 1 - i];
+        generatedPairs.push({
+          id: `pair-${pairIdx}`,
+          name: `${pairIdx}페어`,
+          player1: m.id,
+          player2: f.id
+        });
+        pairIdx++;
+      }
+    } else {
+      // General NTRP balancing (1st highest + 1st lowest, 2nd highest + 2nd lowest...)
+      const pool = [...attendeeObjs];
+      while (pool.length >= 2) {
+        const p1 = pool.shift(); // highest
+        const p2 = pool.pop();   // lowest
+        generatedPairs.push({
+          id: `pair-${pairIdx}`,
+          name: `${pairIdx}페어`,
+          player1: p1.id,
+          player2: p2.id
+        });
+        pairIdx++;
+      }
+      // If odd leftover
+      if (pool.length === 1) {
+        const leftover = pool.shift();
+        generatedPairs.push({
+          id: `pair-${pairIdx}`,
+          name: `${pairIdx}페어`,
+          player1: leftover.id,
+          player2: ''
+        });
+      }
+    }
+
+    setPairs(generatedPairs);
+  };
+
+  const handleAddPair = () => {
+    if (!isAdmin) return;
+    const nextIdx = pairs.length + 1;
+    setPairs(prev => [
+      ...prev,
+      { id: `pair-${Date.now()}`, name: `${nextIdx}페어`, player1: '', player2: '' }
+    ]);
+  };
+
+  const handleRemovePair = (pairId) => {
+    if (!isAdmin) return;
+    setPairs(prev => prev.filter(p => p.id !== pairId));
+  };
+
+  const handleUpdatePairPlayer = (pairId, slotKey, playerId) => {
+    if (!isAdmin) return;
+    setPairs(prev => prev.map(p => {
+      if (p.id === pairId) {
+        return { ...p, [slotKey]: playerId || '' };
+      }
+      return p;
+    }));
+  };
+
+  const handleUpdatePairName = (pairId, newName) => {
+    if (!isAdmin) return;
+    setPairs(prev => prev.map(p => {
+      if (p.id === pairId) {
+        return { ...p, name: newName };
+      }
+      return p;
+    }));
+  };
+
   const handleOpenFeeNoticeModal = () => {
     const dayName = getDayName(date);
     const attendeeNames = attendees
@@ -470,7 +752,7 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
 이번 ${date}${dayDisplay} 정기 대회의 참가비 입금 및 경기 진행 규칙을 안내드립니다.
 
 📅 대회 일시: ${date}${dayDisplay} ⏰ ${startTime} ~ ${endTime}
-🎾 대회 방식: ${isIndividual ? '개인전' : '팀전'}
+🎾 대회 방식: ${isTeam ? '팀전' : isFixedPair ? '개인전(고정 페어)' : '개인전(파트너 순환)'}
 💰 1인 참가비: ${feeDisplay}
 🏦 입금 계좌: ${bankAccount || '(계좌 정보 미입력 - 현장 납부 또는 운영진 문의)'}
 ⏰ 입금 기한: 대회 시작 전까지
@@ -484,6 +766,7 @@ ${matchRules.tiebreak}
 
 3️⃣ No-Ad 룰:
 ${matchRules.noAd}${matchRules.custom ? `\n\n4️⃣ 추가 및 매너 수칙:\n${matchRules.custom}` : ''}
+${isFixedPair && pairs.length > 0 ? `\n👫 [확정된 페어 명단 (${pairs.length}페어)]\n` + pairs.map((p, i) => `${p.name || `${i + 1}페어`}: ${byId[p.player1]?.name || '미정'} & ${byId[p.player2]?.name || '미정'}`).join('\n') : ''}
 
 👥 참가 선수 명단 (총 ${attendees.length}명 / 총 예상 ${totalExpected.toLocaleString()}원):
 ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`).join('\n') : '참가자 미정'}
@@ -500,9 +783,26 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
       alert('최소 4명 이상의 참가자를 선택해주세요.');
       return;
     }
-    if (!isIndividual && captains.length < 2) {
+    if (isTeam && captains.length < 2) {
       alert('팀전은 최소 2명 이상의 조장을 지정해주세요.');
       return;
+    }
+    if (isFixedPair) {
+      if (pairs.length < 2) {
+        alert('고정 페어는 최소 2개 이상의 페어(4명)가 구성되어야 합니다.\n하단의 [🎲 NTRP 균형 자동 페어 매칭]을 눌러 페어를 구성해주세요.');
+        return;
+      }
+      const unassignedPairs = pairs.filter(p => !p.player1 || !p.player2);
+      if (unassignedPairs.length > 0) {
+        alert('선수가 배정되지 않은 페어가 있습니다. 모든 페어에 선수를 2명씩 배정해주세요.');
+        return;
+      }
+      const allAssignedPlayers = pairs.flatMap(p => [p.player1, p.player2]);
+      const uniqueAssigned = new Set(allAssignedPlayers);
+      if (uniqueAssigned.size !== allAssignedPlayers.length) {
+        alert('동일한 선수가 중복으로 배정된 페어가 있습니다. 각 페어의 선수를 확인해주세요.');
+        return;
+      }
     }
     const { autoGames } = calcAutoValues(startTime, endTime, courtDetails, attendees.length);
     setGamesPerTeam(autoGames);
@@ -516,8 +816,29 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
       return;
     }
 
-    if (isIndividual) {
-      // 3단계 패스: 2단계에서 바로 성비/NTRP 균형 매치를 생성하여 4단계로 직행!
+    if (isFixedPair) {
+      // 고정 페어 개인전: 3단계 패스 -> 4단계로 직행
+      const matches = generateFixedPairTournamentMatches(pairs, byId, gamesPerTeam, courtDetails);
+      await onUpdate({
+        attendees,
+        pairs,
+        maleCount: selectedMales.length,
+        femaleCount: selectedFemales.length,
+        participantCount: attendees.length,
+        date,
+        startTime,
+        endTime,
+        entryFee,
+        bankAccount,
+        matchRules,
+        courts: courtDetails.length,
+        courtDetails,
+        gamesPerTeam,
+        matches,
+        status: 'playing'
+      });
+    } else if (isIndividualRotation) {
+      // 순환 개인전: 3단계 패스 -> 4단계로 직행
       const matches = generateIndividualTournamentMatches(attendees, byId, gamesPerTeam, courtDetails);
       await onUpdate({
         attendees,
@@ -901,10 +1222,10 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
               <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>
-                1단계. 대회 일정, 시간 및 참가자{isIndividual ? '' : ' / 조장'} 확정
+                1단계. 대회 일정, 시간 및 참가자{isTeam ? ' / 조장' : isFixedPair ? ' / 고정 페어' : ''} 확정
               </h2>
-              <span className={isIndividual ? 'badge badge-purple' : 'badge badge-blue'} style={{ fontSize: '12px' }}>
-                {isIndividual ? '👤 개인전 모드' : '👥 팀전 모드'}
+              <span className={isTeam ? 'badge badge-blue' : isFixedPair ? 'badge badge-green' : 'badge badge-purple'} style={{ fontSize: '12px' }}>
+                {isTeam ? '👥 팀전 모드' : isFixedPair ? '👫 개인전(고정 페어) 모드' : '👤 개인전(순환) 모드'}
               </span>
             </div>
             
@@ -982,9 +1303,14 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
                       👩 여 {selectedFemales.length}명 ({femalePct}%)
                     </span>
                   </div>
-                  {!isIndividual && (
+                  {isTeam && (
                     <span style={{ fontSize: '12px', color: captains.length >= 2 ? '#166534' : '#b45309', fontWeight: 'bold', background: captains.length >= 2 ? '#dcfce7' : '#fef3c7', padding: '2px 10px', borderRadius: '12px', border: `1px solid ${captains.length >= 2 ? '#bbf7d0' : '#fde68a'}` }}>
                       👑 조장 {captains.length}명 지정됨 {captains.length < 2 && '(최소 2명 필요)'}
+                    </span>
+                  )}
+                  {isFixedPair && (
+                    <span style={{ fontSize: '12px', color: pairs.length >= 2 ? '#166534' : '#b45309', fontWeight: 'bold', background: pairs.length >= 2 ? '#dcfce7' : '#fef3c7', padding: '2px 10px', borderRadius: '12px', border: `1px solid ${pairs.length >= 2 ? '#bbf7d0' : '#fde68a'}` }}>
+                      👫 {pairs.length}페어 구성됨
                     </span>
                   )}
                 </div>
@@ -994,10 +1320,10 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '4px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>
-                    참가자 명단 {isIndividual ? '체크' : '및 조장(👑) 지정'}
+                    참가자 명단 {isTeam ? '및 조장(👑) 지정' : (isFixedPair && fixedPairMethod === 'seed_draw') ? '및 주선수(⭐) 지정' : '체크'}
                   </label>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    {isIndividual ? '회원을 클릭하여 참가 여부를 선택하세요.' : '회원을 클릭하여 참석을 선택하고, 왕관(👑) 아이콘을 눌러 조장을 지정하세요.'}
+                    {isTeam ? '회원을 클릭하여 참석을 선택하고, 왕관(👑) 아이콘을 눌러 조장을 지정하세요.' : (isFixedPair && fixedPairMethod === 'seed_draw') ? '회원을 클릭하여 참석을 선택하고, 별(⭐) 아이콘을 눌러 주선수(시드)를 지정하세요.' : isFixedPair ? '출전할 회원을 선택한 후 하단에서 2인 1조 페어를 구성하세요.' : '회원을 클릭하여 참가 여부를 선택하세요.'}
                   </span>
                 </div>
 
@@ -1005,6 +1331,7 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
                   {memberList.map(m => {
                     const isSelected = attendees.includes(m.id);
                     const isCaptain = captains.includes(m.id);
+                    const isMainPlayer = mainPlayers.includes(m.id);
                     const isFemale = m.gender === 'F';
 
                     return (
@@ -1035,7 +1362,7 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
                           </span>
                         </div>
                         
-                        {!isIndividual && isSelected && (
+                        {isTeam && isSelected && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1062,11 +1389,304 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
                             👑 {isCaptain ? '조장 지정됨' : '조장 지정'}
                           </button>
                         )}
+
+                        {isFixedPair && fixedPairMethod === 'seed_draw' && isSelected && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleMainPlayer(m.id);
+                            }}
+                            disabled={!isAdmin}
+                            style={{
+                              border: 'none',
+                              background: isMainPlayer ? '#16a34a' : '#e2e8f0',
+                              color: isMainPlayer ? '#fff' : '#64748b',
+                              borderRadius: '4px',
+                              padding: '3px 6px',
+                              fontSize: '11px',
+                              cursor: isAdmin ? 'pointer' : 'default',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '2px',
+                              fontWeight: 'bold',
+                              marginTop: '2px'
+                            }}
+                          >
+                            ⭐ {isMainPlayer ? '주선수(시드) 지정됨' : '주선수로 지정'}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </div>
+
+              {/* 5. 고정 페어(파트너) 구성 관리 카드 (isFixedPair 모드 전용) */}
+              {isFixedPair && (
+                <div style={{ marginTop: '14px', padding: '16px', backgroundColor: '#f0fdf4', border: '1px solid #86efac', borderRadius: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>👫 2인 1조 고정 복식 페어 구성</span>
+                        <span className="badge badge-green" style={{ fontSize: '11px' }}>
+                          총 {pairs.length}페어 ({pairs.filter(p => p.player1 && p.player2).length * 2}/{attendees.length}명 배정)
+                        </span>
+                      </h4>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#15803d' }}>
+                        대회 내내 파트너가 고정되어 팀을 이룹니다. 원하는 페어 구성 방식을 선택하여 페어를 생성하세요.
+                      </p>
+                    </div>
+
+                    {/* 페어 구성 방식 선택 탭 */}
+                    <div style={{ display: 'flex', backgroundColor: '#dcfce7', borderRadius: '8px', padding: '3px', gap: '3px', border: '1px solid #86efac' }}>
+                      <button
+                        type="button"
+                        onClick={() => setFixedPairMethod('auto_balance')}
+                        style={{
+                          border: 'none',
+                          padding: '5px 12px',
+                          fontSize: '12px',
+                          fontWeight: fixedPairMethod === 'auto_balance' ? 'bold' : 'normal',
+                          backgroundColor: fixedPairMethod === 'auto_balance' ? '#16a34a' : 'transparent',
+                          color: fixedPairMethod === 'auto_balance' ? '#fff' : '#166534',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          boxShadow: fixedPairMethod === 'auto_balance' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                        }}
+                      >
+                        ⚡ 1. NTRP 균형 자동 매칭
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFixedPairMethod('seed_draw')}
+                        style={{
+                          border: 'none',
+                          padding: '5px 12px',
+                          fontSize: '12px',
+                          fontWeight: fixedPairMethod === 'seed_draw' ? 'bold' : 'normal',
+                          backgroundColor: fixedPairMethod === 'seed_draw' ? '#16a34a' : 'transparent',
+                          color: fixedPairMethod === 'seed_draw' ? '#fff' : '#166534',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          boxShadow: fixedPairMethod === 'seed_draw' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                        }}
+                      >
+                        🎲 2. 주선수 지정 후 파트너 랜덤 추첨
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 방식별 상세 설명 및 액션 버튼 바 */}
+                  {fixedPairMethod === 'auto_balance' ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #bbf7d0', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ fontSize: '12px', color: '#166534' }}>
+                        💡 <strong>NTRP 균형 방식:</strong> 참가자들의 성비 및 NTRP 수준을 고려하여 상위+하위 선수를 밸런스 있게 2인 1조로 자동 매칭합니다.
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#16a34a', borderColor: '#16a34a' }}
+                          onClick={() => autoMatchFixedPairs()}
+                          disabled={!isAdmin || attendees.length < 2}
+                        >
+                          🎲 NTRP 균형 자동 매칭
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#fff' }}
+                          onClick={handleAddPair}
+                          disabled={!isAdmin}
+                        >
+                          ➕ 페어 추가
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#fff', color: '#dc2626' }}
+                          onClick={() => { if (confirm('모든 페어 구성을 초기화하시겠습니까?')) setPairs([]); }}
+                          disabled={!isAdmin || pairs.length === 0}
+                        >
+                          🧹 초기화
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px', padding: '12px 14px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ fontSize: '12px', color: '#166534' }}>
+                          💡 <strong>주선수 지정 & 파트너 랜덤 추첨 방식:</strong> 주선수(시드)를 지정한 뒤, 나머지 참가자들을 <strong>무작위 랜덤(제비뽑기)</strong>으로 추첨하여 페어를 구성합니다.
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe', fontWeight: 'bold' }}
+                            onClick={autoSelectTopNtrAsMain}
+                            disabled={!isAdmin || attendees.length < 2}
+                          >
+                            ⚡ 상위 NTRP {targetPairCount}명 주선수 자동 지정
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            style={{ fontSize: '12px', padding: '4px 12px', backgroundColor: '#16a34a', borderColor: '#16a34a', fontWeight: 'bold' }}
+                            onClick={drawRandomPartners}
+                            disabled={!isAdmin || mainPlayers.length < 2}
+                          >
+                            🎲 {pairs.length > 0 ? '🔄 파트너 다시 추첨하기' : '🎲 파트너 랜덤 추첨 (제비뽑기)'}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#fff', color: '#dc2626' }}
+                            onClick={() => {
+                              if (confirm('주선수 및 페어 구성을 초기화하시겠습니까?')) {
+                                setMainPlayers([]);
+                                setPairs([]);
+                              }
+                            }}
+                            disabled={!isAdmin || (mainPlayers.length === 0 && pairs.length === 0)}
+                          >
+                            🧹 초기화
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 주선수 및 파트너 풀 상태 안내 */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', backgroundColor: '#f8fafc', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 'bold', color: '#166534' }}>⭐ 지정된 주선수 ({mainPlayers.length}/{targetPairCount}명):</span>
+                          {mainPlayers.length > 0 ? (
+                            mainPlayers.map(id => (
+                              <span key={id} style={{ background: '#dcfce7', color: '#166534', border: '1px solid #86efac', padding: '1px 6px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px' }}>
+                                {byId[id]?.name} ({byId[id]?.gender === 'M' ? '남' : '여'} / {byId[id]?.ntrp})
+                              </span>
+                            ))
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>상단 참가자 목록에서 ⭐ 버튼을 눌러 지정하거나 자동 지정을 누르세요.</span>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 'bold', color: '#475569' }}>🎟️ 파트너 추첨 대상 풀 ({partnerPool.length}명):</span>
+                          {partnerPool.length > 0 ? (
+                            partnerPool.map(id => (
+                              <span key={id} style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '1px 6px', borderRadius: '4px', fontSize: '11px' }}>
+                                {byId[id]?.name} ({byId[id]?.gender === 'M' ? '남' : '여'} / {byId[id]?.ntrp})
+                              </span>
+                            ))
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>없음</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {pairs.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', backgroundColor: '#fff', borderRadius: '8px', border: '1px dashed #86efac', color: '#15803d' }}>
+                      <p style={{ margin: 0, fontSize: '13px', fontWeight: 'bold' }}>아직 구성된 페어가 없습니다.</p>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#166534' }}>
+                        상단의 <strong>[🎲 NTRP 균형 자동 페어 매칭]</strong> 버튼을 누르면 선택된 참가자들을 자동으로 2인 1조로 구성합니다.
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
+                      {pairs.map((pair, pIdx) => {
+                        const p1 = byId[pair.player1];
+                        const p2 = byId[pair.player2];
+                        const sumNtrp = ((parseFloat(p1?.ntrp) || 2.0) + (parseFloat(p2?.ntrp) || 2.0)).toFixed(1);
+                        let pairType = '복식';
+                        if (p1 && p2) {
+                          if (p1.gender === 'M' && p2.gender === 'M') pairType = '남복';
+                          else if (p1.gender === 'F' && p2.gender === 'F') pairType = '여복';
+                          else pairType = '혼복';
+                        }
+
+                        return (
+                          <div key={pair.id || pIdx} style={{ backgroundColor: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <input
+                                type="text"
+                                className="input input-sm"
+                                style={{ fontWeight: 800, fontSize: '13px', width: '120px', padding: '2px 6px', color: '#166534' }}
+                                value={pair.name || `${pIdx + 1}페어`}
+                                onChange={e => handleUpdatePairName(pair.id, e.target.value)}
+                                disabled={!isAdmin}
+                              />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {p1 && p2 && (
+                                  <span className="badge badge-purple" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                                    {pairType} (NTRP {sumNtrp})
+                                  </span>
+                                )}
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '14px', padding: '0 2px' }}
+                                    onClick={() => handleRemovePair(pair.id)}
+                                    title="페어 삭제"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              {/* Player 1 Select */}
+                              <select
+                                className="input input-sm"
+                                style={{ flex: 1, fontSize: '12px', padding: '4px 6px' }}
+                                value={pair.player1 || ''}
+                                onChange={e => handleUpdatePairPlayer(pair.id, 'player1', e.target.value)}
+                                disabled={!isAdmin}
+                              >
+                                <option value="">선수 1 선택</option>
+                                {attendees.map(id => {
+                                  const m = byId[id];
+                                  if (!m) return null;
+                                  return (
+                                    <option key={id} value={id}>
+                                      {m.name} ({m.gender === 'M' ? '남' : '여'} / {m.ntrp || '2.0'})
+                                    </option>
+                                  );
+                                })}
+                              </select>
+
+                              <span style={{ fontWeight: 'bold', color: '#16a34a', fontSize: '13px' }}>+</span>
+
+                              {/* Player 2 Select */}
+                              <select
+                                className="input input-sm"
+                                style={{ flex: 1, fontSize: '12px', padding: '4px 6px' }}
+                                value={pair.player2 || ''}
+                                onChange={e => handleUpdatePairPlayer(pair.id, 'player2', e.target.value)}
+                                disabled={!isAdmin}
+                              >
+                                <option value="">선수 2 선택</option>
+                                {attendees.map(id => {
+                                  const m = byId[id];
+                                  if (!m) return null;
+                                  return (
+                                    <option key={id} value={id}>
+                                      {m.name} ({m.gender === 'M' ? '남' : '여'} / {m.ntrp || '2.0'})
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
             </div>
 
@@ -1081,10 +1701,10 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
         <div className="card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>
-              2단계. 코트 및 {isIndividual ? '개인별' : '조별'} 경기수 설정
+              2단계. 코트 및 {isTeam ? '조별' : isFixedPair ? '페어별' : '개인별'} 경기수 설정
             </h2>
-            <span className={isIndividual ? 'badge badge-purple' : 'badge badge-blue'} style={{ fontSize: '12px' }}>
-              {isIndividual ? '👤 개인전 모드' : '👥 팀전 모드'}
+            <span className={isTeam ? 'badge badge-blue' : isFixedPair ? 'badge badge-green' : 'badge badge-purple'} style={{ fontSize: '12px' }}>
+              {isTeam ? '👥 팀전 모드' : isFixedPair ? '👫 개인전(고정 페어) 모드' : '👤 개인전(순환) 모드'}
             </span>
           </div>
           
@@ -1095,10 +1715,15 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
             </div>
             <div>
               🎾 <strong>참석 명단:</strong> 총 {totalCount}명 (남 {selectedMales.length}명 / 여 {selectedFemales.length}명)
-              {!isIndividual && (
+              {isTeam && (
                 <> | 👑 <strong>지정된 조장 ({captains.length}명):</strong> {captains.map(cid => byId[cid]?.name).join(', ')}</>
               )}
             </div>
+            {isFixedPair && (
+              <div>
+                👫 <strong>확정된 고정 페어 ({pairs.length}페어):</strong> {pairs.map(p => `${p.name || '페어'}(${byId[p.player1]?.name || '선수1'}/${byId[p.player2]?.name || '선수2'})`).join(', ')}
+              </div>
+            )}
             <div style={{ fontSize: '12px', color: '#15803d' }}>
               📜 <strong>경기 규칙:</strong> 복식 핸디캡, 타이브레이크, No-Ad 규칙 설정됨
             </div>
@@ -1164,10 +1789,10 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
             <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>
-                  {isIndividual ? '개인별 경기수 (1인당 경기수)' : '조별 경기수 (팀당 경기수)'}
+                  {isTeam ? '조별 경기수 (팀당 경기수)' : isFixedPair ? '페어별 경기수 (1페어당 경기수)' : '개인별 경기수 (1인당 경기수)'}
                 </label>
                 <span style={{ fontSize: '11px', color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '12px' }}>
-                  💡 {isIndividual ? `시간/코트/인원수(${totalCount}명) 기반 자동 추천: ${gamesPerTeam}경기` : `시간/코트/조(${captains.length}팀) 기반 자동 추천: ${gamesPerTeam}경기`}
+                  💡 {isTeam ? `시간/코트/조(${captains.length}팀) 기반 자동 추천: ${gamesPerTeam}경기` : isFixedPair ? `시간/코트/페어(${pairs.length}페어) 기반 추천: ${gamesPerTeam}경기` : `시간/코트/인원수(${totalCount}명) 기반 자동 추천: ${gamesPerTeam}경기`}
                 </span>
               </div>
               <select 

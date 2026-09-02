@@ -149,8 +149,8 @@ export default function TournamentsPage() {
                       </span>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      <span className={t.type === 'team' ? 'badge badge-blue' : 'badge badge-purple'}>
-                        {t.type === 'team' ? '👥 팀전' : '👤 개인전'}
+                      <span className={t.type === 'team' ? 'badge badge-blue' : t.type === 'fixed_pair' ? 'badge badge-green' : 'badge badge-purple'}>
+                        {t.type === 'team' ? '👥 팀전' : t.type === 'fixed_pair' ? '👫 개인전(고정페어)' : '👤 개인전(순환)'}
                       </span>
                       <span className={
                         t.status === 'draft' ? 'badge badge-gold' :
@@ -189,8 +189,9 @@ export default function TournamentsPage() {
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>대회 방식</label>
                   <select className="input" style={{ width: '100%' }} value={newType} onChange={e => setNewType(e.target.value)}>
-                    <option value="team">팀전 (조장 선발 후 선수 뽑기)</option>
-                    <option value="individual">개인전 (NTRP 기반 파트너 매칭)</option>
+                    <option value="team">👥 팀전 (조장 선발 후 선수 뽑기)</option>
+                    <option value="individual">👤 개인전 (NTRP 기반 파트너 순환 매칭)</option>
+                    <option value="fixed_pair">👫 개인전 (고정 파트너 / 고정 페어 리그전)</option>
                   </select>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>

@@ -75,8 +75,8 @@ export default function TournamentDetailPage() {
                 </span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                <span className={tournament.type === 'team' ? 'badge badge-blue' : 'badge badge-purple'}>
-                  {tournament.type === 'team' ? '👥 팀전' : '👤 개인전'}
+                <span className={tournament.type === 'team' ? 'badge badge-blue' : tournament.type === 'fixed_pair' ? 'badge badge-green' : 'badge badge-purple'}>
+                  {tournament.type === 'team' ? '👥 팀전' : tournament.type === 'fixed_pair' ? '👫 개인전(고정페어)' : '👤 개인전(순환)'}
                 </span>
                 <span className={
                   tournament.status === 'draft' ? 'badge badge-gold' :
@@ -87,6 +87,9 @@ export default function TournamentDetailPage() {
                     tournament.status === 'draft' ? '📝 1~2단계. 일정/참석자 및 코트 설정' :
                     tournament.status === 'picking' ? '🤝 3단계. 팀원 배정 및 라인업 구성' :
                     tournament.status === 'playing' ? '🎾 4단계. 실시간 순위 및 경기 진행' : '✅ 5단계. 대회 종료'
+                  ) : tournament.type === 'fixed_pair' ? (
+                    tournament.status === 'draft' ? '📝 1~2단계. 페어 매칭 및 코트/경기수 설정' :
+                    tournament.status === 'playing' ? '🎾 4단계. 페어별 실시간 대진표 및 경기 진행' : '✅ 5단계. 대회 종료'
                   ) : (
                     tournament.status === 'draft' ? '📝 1~2단계. 일정/참석자 및 코트/경기수 설정' :
                     tournament.status === 'playing' ? '🎾 4단계. 실시간 대진표 및 경기 진행' : '✅ 5단계. 대회 종료'

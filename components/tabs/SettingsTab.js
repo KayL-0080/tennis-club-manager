@@ -2,6 +2,8 @@
 'use client';
 import { useState } from 'react';
 import { generateSchedule, makeEmptyMatch } from '@/lib/scheduler';
+import { createMember } from '@/lib/firestore';
+import { useAuth } from '@/contexts/AuthContext';
 import styles from './tabs.module.css';
 
 let _gCounter = 2000;
@@ -14,6 +16,8 @@ const numOptions = (min, max) => {
 };
 
 export default function SettingsTab({
+  clubId,
+
   events = [],
   matchDate, setMatchDate,
   members, participants, setParticipants,
@@ -22,15 +26,21 @@ export default function SettingsTab({
   womensDoublesCount, setWomensDoublesCount,
   mixedCount, setMixedCount,
   jointCount, setJointCount,
+  allowSingles, setAllowSingles,
   startTime, setStartTime, endTime, setEndTime,
   groups, setGroups,
-  onScheduleGenerated, onScheduleManual, onSave, onSaveAndExit, onGoto,
+  onScheduleGenerated, onScheduleManual, onSave, onSaveAndExit, onGoto, onReloadMembers
 }) {
+  const { currentClubId } = useAuth();
+  const activeClubId = clubId || currentClubId;
   const [status, setStatus] = useState('');
   const [warnMsg, setWarnMsg] = useState('');
   const [generating, setGenerating] = useState(false);
   const [enableConditions, setEnableConditions] = useState(false);
   const [selectedToAdd, setSelectedToAdd] = useState([]);
+  
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestForm, setGuestForm] = useState({ name: '', gender: 'M', ntrp: 2.0 });
 
   // 참가자로 포함 여부
   const isParticipant = id => participants.some(pt => pt.playerId === id);
@@ -79,49 +89,43 @@ export default function SettingsTab({
     setSelectedToAdd([]);
   };
 
-  const addGuest = () => {
-    const name = prompt('게스트 이름을 입력하세요:', '게스트');
-    if (!name) return;
-    const gender = confirm('남성이면 확인(OK), 여성이면 취소(Cancel)를 누르세요.') ? 'M' : 'F';
-    const ntrpStr = prompt('NTRP 점수를 입력하세요 (예: 2.0):', '2.0');
-    const ntrp = parseFloat(ntrpStr) || 2.0;
-    
-    const guestId = 'guest_' + Date.now();
-    setParticipants(prev => [...prev, { 
-      playerId: guestId, 
-      target: 0, 
-      isGuest: true, 
-      name, 
-      gender, 
-      ntrp 
-    }]);
+  const handleAddGuest = async (e) => {
+    e.preventDefault();
+    if (!guestForm.name.trim()) return;
+    try {
+      const newId = await createMember(activeClubId, { ...guestForm, role: '게스트' });
+      if (onReloadMembers) await onReloadMembers();
+      setParticipants(prev => [...prev, { playerId: newId, target: 0 }]);
+      setShowGuestForm(false);
+      setGuestForm({ name: '', gender: 'M', ntrp: 2.0 });
+    } catch (err) {
+      alert('게스트 추가 실패: ' + err.message);
+    }
   };
 
   const updateTarget = (playerId, val) => {
     setParticipants(prev => prev.map(pt => pt.playerId === playerId ? { ...pt, target: parseInt(val) || 0 } : pt));
   };
 
+  const isSinglesActive = allowSingles && participants.length < courts * 4 && participants.length > 0;
+  const singlesPerRound = isSinglesActive ? Math.min(courts, Math.ceil((courts * 4 - participants.length) / 2)) : 0;
+  const doublesPerRound = courts - singlesPerRound;
+  const slotsPerRound = singlesPerRound * 2 + doublesPerRound * 4;
+  const totalSlots = rounds * slotsPerRound;
+  
   const autoBalance = () => {
-    const total = rounds * courts * 4;
     const n = participants.length;
-    if (n === 0 || total <= 0) return;
-    const base = Math.floor(total / n);
-    let rem = total - base * n;
+    if (n === 0 || totalSlots <= 0) return;
+    const base = Math.floor(totalSlots / n);
+    let rem = totalSlots - base * n;
     setParticipants(prev => prev.map((pt, i) => ({ ...pt, target: base + (i < rem ? 1 : 0) })));
   };
 
-  const totalSlots = rounds * courts * 4;
   const targetSum = participants.reduce((s, pt) => s + (pt.target || 0), 0);
-  const isBalanced = totalSlots === targetSum && totalSlots > 0 && participants.length >= 4;
+  const isBalanced = totalSlots === targetSum && totalSlots > 0 && participants.length >= 2;
 
   // 참가자 상세 (이름/성별/NTRP 포함)
-  const getEntry = id => {
-    const m = members.find(m => m.id === id);
-    if (m) return m;
-    const pt = participants.find(p => p.playerId === id);
-    if (pt && pt.isGuest) return { id: pt.playerId, name: pt.name, gender: pt.gender, ntrp: pt.ntrp };
-    return null;
-  };
+  const getEntry = id => members.find(m => m.id === id);
   const entries = participants.map(pt => {
     const m = getEntry(pt.playerId);
     return m ? { ...m, target: pt.target } : null;
@@ -148,7 +152,12 @@ export default function SettingsTab({
     setTimeout(() => {
       const validGroups = groups.filter(g => g.memberIds.every(id => entries.some(p => p.id === id)));
       const activeGroups = enableConditions ? validGroups.map(g => ({ memberIds: g.memberIds, count: g.count })) : [];
-      const opts = { groups: activeGroups, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, noFF: true };
+      const opts = { 
+        groups: activeGroups, 
+        mensDoublesCount, womensDoublesCount, mixedCount, jointCount, 
+        singlesPerRound,
+        noFF: true 
+      };
       const { result, attempts, failReasons } = generateSchedule(entries, rounds, courts, opts, 2500, 3000);
       setGenerating(false);
       setStatus(`시도 ${attempts}회 완료`);
@@ -156,12 +165,13 @@ export default function SettingsTab({
         const KoreanReasons = {
           group_need_exhausted: "• 특별 조건 멤버의 목표 게임수 부족 (특별 조건 멤버들의 '목표 게임수'가 조건에 설정된 게임수보다 작음)",
           mens_not_enough_males: "• 남성 참가자 부족 (남식 복식을 위한 남성 회원 또는 남성 회원의 잔여 목표 게임수가 부족함)",
-          womens_not_enough_females: "• 여성 참가자 부족 (여성 복식을 위한 여성 회원 또는 여성 회원의 잔여 목표 게임수가 부족함)",
           mixed_not_enough_females: "• 여성 참가자 부족 (혼식 복식에 배정할 여성 회원 또는 여성 회원의 잔여 목표 게임수가 부족함)",
           mixed_not_enough_males: "• 남성 참가자 부족 (혼식 복식에 배정할 남성 회원 또는 남성 회원의 잔여 목표 게임수가 부족함)",
+          singles_avail_lt_2: "• 단식 배정 인원 부족 (단식 경기를 위한 잔여 목표 게임수가 있는 참가자가 2명 미만임)",
+          singles_pick_null: "• 단식 조합 불가능 (설정된 단식 경기 수에 맞는 조합을 찾을 수 없습니다)",
           joint_not_enough_players: "• 잡복 대기 참가자 부족 (잡식 복식을 채우기 위한 잔여 목표 게임수가 있는 참가자가 부족함)",
           joint_pick_null: "• 잡복 구성 불가능 (잡식 복식 조건을 맞추어 4인을 구성할 수 없습니다. 성비 또는 목표 게임수를 조절해주세요)",
-          freeCount_negative: "• 특별/남복/여복/혼복/잡복 조건 초과 (설정된 게임 수의 합이 총 경기 수(라운드×코트)보다 많음)",
+          freeCount_negative: "• 특별/남복/혼복/잡복 조건 초과 (설정된 게임 수의 합이 총 경기 수(라운드×코트)보다 많음)",
           free_avail_lt_4: "• 대기 인원 부족 (남은 경기를 채울 대기 참가자가 4명 미만임. 참가자를 추가하거나 목표 게임수를 넓혀주세요)",
           free_pick_null: "• 성비 불균형 (남녀 참가자 비율 또는 특정 성별의 목표 게임수가 한쪽으로 너무 치우침)",
           leftover_need: "• 목표 게임수 불일치 (참가자들의 목표 게임수 합계가 '라운드 × 코트 × 4'와 완벽히 맞물리지 않음)",
@@ -201,7 +211,7 @@ export default function SettingsTab({
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const sumMatches = (mensDoublesCount || 0) + (womensDoublesCount || 0) + (mixedCount || 0) + (jointCount || 0);
-  const requiredMatches = rounds * courts;
+  const requiredMatches = rounds * doublesPerRound;
   const isMatchSumOk = sumMatches <= requiredMatches;
 
   return (
@@ -233,8 +243,8 @@ export default function SettingsTab({
         </div>
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', maxHeight: '150px', overflowY: 'auto', background: 'var(--bg)' }}>
-            {availableToAdd.length === 0 ? <span className="text-muted" style={{ fontSize: '15px' }}>추가할 회원이 없습니다.</span> : availableToAdd.map(m => (
-              <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'var(--bg-card)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '16px' }}>
+            {availableToAdd.length === 0 ? <span className="text-muted" style={{ fontSize: 13 }}>추가할 회원이 없습니다.</span> : availableToAdd.map(m => (
+              <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'var(--bg-card)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: 14 }}>
                 <input type="checkbox" checked={selectedToAdd.includes(m.id)} onChange={e => toggleSelectToAdd(m.id, e.target.checked)} />
                 {m.name}
               </label>
@@ -244,9 +254,31 @@ export default function SettingsTab({
             + 선택한 인원 참가자로 추가
           </button>
         </div>
+        
+        {/* 게스트 추가 폼 */}
+        <div style={{ marginBottom: 12 }}>
+          {!showGuestForm ? (
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setShowGuestForm(true)}>
+              👤 게스트 추가
+            </button>
+          ) : (
+            <form onSubmit={handleAddGuest} style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'var(--bg)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+              <input className="input input-sm" placeholder="게스트 이름" value={guestForm.name} onChange={e => setGuestForm(prev => ({ ...prev, name: e.target.value }))} style={{ width: 100 }} required />
+              <select className="input input-sm" value={guestForm.gender} onChange={e => setGuestForm(prev => ({ ...prev, gender: e.target.value }))} style={{ width: 60 }}>
+                <option value="M">남</option>
+                <option value="F">여</option>
+              </select>
+              <select className="input input-sm" value={guestForm.ntrp} onChange={e => setGuestForm(prev => ({ ...prev, ntrp: parseFloat(e.target.value) }))} style={{ width: 60 }}>
+                {[1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0].map(v => <option key={v} value={v}>{v.toFixed(1)}</option>)}
+              </select>
+              <button className="btn btn-primary btn-sm" type="submit">추가</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => setShowGuestForm(false)}>취소</button>
+            </form>
+          )}
+        </div>
+
         <div className={styles.toolbar} style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '12px' }}>
           <button className="btn btn-secondary btn-sm" onClick={addAll}>회원 전체 추가</button>
-          <button className="btn btn-secondary btn-sm" onClick={addGuest}>+ 게스트 추가</button>
           <button className="btn btn-secondary btn-sm" onClick={clearAll}>참가자 전체 제외</button>
         </div>
       </div>
@@ -301,12 +333,25 @@ export default function SettingsTab({
             <input className="input input-sm" type="time" value={endTime || ''}
               onChange={e => setEndTime(e.target.value)} style={{ width: 110 }} />
           </div>
+          {participants.length > 0 && participants.length < courts * 4 && (
+            <div className="form-group" style={{ display: 'flex', alignItems: 'center', height: '32px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+                <input type="checkbox" checked={allowSingles} onChange={e => setAllowSingles(e.target.checked)} />
+                단식 혼합 허용
+              </label>
+            </div>
+          )}
         </div>
-        <div style={{ marginTop: 12, fontSize: '15px', color: isMatchSumOk ? 'var(--primary)' : 'var(--danger)', fontWeight: 'bold' }}>
+        <div style={{ marginTop: 12, fontSize: 13, color: isMatchSumOk ? 'var(--primary)' : 'var(--danger)', fontWeight: 'bold' }}>
           {isMatchSumOk 
-            ? (sumMatches < requiredMatches ? `✓ 세부 게임(${sumMatches}) 외 남은 ${requiredMatches - sumMatches}게임은 성별 무관(잡복)으로 자동 배정됩니다.` : '✓ 세부 게임 수 합계가 총 경기 수와 일치합니다.')
-            : `✗ 남복(${mensDoublesCount || 0}) + 여복(${womensDoublesCount || 0}) + 혼복(${mixedCount || 0}) + 잡복(${jointCount || 0}) 합계(${sumMatches})가 총 경기 수(${requiredMatches} = 라운드×코트)보다 클 수 없습니다.`}
+            ? (sumMatches < requiredMatches ? `✓ 세부 게임(${sumMatches}) 외 남은 복식 경기(${requiredMatches - sumMatches})는 성별 무관(잡복)으로 자동 배정됩니다.` : '✓ 세부 게임 수 합계가 총 복식 경기 수와 일치합니다.')
+            : `✗ 남복(${mensDoublesCount || 0}) + 여복(${womensDoublesCount || 0}) + 혼복(${mixedCount || 0}) + 잡복(${jointCount || 0}) 합계(${sumMatches})가 총 복식 경기 수(${requiredMatches} = 라운드×복식코트)보다 클 수 없습니다.`}
         </div>
+        {isSinglesActive && (
+          <div style={{ marginTop: 6, fontSize: 13, color: 'var(--primary)', fontWeight: 'bold' }}>
+            🎾 참가자 부족으로 라운드 당 단식 {singlesPerRound}경기, 복식 {doublesPerRound}경기가 진행됩니다.
+          </div>
+        )}
       </div>
 
       {/* 4단계: 참가자 목표 게임수 설정 및 균등 배분 */}
@@ -339,7 +384,7 @@ export default function SettingsTab({
           </button>
         </div>
         <div className={`${styles.balanceRow} ${isBalanced ? styles.ok : styles.bad}`} style={{ marginTop: 12 }}>
-          참가자 <strong>{participants.length}명</strong> · 목표 합계: <strong>{targetSum}</strong> / 필요 (라운드×코트×4): <strong>{totalSlots}</strong>
+          참가자 <strong>{participants.length}명</strong> · 목표 합계: <strong>{targetSum}</strong> / 필요 슬롯: <strong>{totalSlots}</strong>
           {isBalanced ? ' ✓ 일치' : ' ✗ 불일치 (균등배분을 실행하거나 숫자를 직접 맞추어 주세요)'}
         </div>
       </div>
@@ -353,7 +398,7 @@ export default function SettingsTab({
           </label>
           <span className={styles.sectionNote}>(체크 시 자동 생성에 반영)</span>
         </h2>
-        <p className="text-muted" style={{ fontSize: '15px', marginBottom: 12 }}>특정 4명이 함께 뛰는 게임 (같은 4명, 페어만 다르게 구성)</p>
+        <p className="text-muted" style={{ fontSize: 13, marginBottom: 12 }}>특정 4명이 함께 뛰는 게임 (같은 4명, 페어만 다르게 구성)</p>
         {entries.length >= 4 && (
           <form className={styles.addRow} onSubmit={addGroup}>
             {['g1', 'g2', 'g3', 'g4'].map(n => (
@@ -361,7 +406,7 @@ export default function SettingsTab({
                 {entries.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             ))}
-            <span style={{ fontSize: '15px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>게임수:</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>게임수:</span>
             <select name="gCount" className="input input-sm" defaultValue={2} style={{ width: 55 }}>
               {numOptions(1, 10)}
             </select>
@@ -393,7 +438,7 @@ export default function SettingsTab({
           </button>
           <button className="btn btn-secondary" onClick={createManual}>빈 대진표 직접 만들기</button>
           <button className="btn btn-secondary" onClick={onSaveAndExit}>💾 저장 후 목록으로</button>
-          {status && <span className="text-muted" style={{ fontSize: '15px' }}>{status}</span>}
+          {status && <span className="text-muted" style={{ fontSize: 13 }}>{status}</span>}
         </div>
         {warnMsg && (
           <div className="alert alert-warn" style={{ marginTop: 12, whiteSpace: 'pre-line' }}>⚠️ {warnMsg}</div>

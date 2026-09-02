@@ -1,8 +1,50 @@
 // components/tabs/BracketTab.js — 대진표(선수 드롭다운+점수입력) + 검증요약 + 개인순위
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { makeEmptyMatch, teamNtrpSum, computeTodayStandings } from '@/lib/scheduler';
 import styles from './tabs.module.css';
+
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+const generateId = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+
+function SortableRow({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? {
+      zIndex: 1,
+      position: 'relative',
+      backgroundColor: 'var(--bg)',
+      boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
+    } : {})
+  };
+
+  return (
+    <tr ref={setNodeRef} style={style} {...attributes}>
+      {children(listeners)}
+    </tr>
+  );
+}
+
 
 const COURT_LABELS = 'ABCDEFGHIJ'.split('');
 
@@ -14,54 +56,77 @@ const scoreOptions = () => {
 };
 
 export default function BracketTab({
+  clubId,
+
   schedule, setSchedule, scores, setScores,
   members, participants, lastGenStats,
   scheduleRounds, scheduleCourts, setScheduleRounds, setScheduleCourts,
   onSave, onPrint, isAdmin,
-  matchDate, startTime, endTime, clubId, clubName
 }) {
-  const [showGuestModal, setShowGuestModal] = useState(false);
-
-  const guestTemplate = `🎾 [테니스 게스트 모집] 🎾
-
-📌 모임명: ${clubName || '알 수 없음'}
-📌 일시: ${matchDate || 'YYYY-MM-DD'} ${startTime || ''} ~ ${endTime || ''}
-📌 장소: 코트 ${scheduleCourts || (schedule?.[0]?.length ?? 0)}면
-📌 인원: 0명 (남/녀)
-📌 실력: NTRP 2.0 ~ 3.0 (수정해서 사용하세요)
-📌 참가비: 0,000원 (수정해서 사용하세요)
-
-(여기에 추가 안내 사항을 적어주세요)
-
-참여를 원하시는 분은 댓글이나 채팅 부탁드립니다! 🎾`;
-
-  const [guestText, setGuestText] = useState('');
-  
-  useEffect(() => {
-    if (showGuestModal) {
-      setGuestText(guestTemplate);
-    }
-  }, [showGuestModal, guestTemplate]);
-
-  const copyGuestText = () => {
-    if (typeof window === 'undefined') return;
-    navigator.clipboard.writeText(guestText)
-      .then(() => alert('게스트 모집글이 클립보드에 복사되었습니다.'))
-      .catch(() => alert('복사에 실패했습니다.'));
-  };
   const byId = useMemo(() => {
     const m = {}; members.forEach(p => m[p.id] = p); return m;
   }, [members]);
 
   const entries = useMemo(() =>
-    participants.map(pt => {
-      const m = members.find(m => m.id === pt.playerId);
-      return m ? { ...m, target: pt.target } : null;
-    }).filter(Boolean),
+    participants.map(pt => members.find(m => m.id === pt.playerId)).filter(Boolean),
     [participants, members]
   );
 
   const todayRows = useMemo(() => computeTodayStandings(schedule, scores, byId), [schedule, scores, byId]);
+
+  const roundIdsRef = useRef([]);
+  if (schedule && roundIdsRef.current.length !== schedule.length) {
+    if (roundIdsRef.current.length < schedule.length) {
+      const diff = schedule.length - roundIdsRef.current.length;
+      for (let i = 0; i < diff; i++) roundIdsRef.current.push(generateId());
+    } else {
+      roundIdsRef.current = roundIdsRef.current.slice(0, schedule.length);
+    }
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = roundIdsRef.current.indexOf(active.id);
+    const newIndex = roundIdsRef.current.indexOf(over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newSchedule = arrayMove(schedule, oldIndex, newIndex);
+    
+    const newScores = { ...scores };
+    const currentIndices = Array.from({length: schedule.length}, (_, i) => i);
+    const movedIndices = arrayMove(currentIndices, oldIndex, newIndex);
+    
+    const oldToNew = {};
+    for (let i = 0; i < movedIndices.length; i++) {
+       oldToNew[movedIndices[i]] = i;
+    }
+
+    const remappedScores = {};
+    Object.keys(newScores).forEach(key => {
+      const [riStr, ciStr] = key.split('-');
+      const ri = parseInt(riStr, 10);
+      if (!isNaN(ri) && oldToNew[ri] !== undefined) {
+        remappedScores[`${oldToNew[ri]}-${ciStr}`] = newScores[key];
+      } else {
+        remappedScores[key] = newScores[key];
+      }
+    });
+
+    roundIdsRef.current = arrayMove(roundIdsRef.current, oldIndex, newIndex);
+    setScores(remappedScores);
+    setSchedule(newSchedule);
+  };
+
 
   if (!schedule || schedule.length === 0) {
     return (
@@ -132,23 +197,11 @@ export default function BracketTab({
     setScores({});
   };
 
-  const deleteEntireBracket = async () => {
-    if (!confirm('대진표 전체를 정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
-    setSchedule([]);
-    setScores({});
-    setScheduleRounds(0);
-    setScheduleCourts(0);
-    if (onSave) {
-      await onSave({ schedule: [], scores: {}, scheduleRounds_: 0, scheduleCourts_: 0 });
-    }
-    alert('대진표가 삭제되었습니다.');
-  };
-
   /* ── 선수 선택 옵션 ── */
   const playerOptions = (selectedId) => {
     const list = [...entries];
     if (selectedId && !list.some(p => p.id === selectedId)) {
-      const p = byId[selectedId];
+      const p = members.find(m => m.id === selectedId);
       if (p) list.unshift(p);
     }
     return [
@@ -164,18 +217,9 @@ export default function BracketTab({
     [...m.teamA, ...m.teamB].forEach(id => { if (id && counts[id] !== undefined) counts[id]++; });
   }));
 
-  const getShareUrl = () => {
-    if (typeof window === 'undefined') return '';
-    const url = new URL(window.location.href);
-    if (clubId) {
-      url.searchParams.set('club', clubId);
-    }
-    return url.toString();
-  };
-
   const copyUrl = () => {
     if (typeof window === 'undefined') return;
-    navigator.clipboard.writeText(getShareUrl())
+    navigator.clipboard.writeText(window.location.href)
       .then(() => alert('URL이 클립보드에 복사되었습니다.'))
       .catch(() => alert('URL 복사에 실패했습니다.'));
   };
@@ -186,10 +230,16 @@ export default function BracketTab({
       navigator.share({
         title: '테니스 대진표',
         text: '생성된 테니스 대진표를 확인하세요.',
-        url: getShareUrl(),
+        url: window.location.href,
       }).catch(err => console.log('공유 취소 또는 실패', err));
     } else {
       alert('이 브라우저에서는 기본 공유 기능을 지원하지 않습니다. URL 복사를 이용해주세요.');
+    }
+  };
+  const clearSchedule = () => {
+    if (confirm('정말로 전체 대진표를 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)')) {
+      setSchedule([]);
+      setScores({});
     }
   };
 
@@ -197,26 +247,28 @@ export default function BracketTab({
     <div>
       {/* 도구 모음 */}
       <div className={`card ${styles.section} no-print`}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-          <div className={styles.toolbarGroup} style={{ flex: '1 1 auto' }}>
-            <span className={styles.toolbarLabel}>데이터 관리</span>
-            <div className={styles.uniformBtnRow}>
-              <button className="btn btn-primary btn-sm" onClick={async () => { await onSave(); alert('저장되었습니다.'); }}>💾 저장</button>
-              {isAdmin && (
-                <>
-                  <button className="btn btn-secondary btn-sm" onClick={clearScores}>점수 초기화</button>
-                  <button className="btn btn-danger btn-sm" onClick={deleteEntireBracket} style={{ marginLeft: 'auto' }}>🗑️ 대진표 전체 삭제</button>
-                </>
-              )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div className={styles.toolbarGroup} style={{ flex: 1, minWidth: 200 }}>
+              <span className={styles.toolbarLabel}>데이터 관리</span>
+              <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? 'repeat(3, 1fr)' : '1fr', gap: '8px' }}>
+                <button className="btn btn-primary btn-sm" onClick={async () => { await onSave(); alert('저장되었습니다.'); }}>💾 저장</button>
+                {isAdmin && (
+                  <>
+                    <button className="btn btn-secondary btn-sm" onClick={clearScores}>점수 초기화</button>
+                    <button className="btn btn-danger btn-sm" onClick={clearSchedule}>🗑️ 전체 삭제</button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-          <div className={styles.toolbarGroup} style={{ flex: '2 1 auto' }}>
-            <span className={styles.toolbarLabel}>내보내기 / 공유</span>
-            <div className={styles.uniformBtnRow}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowGuestModal(true)}>📝 게스트 모집글</button>
-              <button className="btn btn-secondary btn-sm" onClick={copyUrl}>🔗 URL 복사</button>
-              <button className="btn btn-secondary btn-sm" onClick={shareNative}>📤 공유하기</button>
-              <button className="btn btn-secondary btn-sm" onClick={onPrint}>🖨️ 인쇄</button>
+            <div className={styles.toolbarGroup} style={{ flex: 1, minWidth: 260 }}>
+              <span className={styles.toolbarLabel}>내보내기 / 공유</span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                <button className="btn btn-secondary btn-sm" onClick={copyUrl}>🔗 URL 복사</button>
+                <button className="btn btn-secondary btn-sm" onClick={shareNative}>📤 공유하기</button>
+                <button className="btn btn-secondary btn-sm" onClick={onPrint}>🖨️ 인쇄</button>
+              </div>
             </div>
           </div>
         </div>
@@ -226,17 +278,32 @@ export default function BracketTab({
       <div className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>대진표 <span className={styles.sectionNote}>(선수·점수 직접 수정 가능)</span></h2>
         <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>라운드</th>
-                {Array.from({ length: courts }, (_, i) => <th key={i}>{COURT_LABELS[i]}코트</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {schedule.map((round, ri) => (
-                <tr key={ri}>
-                  <td className={styles.roundLabel}>{ri + 1}R</td>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <table>
+              <thead>
+                <tr>
+                  <th>라운드</th>
+                  {Array.from({ length: courts }, (_, i) => <th key={i}>{COURT_LABELS[i]}코트</th>)}
+                </tr>
+              </thead>
+              <SortableContext items={roundIdsRef.current} strategy={verticalListSortingStrategy}>
+                <tbody>
+                  {schedule.map((round, ri) => (
+                    <SortableRow key={roundIdsRef.current[ri]} id={roundIdsRef.current[ri]}>
+                      {(listeners) => (
+                        <>
+                          <td className={styles.roundLabel}>
+                            {isAdmin && (
+                              <span
+                                {...listeners}
+                                style={{ cursor: 'grab', marginRight: '8px', opacity: 0.5, fontSize: '18px', verticalAlign: 'middle' }}
+                                title="순서 변경"
+                              >
+                                ☰
+                              </span>
+                            )}
+                            {ri + 1}R
+                          </td>
                   {round.map((m, ci) => {
                     const key = `${ri}-${ci}`;
                     const sc = scores[key] || { a: null, b: null };
@@ -287,13 +354,17 @@ export default function BracketTab({
                       </td>
                     );
                   })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </>
+              )}
+            </SortableRow>
+          ))}
+                </tbody>
+              </SortableContext>
+            </table>
+          </DndContext>
         </div>
         {isAdmin && (
-          <div className={`${styles.uniformBtnRow} no-print`} style={{ marginTop: 16, justifyContent: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '16px' }} className="no-print">
             <button className="btn btn-secondary btn-sm" onClick={addRound}>+ 라운드 추가</button>
             <button className="btn btn-secondary btn-sm" onClick={removeRound}>- 라운드 삭제</button>
             <button className="btn btn-secondary btn-sm" onClick={addCourt}>+ 코트 추가</button>
@@ -303,46 +374,48 @@ export default function BracketTab({
       </div>
 
       {/* 검증 요약 */}
-      <div className={`card ${styles.section}`}>
-        <h2 className={styles.sectionTitle}>검증 요약</h2>
-        {lastGenStats && (
-          <div className={styles.statsRow}>
-            <div className={`${styles.statBox} ${lastGenStats.dupCount === 0 ? styles.statGreen : styles.statRed}`}>
-              <span className={styles.statLabel}>중복 페어 수</span>
-              <span className={styles.statNum2}>{lastGenStats.dupCount}</span>
+      {isAdmin && (
+        <div className={`card ${styles.section}`}>
+          <h2 className={styles.sectionTitle}>검증 요약</h2>
+          {lastGenStats && (
+            <div className={styles.statsRow}>
+              <div className={`${styles.statBox} ${lastGenStats.dupCount === 0 ? styles.statGreen : styles.statRed}`}>
+                <span className={styles.statLabel}>중복 페어 수</span>
+                <span className={styles.statNum2}>{lastGenStats.dupCount}</span>
+              </div>
+              <div className={styles.statBox}>
+                <span className={styles.statLabel}>NTRP 편차 총합</span>
+                <span className={styles.statNum2}>{lastGenStats.ntrpDiffSum?.toFixed(1)}</span>
+              </div>
             </div>
-            <div className={styles.statBox}>
-              <span className={styles.statLabel}>NTRP 편차 총합</span>
-              <span className={styles.statNum2}>{lastGenStats.ntrpDiffSum?.toFixed(1)}</span>
-            </div>
+          )}
+          <div className="table-wrap" style={{ marginTop: 12 }}>
+            <table>
+              <thead><tr><th>이름</th><th>목표</th><th>실제</th><th>일치</th></tr></thead>
+              <tbody>
+                {entries.map(p => {
+                  const actual = counts[p.id] || 0;
+                  const ok = actual === p.target;
+                  return (
+                    <tr key={p.id}>
+                      <td>{p.name}</td>
+                      <td>{p.target}</td>
+                      <td>{actual}</td>
+                      <td className={ok ? 'text-green' : 'text-red'}>{ok ? '✓' : '✗'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-        <div className="table-wrap" style={{ marginTop: 12 }}>
-          <table>
-            <thead><tr><th>이름</th><th>목표</th><th>실제</th><th>일치</th></tr></thead>
-            <tbody>
-              {entries.map(p => {
-                const actual = counts[p.id] || 0;
-                const ok = actual === p.target;
-                return (
-                  <tr key={p.id}>
-                    <td>{p.name}</td>
-                    <td>{p.target}</td>
-                    <td>{actual}</td>
-                    <td className={ok ? 'text-green' : 'text-red'}>{ok ? '✓' : '✗'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
         </div>
-      </div>
+      )}
 
       {/* 개인 순위 */}
       <div className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>오늘 개인 순위표</h2>
         {todayRows.length === 0 ? (
-          <p className="text-muted" style={{ fontSize: '15px' }}>아직 입력된 점수가 없습니다.</p>
+          <p className="text-muted" style={{ fontSize: 13 }}>아직 입력된 점수가 없습니다.</p>
         ) : (
           <div className="table-wrap">
             <table>
@@ -369,32 +442,6 @@ export default function BracketTab({
           </div>
         )}
       </div>
-      {/* 게스트 모집글 모달 */}
-      {showGuestModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
-            <div className="modal-header">
-              <h2 style={{ margin: 0, fontSize: '18px' }}>게스트 모집글 생성</h2>
-              <button className="modal-close" onClick={() => setShowGuestModal(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <p style={{ fontSize: '15px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                아래 텍스트를 자유롭게 수정한 뒤 복사해서 카카오톡이나 밴드에 공유하세요.
-              </p>
-              <textarea
-                className="input"
-                style={{ width: '100%', height: '250px', resize: 'vertical', padding: '12px', lineHeight: '1.5', fontFamily: 'inherit' }}
-                value={guestText}
-                onChange={(e) => setGuestText(e.target.value)}
-              />
-            </div>
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-              <button className="btn btn-secondary" onClick={() => setShowGuestModal(false)}>닫기</button>
-              <button className="btn btn-primary" onClick={copyGuestText}>복사하기</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

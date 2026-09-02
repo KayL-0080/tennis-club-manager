@@ -426,7 +426,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   };
 
   const conflictMap = useMemo(() => {
-    if (type !== 'individual') return { hasConflict: false, matchConflicts: {}, conflictDetails: [] };
+    if (type === 'team') return { hasConflict: false, matchConflicts: {}, conflictDetails: [] };
 
     const slotMap = {};
 
@@ -836,6 +836,11 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
             backgroundColor: isWinA ? 'rgba(0, 122, 255, 0.08)' : 'rgba(0,0,0,0.02)',
             border: isWinA ? '1px solid rgba(0, 122, 255, 0.3)' : '1px solid transparent'
           }}>
+            {type === 'fixed_pair' && (
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#166534', borderBottom: '1px dashed #bbf7d0', paddingBottom: '2px', marginBottom: '2px' }}>
+                👫 {m.pairAName || 'A페어'}
+              </span>
+            )}
             {renderPlayerSlot('playerA1', m.playerA1, '선수1')}
             {renderPlayerSlot('playerA2', m.playerA2, '선수2')}
           </div>
@@ -912,6 +917,11 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
             backgroundColor: isWinB ? 'rgba(255, 59, 48, 0.08)' : 'rgba(0,0,0,0.02)',
             border: isWinB ? '1px solid rgba(255, 59, 48, 0.3)' : '1px solid transparent'
           }}>
+            {type === 'fixed_pair' && (
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#166534', borderBottom: '1px dashed #bbf7d0', paddingBottom: '2px', marginBottom: '2px' }}>
+                👫 {m.pairBName || 'B페어'}
+              </span>
+            )}
             {renderPlayerSlot('playerB1', m.playerB1, '선수1')}
             {renderPlayerSlot('playerB2', m.playerB2, '선수2')}
           </div>
@@ -1003,6 +1013,64 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     return arr;
   }, [localMatches, type, byId]);
 
+  const pairStats = useMemo(() => {
+    if (type !== 'fixed_pair') return [];
+    const stats = {};
+    const pairList = tournament.pairs || [];
+
+    pairList.forEach(p => {
+      const p1 = byId[p.player1];
+      const p2 = byId[p.player2];
+      stats[p.id] = {
+        id: p.id,
+        name: p.name || '페어',
+        player1: p.player1,
+        player2: p.player2,
+        p1Name: p1?.name || '선수1',
+        p2Name: p2?.name || '선수2',
+        matchWin: 0,
+        matchDraw: 0,
+        matchLoss: 0,
+        setWin: 0,
+        setLoss: 0,
+        points: 0,
+        diff: 0
+      };
+    });
+
+    localMatches.forEach(m => {
+      if (m.scoreA === null || m.scoreB === null) return;
+      const sA = m.scoreA;
+      const sB = m.scoreB;
+      const diff = sA - sB;
+
+      if (m.pairAId && stats[m.pairAId]) {
+        stats[m.pairAId].setWin += sA;
+        stats[m.pairAId].setLoss += sB;
+        stats[m.pairAId].diff += diff;
+        if (sA > sB) { stats[m.pairAId].matchWin++; stats[m.pairAId].points += 3; }
+        else if (sA < sB) { stats[m.pairAId].matchLoss++; stats[m.pairAId].points += 1; }
+        else { stats[m.pairAId].matchDraw++; stats[m.pairAId].points += 2; }
+      }
+      if (m.pairBId && stats[m.pairBId]) {
+        stats[m.pairBId].setWin += sB;
+        stats[m.pairBId].setLoss += sA;
+        stats[m.pairBId].diff -= diff;
+        if (sB > sA) { stats[m.pairBId].matchWin++; stats[m.pairBId].points += 3; }
+        else if (sB < sA) { stats[m.pairBId].matchLoss++; stats[m.pairBId].points += 1; }
+        else { stats[m.pairBId].matchDraw++; stats[m.pairBId].points += 2; }
+      }
+    });
+
+    const arr = Object.values(stats);
+    arr.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.diff !== a.diff) return b.diff - a.diff;
+      return (b.setWin - b.setLoss) - (a.setWin - a.setLoss);
+    });
+    return arr;
+  }, [localMatches, tournament.pairs, type, byId]);
+
   const matchesForRender = useMemo(() => {
     return localMatches.map((m, i) => ({ ...m, _originalIdx: i })).sort((a, b) => {
       const courtA = a.court ? parseInt(a.court) : 999;
@@ -1024,7 +1092,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
         </h2>
         {isAdmin && (
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {type === 'individual' && (
+            {type !== 'team' && (
               <>
                 <button 
                   className="btn btn-secondary btn-sm"
@@ -1044,7 +1112,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
             )}
             <button className="btn btn-secondary btn-sm" onClick={() => {
               if (confirm('이전 설정 단계로 돌아가시겠습니까? 현재 입력된 점수는 보존됩니다.')) {
-                onUpdate({ status: type === 'individual' ? 'draft' : 'picking' });
+                onUpdate({ status: type === 'team' ? 'picking' : 'draft' });
               }
             }}>👈 이전</button>
             <button className="btn btn-secondary btn-sm" onClick={handleSave}>저장</button>
@@ -1479,7 +1547,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
           </div>
         )}
 
-        {type === 'individual' && (
+        {type !== 'team' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             
             {/* 1. 중복 선수 점검 알림 배너 */}
@@ -1785,7 +1853,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
         {type === 'individual' && (
           <div style={{ overflowX: 'auto', marginTop: '24px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-            <div style={{ backgroundColor: '#f8fafc', padding: '8px 12px', fontWeight: 'bold', fontSize: '14px', borderBottom: '1px solid var(--border)' }}>실시간 순위</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '8px 12px', fontWeight: 'bold', fontSize: '14px', borderBottom: '1px solid var(--border)' }}>실시간 개인 순위</div>
             <table className="table" style={{ width: '100%', textAlign: 'center', minWidth: '350px', margin: 0 }}>
               <thead>
                 <tr style={{ fontSize: '13px' }}>
@@ -1799,11 +1867,44 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
               <tbody>
                 {indStats.map((p, idx) => (
                   <tr key={p.id} style={{ fontWeight: idx < 3 ? 'bold' : 'normal', backgroundColor: idx === 0 ? '#fef3c7' : idx === 1 ? '#f1f5f9' : idx === 2 ? '#ffedd5' : 'transparent', fontSize: '13px' }}>
-                    <td>{idx + 1}</td>
-                    <td>{p.name}</td>
-                    <td style={{ color: 'var(--primary)' }}>{p.points}</td>
-                    <td>{p.win}승{p.draw}무{p.loss}패</td>
+                    <td>{idx === 0 ? '🥇 1' : idx === 1 ? '🥈 2' : idx === 2 ? '🥉 3' : idx + 1}</td>
+                    <td style={{ fontWeight: 'bold' }}>{p.name}</td>
+                    <td style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{p.points}</td>
+                    <td>{p.win}승 {p.draw}무 {p.loss}패</td>
                     <td>{p.diff > 0 ? '+' : ''}{p.diff}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {type === 'fixed_pair' && (
+          <div style={{ overflowX: 'auto', marginTop: '24px', border: '1px solid var(--border)', borderRadius: '8px' }}>
+            <div style={{ backgroundColor: '#f8fafc', padding: '8px 12px', fontWeight: 'bold', fontSize: '14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>👫 페어별 실시간 순위</span>
+              <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'normal' }}>승리 3점 / 무승부 2점 / 패배 1점</span>
+            </div>
+            <table className="table" style={{ width: '100%', textAlign: 'center', minWidth: '400px', margin: 0 }}>
+              <thead>
+                <tr style={{ fontSize: '13px' }}>
+                  <th>순위</th>
+                  <th>페어명</th>
+                  <th>선수 구성</th>
+                  <th>승점</th>
+                  <th>전적</th>
+                  <th>세트득실</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pairStats.map((p, idx) => (
+                  <tr key={p.id} style={{ fontWeight: idx < 3 ? 'bold' : 'normal', backgroundColor: idx === 0 ? '#fef3c7' : idx === 1 ? '#f1f5f9' : idx === 2 ? '#ffedd5' : 'transparent', fontSize: '13px' }}>
+                    <td>{idx === 0 ? '🥇 1' : idx === 1 ? '🥈 2' : idx === 2 ? '🥉 3' : idx + 1}</td>
+                    <td style={{ fontWeight: 'bold', color: '#166534' }}>{p.name}</td>
+                    <td>{p.p1Name}, {p.p2Name}</td>
+                    <td style={{ color: 'var(--blue)', fontWeight: 'bold' }}>{p.points}</td>
+                    <td>{p.matchWin}승 {p.matchDraw}무 {p.matchLoss}패</td>
+                    <td>{p.diff > 0 ? '+' : ''}{p.diff} ({p.setWin}득 {p.setLoss}실)</td>
                   </tr>
                 ))}
               </tbody>
