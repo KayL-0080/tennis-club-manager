@@ -188,7 +188,7 @@ export default function Dashboard() {
             <div className={styles.heroContent}>
               <div className={styles.heroTag}>
                 <span>🎾</span>
-                <span>RADAL TENNIS CLUB</span>
+                <span>TENNIS CRAZY CLUB</span>
               </div>
               <h1 className={styles.heroTitle}>테니스 매치 & 대진표 매니저</h1>
               <p className={styles.heroSub}>NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리</p>
