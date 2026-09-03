@@ -29,8 +29,8 @@ export default function Navbar() {
           {/* Logo Section */}
           <div className={styles.logoContainer}>
             <button className={styles.logo} onClick={() => router.push('/dashboard')}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '1.4rem' }}>🎾</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img src="/apple-touch-icon.png" alt="테친회" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }} />
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                   <span className={styles.logoText}>Tennis Match</span>
                   <span className={styles.logoSub}>테친회</span>
