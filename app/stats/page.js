@@ -8,7 +8,7 @@ import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function StatsPage() {
-  const { loading } = useAuth();
+  const { currentClubId, loading } = useAuth();
   const router = useRouter();
   
   const [fetching, setFetching] = useState(true);
