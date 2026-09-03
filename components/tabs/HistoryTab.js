@@ -6,35 +6,17 @@ import styles from './tabs.module.css';
 
 const COURT_LABELS = 'ABCDEFGHIJ'.split('');
 
-export default function HistoryTab({ schedule, scores, members, history, setHistory, onSave, isAdmin, isSuperAdmin }) {
+export default function HistoryTab({ schedule, scores, members, history, setHistory, onSave, isAdmin }) {
   const [viewEntry, setViewEntry] = useState(null);
-
-  const byId = useMemo(() => {
-    const m = {}; members.forEach(p => m[p.id] = p); return m;
-  }, [members]);
-
-  const lifetimeRows = useMemo(() => computeLifetimeStandings(history, byId), [history, byId]);
+  const lifetimeRows = useMemo(() => computeLifetimeStandings(history), [history]);
 
   const todayStr = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  const saveRecord = () => {
-    if (!schedule || schedule.length === 0) { alert('저장할 대진표가 없습니다.'); return; }
-    const dateVal = document.getElementById('recordDateInput')?.value || todayStr();
-    const entry = {
-      id: 'h' + Date.now(),
-      date: dateVal,
-      schedule: JSON.parse(JSON.stringify(schedule)),
-      scores: JSON.parse(JSON.stringify(scores)),
-      playerSnapshot: members.map(m => ({ id: m.id, name: m.name, gender: m.gender, ntrp: m.ntrp })),
-    };
-    const next = [...history, entry].sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
-    setHistory(next);
-    onSave({ history: next });
-    alert('기록이 저장되었습니다.');
-  };
+  const [queryDate, setQueryDate] = useState(todayStr());
+  const filteredHistory = history.filter(h => h.date === queryDate);
 
   const deleteEntry = (id) => {
     if (!confirm('이 기록을 삭제할까요?')) return;
@@ -46,31 +28,25 @@ export default function HistoryTab({ schedule, scores, members, history, setHist
 
   return (
     <div>
-      {/* 기록 저장 */}
-      {isAdmin && (
-        <div className={`card ${styles.section}`}>
-          <h2 className={styles.sectionTitle}>기록 저장 &amp; 지난 기록</h2>
-          <div className={styles.settingsRow}>
-            <div className="form-group">
-              <label className="form-label">기록 날짜</label>
-              <input id="recordDateInput" className="input input-sm" type="date" defaultValue={todayStr()} style={{ width: 160 }} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">&nbsp;</label>
-              <button className="btn btn-primary btn-sm" onClick={saveRecord}>오늘 기록으로 저장</button>
-            </div>
+      {/* 조회 날짜 필터 */}
+      <div className={`card ${styles.section}`}>
+        <h2 className={styles.sectionTitle}>지난 기록 조회</h2>
+        <div className={styles.settingsRow}>
+          <div className="form-group">
+            <label className="form-label">조회 날짜</label>
+            <input className="input input-sm" type="date" value={queryDate} onChange={e => setQueryDate(e.target.value)} style={{ width: 160 }} />
           </div>
         </div>
-      )}
+      </div>
 
       {/* 기록 목록 */}
       <div className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>{isAdmin ? '기록 목록' : '지난 기록'}</h2>
-        {history.length === 0 ? (
-          <p className="text-muted" style={{ fontSize: '15px', marginTop: 12 }}>아직 저장된 기록이 없습니다.</p>
+        {filteredHistory.length === 0 ? (
+          <p className="text-muted" style={{ fontSize: 13, marginTop: 12 }}>아직 저장된 기록이 없습니다.</p>
         ) : (
           <div className={styles.histList}>
-            {history.map(h => {
+            {filteredHistory.map(h => {
               const cnt = new Set(h.schedule.flatMap(r => r.flatMap(m => [...m.teamA, ...m.teamB])).filter(Boolean)).size;
               return (
                 <div key={h.id} className={styles.histItem}>
@@ -151,7 +127,7 @@ export default function HistoryTab({ schedule, scores, members, history, setHist
       <div className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>전체 누적 순위표 (저장된 기록 전체 합산)</h2>
         {lifetimeRows.length === 0 ? (
-          <p className="text-muted" style={{ fontSize: '15px' }}>아직 저장된 기록이 없습니다. 경기를 마친 뒤 "오늘 기록으로 저장"을 눌러보세요.</p>
+          <p className="text-muted" style={{ fontSize: 13 }}>아직 저장된 기록이 없습니다. 경기를 마친 뒤 "오늘 기록으로 저장"을 눌러보세요.</p>
         ) : (
           <div className="table-wrap">
             <table>

@@ -19,7 +19,7 @@ export default function GroupConditions({ players, groups, setGroups }) {
   const remove = (id) => setGroups(groups.filter((g) => g.id !== id));
 
   if (players.length < 4) {
-    return <p className="text-muted" style={{ fontSize: '15px' }}>회원을 4명 이상 추가하면 특별 조건을 설정할 수 있습니다.</p>;
+    return <p className="text-muted" style={{ fontSize: 13 }}>회원을 4명 이상 추가하면 특별 조건을 설정할 수 있습니다.</p>;
   }
 
   return (
@@ -33,7 +33,7 @@ export default function GroupConditions({ players, groups, setGroups }) {
             ))}
           </select>
         ))}
-        <span style={{ fontSize: '15px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>게임수:</span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>게임수:</span>
         <input name="gCount" className="input input-sm" type="number" defaultValue={2} min={1} style={{ width: 55 }} />
         <button className="btn btn-secondary btn-sm" type="submit">추가</button>
       </form>

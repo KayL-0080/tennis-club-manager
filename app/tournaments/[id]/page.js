@@ -12,7 +12,7 @@ import PlayingPhase from './PlayingPhase';
 import CompletedPhase from './CompletedPhase';
 
 export default function TournamentDetailPage() {
-  const { currentClubId, user, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const router = useRouter();
   const { id } = useParams();
   
@@ -23,8 +23,8 @@ export default function TournamentDetailPage() {
   const loadData = async () => {
     try {
       const [tData, mList] = await Promise.all([
-        getTournament(currentClubId, id),
-        getMembers(currentClubId)
+        getTournament('shared', id),
+        getMembers('shared')
       ]);
       if (!tData) {
         alert('대회를 찾을 수 없습니다.');
@@ -45,7 +45,7 @@ export default function TournamentDetailPage() {
   }, [id]);
 
   const handleUpdate = async (updates) => {
-    await updateTournament(currentClubId, id, updates);
+    await updateTournament('shared', id, updates);
     setTournament(prev => ({ ...prev, ...updates }));
   };
 

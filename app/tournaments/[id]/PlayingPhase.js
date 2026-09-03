@@ -319,6 +319,44 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
   const updateIndividualMatchPlayer = (matchIdx, field, newPlayerId) => {
     if (!isAdmin) return;
+    if (newPlayerId) {
+      const currentMatch = localMatches[matchIdx];
+      if (currentMatch) {
+        // 1. 동일 경기(매치) 내 중복 체크
+        const otherSlots = {
+          playerA1: ['playerA2', 'playerB1', 'playerB2'],
+          playerA2: ['playerA1', 'playerB1', 'playerB2'],
+          playerB1: ['playerB2', 'playerA1', 'playerA2'],
+          playerB2: ['playerB1', 'playerA1', 'playerA2']
+        }[field] || [];
+        for (const slotKey of otherSlots) {
+          if (currentMatch[slotKey] === newPlayerId) {
+            const playerName = byId[newPlayerId]?.name || '선수';
+            alert(`[${playerName}] 선수는 현재 경기(매치)에 이미 배정되어 있습니다.`);
+            return;
+          }
+        }
+
+        // 2. 코트 배정 상태에서 동일 시간대(경기/세트) 타 코트 중복 출전 체크
+        const slot = currentMatch.setIndex || currentMatch.round;
+        if (slot && currentMatch.court) {
+          const otherMatchesInSameSlot = localMatches.filter((m, idx) => 
+            idx !== matchIdx && 
+            m.court && 
+            (m.setIndex === slot || (!m.setIndex && m.round === slot))
+          );
+          for (const om of otherMatchesInSameSlot) {
+            const activePlayers = [om.playerA1, om.playerA2, om.playerB1, om.playerB2].filter(Boolean);
+            if (activePlayers.includes(newPlayerId)) {
+              const playerName = byId[newPlayerId]?.name || '선수';
+              const courtName = om.court || '다른 코트';
+              alert(`[${playerName}] 선수는 동일 시간대(${slot}경기, ${courtName})에 이미 출전 중입니다.\n동시간대 중복 출전은 불가합니다.`);
+              return;
+            }
+          }
+        }
+      }
+    }
     const newMatches = [...localMatches];
     newMatches[matchIdx] = {
       ...newMatches[matchIdx],
@@ -539,6 +577,26 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   };
 
   const updateTeamSetPlayer = (matchIdx, setIdx, field, val) => {
+    if (!isAdmin) return;
+    if (val) {
+      const match = localMatches[matchIdx];
+      const setObj = match?.sets?.[setIdx];
+      if (setObj) {
+        const otherSlots = {
+          playerA1: ['playerA2', 'playerB1', 'playerB2'],
+          playerA2: ['playerA1', 'playerB1', 'playerB2'],
+          playerB1: ['playerB2', 'playerA1', 'playerA2'],
+          playerB2: ['playerB1', 'playerA1', 'playerA2']
+        }[field] || [];
+        for (const slotKey of otherSlots) {
+          if (setObj[slotKey] === val) {
+            const pName = byId[val]?.name || '선수';
+            alert(`[${pName}] 선수는 현재 세트(${setIdx + 1}세트)에 이미 배정되어 있습니다.`);
+            return;
+          }
+        }
+      }
+    }
     const newMatches = [...localMatches];
     newMatches[matchIdx].sets[setIdx][field] = val !== '' ? val : null;
     setLocalMatches(newMatches);

@@ -4,13 +4,13 @@ import { useState } from 'react';
 import styles from './tabs.module.css';
 
 const NTRP_OPTIONS = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
-const ROLE_OPTIONS = ['회장', '총무', '경기이사', '운영이사', '고문', '정회원', '준회원', '게스트'];
+const ROLE_OPTIONS = ['회장', '총무', '경기이사', '운영이사', '행사담당', '정회원', '준회원', '게스트'];
 
 export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDelete, isAdmin, currentClub, onBulkUpdateFeeStatus }) {
 
   const sortedMembers = [...members].sort((a, b) => {
-    // 1. 특정 직책 상단 고정 우선순위
-    const rolePriority = { '회장': 1, '총무': 2, '경기이사': 3, '운영이사': 4 };
+    // 1. 특정 직책 상단 고정 및 준회원/게스트 하단 배치
+    const rolePriority = { '회장': 1, '총무': 2, '경기이사': 3, '운영이사': 4, '행사담당': 5, '준회원': 998, '게스트': 999 };
     const pA = rolePriority[a.role] || 99;
     const pB = rolePriority[b.role] || 99;
     if (pA !== pB) return pA - pB;
@@ -64,7 +64,7 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>이름</th><th>직책/구분</th><th>성별</th><th>NTRP</th><th>회비 납부</th><th></th></tr>
+              <tr><th>이름</th><th>직책/구분</th><th>성별</th>{isAdmin && <th>NTRP</th>}<th>회비 납부</th><th></th></tr>
             </thead>
             <tbody>
               {sortedMembers.map(p => (
@@ -90,13 +90,15 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
                       <option value="F">여</option>
                     </select>
                   </td>
-                  <td>
-                    <select className="select input-sm" value={p.ntrp} style={{ width: 72 }}
-                      disabled={!isAdmin}
-                      onChange={e => { onUpdateLocal(p.id, { ntrp: parseFloat(e.target.value) }); onSave(p.id, { ntrp: parseFloat(e.target.value) }); }}>
-                      {NTRP_OPTIONS.map(v => <option key={v} value={v}>{v.toFixed(1)}</option>)}
-                    </select>
-                  </td>
+                  {isAdmin && (
+                    <td>
+                      <select className="select input-sm" value={p.ntrp} style={{ width: 72 }}
+                        disabled={!isAdmin}
+                        onChange={e => { onUpdateLocal(p.id, { ntrp: parseFloat(e.target.value) }); onSave(p.id, { ntrp: parseFloat(e.target.value) }); }}>
+                        {NTRP_OPTIONS.map(v => <option key={v} value={v}>{v.toFixed(1)}</option>)}
+                      </select>
+                    </td>
+                  )}
                   <td>
                     <select className="select input-sm" value={p.feePaid ? 'true' : 'false'} style={{ width: 72 }}
                       disabled={!isAdmin}

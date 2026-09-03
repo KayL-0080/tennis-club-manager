@@ -3,14 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSchedules, createSchedule, deleteSchedule, getMembers, getEvents, updateClub, uploadClubImage } from '@/lib/firestore';
+import { getSchedules, createSchedule, deleteSchedule, getMembers, initDefaultMembers, getEvents } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import SettingsTab from '@/components/tabs/SettingsTab';
 import styles from './dashboard.module.css';
 
 export default function Dashboard() {
-  const { user, isAdmin, isSuperAdmin, loading, currentClubId, clubs, setClubs } = useAuth();
-  const currentClub = clubs.find(c => c.id === currentClubId);
+  const { user, isAdmin, loading } = useAuth();
   const router = useRouter();
   
   const [activeTab, setActiveTab] = useState('list'); // 'list' | 'settings'
@@ -20,54 +19,6 @@ export default function Dashboard() {
   const [fetching, setFetching] = useState(true);
   const [creating, setCreating] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
-
-  // Club Settings Modal State
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [editClubName, setEditClubName] = useState('');
-  const [editClubDesc, setEditClubDesc] = useState('');
-  const [editClubImageFile, setEditClubImageFile] = useState(null);
-  const [editClubImageUrl, setEditClubImageUrl] = useState('');
-  const [updatingClub, setUpdatingClub] = useState(false);
-
-  const openSettingsModal = () => {
-    setEditClubName(currentClub?.name || '');
-    setEditClubDesc(currentClub?.description || '');
-    setEditClubImageUrl(currentClub?.imageUrl || '');
-    setEditClubImageFile(null);
-    setShowSettingsModal(true);
-  };
-
-  const handleUpdateClub = async (e) => {
-    e.preventDefault();
-    if (!isAdmin || !currentClub) return;
-    setUpdatingClub(true);
-    try {
-      let finalImageUrl = editClubImageUrl;
-      if (editClubImageFile) {
-        try {
-          finalImageUrl = await uploadClubImage(currentClubId, editClubImageFile);
-        } catch (uploadErr) {
-          console.warn('Storage upload failed, falling back to manual URL if provided', uploadErr);
-          if (!editClubImageUrl) throw uploadErr; // if no fallback url, throw
-        }
-      }
-      
-      const payload = { 
-        name: editClubName.trim(), 
-        description: editClubDesc.trim(),
-      };
-      if (finalImageUrl) payload.imageUrl = finalImageUrl;
-
-      await updateClub(currentClubId, payload);
-      setClubs(prev => prev.map(c => c.id === currentClubId ? { ...c, ...payload } : c));
-      setShowSettingsModal(false);
-    } catch (err) {
-      console.error(err);
-      alert('업데이트 실패: ' + err.message);
-    } finally {
-      setUpdatingClub(false);
-    }
-  };
 
   // Settings state
   const defaultDate = new Date().toLocaleDateString('en-CA');
@@ -80,51 +31,31 @@ export default function Dashboard() {
   const [womensDoublesCount, setWomensDoublesCount] = useState(0);
   const [mixedCount, setMixedCount] = useState(0);
   const [jointCount, setJointCount] = useState(0);
+  const [allowSingles, setAllowSingles] = useState(false);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
-  const [allowSingles, setAllowSingles] = useState(false);
 
   const load = useCallback(async () => {
-    if (!currentClubId) {
-      setFetching(false);
-      return;
-    }
     setFetching(true);
     try {
-      try {
-        const mbrs = await getMembers(currentClubId);
-        setMembers(mbrs);
-      } catch(e) {
-        console.warn('getMembers failed', e);
-      }
+      await initDefaultMembers('shared');
+      const mbrs = await getMembers('shared');
+      setMembers(mbrs);
       
-      try {
-        const data = await getSchedules(currentClubId);
-        setSchedules(data);
-      } catch(e) {
-        console.warn('getSchedules failed', e);
-      }
+      const data = await getSchedules('shared');
+      setSchedules(data);
 
-      try {
-        const evts = await getEvents(currentClubId);
-        setEvents(evts.filter(e => !e.isCancelled));
-      } catch(e) {
-        console.warn('getEvents failed', e);
-      }
+      const evts = await getEvents('shared');
+      setEvents(evts);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
+      alert('데이터를 불러오지 못했습니다. Firestore 권한 설정을 확인해주세요.');
     } finally {
       setFetching(false);
     }
-  }, [currentClubId, isAdmin]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  useEffect(() => {
-    if (!loading && !fetching && !currentClubId) {
-      router.replace('/');
-    }
-  }, [loading, fetching, currentClubId, router]);
 
   const handleScheduleGenerated = async (schedRounds, genStats) => {
     setCreating(true);
@@ -143,6 +74,7 @@ export default function Dashboard() {
         womensDoublesCount,
         mixedCount,
         jointCount,
+        allowSingles,
         startTime,
         endTime,
         schedule: schedRounds,
@@ -154,7 +86,7 @@ export default function Dashboard() {
         createdBy: user?.displayName || user?.email?.split('@')[0] || '알 수 없음',
       };
       
-      const id = await createSchedule(currentClubId, payload);
+      const id = await createSchedule('shared', payload);
       alert('대진표가 생성되어 목록에 추가되었습니다.');
       
       // Reset settings
@@ -171,8 +103,6 @@ export default function Dashboard() {
       setCreating(false);
     }
   };
-
-
 
   const handleScheduleManual = async (schedRounds) => {
     setCreating(true);
@@ -191,6 +121,7 @@ export default function Dashboard() {
         womensDoublesCount,
         mixedCount,
         jointCount,
+        allowSingles,
         startTime,
         endTime,
         schedule: schedRounds,
@@ -202,7 +133,7 @@ export default function Dashboard() {
         createdBy: user?.displayName || user?.email?.split('@')[0] || '알 수 없음',
       };
       
-      const id = await createSchedule(currentClubId, payload);
+      const id = await createSchedule('shared', payload);
       alert('빈 대진표가 생성되어 목록에 추가되었습니다.');
       
       setParticipants([]);
@@ -219,7 +150,7 @@ export default function Dashboard() {
 
   const remove = async (id, title) => {
     if (!confirm(`"${title}" 대진표를 삭제할까요?`)) return;
-    await deleteSchedule(currentClubId, id);
+    await deleteSchedule('shared', id);
     setSchedules((prev) => prev.filter((s) => s.id !== id));
   };
 
@@ -250,69 +181,71 @@ export default function Dashboard() {
     <div className={styles.page}>
       <Navbar />
       <main className={styles.main}>
-        <div className={styles.header}>
-          <div>
-            <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Tennis Club Manager({currentClub?.name || '로딩 중...'})
+        {/* Eutripus Hero Banner */}
+        <section className={styles.hero}>
+          <div className={styles.heroBg}></div>
+          <div className={styles.heroInner}>
+            <div className={styles.heroContent}>
+              <div className={styles.heroTag}>
+                <span>🎾</span>
+                <span>RADAL TENNIS CLUB</span>
+              </div>
+              <h1 className={styles.heroTitle}>테니스 매치 & 대진표 매니저</h1>
+              <p className={styles.heroSub}>NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리</p>
+              <div className={styles.heroChips}>
+                <span className={styles.heroChip}>👥 등록 회원 {members.length}명</span>
+                <span className={styles.heroChip}>🎾 등록 대진표 {schedules.length}개</span>
+                <span className={styles.heroChip}>🏆 정기 대회 진행중</span>
+              </div>
+            </div>
+            <div className={styles.heroActions}>
+              <button className={`btn ${activeTab === 'list' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('list')}>
+                📊 대진표 목록
+              </button>
               {isAdmin && (
-                <button 
-                  className="btn btn-secondary btn-sm" 
-                  style={{ padding: '2px 8px', fontSize: '14px' }} 
-                  onClick={openSettingsModal}
-                  title="클럽 설정"
-                >
-                  ⚙️ 설정
+                <button className={`btn ${activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('settings')}>
+                  + 대진표 만들기
                 </button>
               )}
-            </h1>
-            <p className={styles.sub}>저장된 대진표를 열거나 새 날짜의 대진표를 만드세요</p>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className={`btn ${activeTab === 'list' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('list')}>
-              📊 대진표 목록
-            </button>
-            {isAdmin && (
-              <button className={`btn ${activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('settings')}>
-                + 대진표 만들기
-              </button>
-            )}
-          </div>
-        </div>
+        </section>
 
-        {!currentClubId ? (
-          <div className={styles.center}>
-            <span className="spinner" />
-          </div>
-        ) : fetching ? (
+        {fetching ? (
           <div className={styles.center}><span className="spinner" /></div>
         ) : activeTab === 'list' ? (
           schedules.length === 0 ? (
             <div className={styles.empty}>
               <div className={styles.emptyIcon}>🎾</div>
               <p className={styles.emptyTitle}>아직 저장된 대진표가 없습니다</p>
-              <p className={styles.emptySub}>대진표 만들기 탭에서 시작하세요</p>
+              <p className={styles.emptySub}>대진표 만들기 탭에서 새 매치를 시작하세요</p>
             </div>
           ) : (
             <div>
               {upcomingSchedules.length > 0 && (
                 <>
-                  <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--navy)', marginBottom: '12px' }}>다가오는 경기</h2>
+                  <div className="section-head">
+                    <span>🎾 다가오는 경기 일정</span>
+                  </div>
                   <div className={styles.grid}>
                     {upcomingSchedules.map((s) => (
-                      <ScheduleCard key={s.id} s={s} isAdmin={isAdmin} onOpen={() => router.push(`/editor/${s.id}`)} onDelete={() => remove(s.id, s.title)} />
+                      <ScheduleCard key={s.id} s={s} members={members} isAdmin={isAdmin} onOpen={() => router.push(`/editor/${s.id}`)} onDelete={() => remove(s.id, s.title)} />
                     ))}
                   </div>
                 </>
               )}
               
               {completedSchedules.length > 0 && (
-                <div style={{ marginTop: '24px' }}>
+                <div style={{ marginTop: '32px' }}>
+                  <div className="section-head" style={{ marginBottom: '14px' }}>
+                    <span>🏁 지난 경기 기록</span>
+                  </div>
                   <button 
                     className="btn btn-secondary" 
-                    style={{ width: '100%', marginBottom: '12px', justifyContent: 'center' }}
+                    style={{ width: '100%', marginBottom: '14px', justifyContent: 'center' }}
                     onClick={() => setShowCompleted(!showCompleted)}
                   >
-                    {showCompleted ? '완료된 경기 접기' : `완료된 경기 보기 (${completedSchedules.length}건)`}
+                    {showCompleted ? '완료된 경기 목록 접기 ▲' : `완료된 경기 보기 (${completedSchedules.length}건) ▼`}
                   </button>
                   
                   {showCompleted && (
@@ -330,14 +263,11 @@ export default function Dashboard() {
                             onMouseOut={(e) => e.currentTarget.style.boxShadow = 'none'}
                           >
                             <div>
-                              <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--navy)', marginBottom: '4px' }}>{s.title}</div>
-                              <div style={{ fontSize: '16px', color: 'var(--text-muted)' }}>{dateStr}</div>
+                              <div style={{ fontWeight: 'bold', fontSize: '14px', color: 'var(--navy)', marginBottom: '4px' }}>{s.title}</div>
+                              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{dateStr}</div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <span style={{ fontSize: '16px', color: 'var(--text-muted)' }}>{s.participants?.length ?? 0}명 참여</span>
-                              {isSuperAdmin && (
-                                <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); remove(s.id, s.title); }}>삭제</button>
-                              )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{s.participants?.length ?? 0}명 참여</span>
                               <span style={{ color: 'var(--primary)' }}>&rarr;</span>
                             </div>
                           </div>
@@ -366,71 +296,13 @@ export default function Dashboard() {
               startTime={startTime} setStartTime={setStartTime}
               endTime={endTime} setEndTime={setEndTime}
               groups={groups} setGroups={setGroups}
-              clubId={currentClubId}
-              onReloadMembers={load}
               onScheduleGenerated={handleScheduleGenerated}
               onScheduleManual={handleScheduleManual}
               onSave={() => { alert('대진표 목록에 저장되었습니다.'); setActiveTab('list'); }}
               onSaveAndExit={() => setActiveTab('list')}
               onGoto={() => {}}
+              onReloadMembers={load}
             />
-          </div>
-        )}
-        {/* 클럽 설정 모달 */}
-        {showSettingsModal && (
-          <div className="modal-overlay" onClick={() => setShowSettingsModal(false)}>
-            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', width: '100%' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: '800', marginBottom: '16px', color: 'var(--txt)' }}>⚙️ 클럽 설정</h2>
-              <form onSubmit={handleUpdateClub}>
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '700', marginBottom: '8px', color: 'var(--txt2)' }}>클럽 이름</label>
-                  <input 
-                    className="input" 
-                    value={editClubName} 
-                    onChange={e => setEditClubName(e.target.value)} 
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '700', marginBottom: '8px', color: 'var(--txt2)' }}>클럽 설명</label>
-                  <input 
-                    className="input" 
-                    value={editClubDesc} 
-                    onChange={e => setEditClubDesc(e.target.value)} 
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: '24px' }}>
-                  <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '700', marginBottom: '8px', color: 'var(--txt2)' }}>대표 이미지</label>
-                  <input 
-                    type="file"
-                    accept="image/*"
-                    className="input" 
-                    style={{ padding: '8px', marginBottom: '8px', fontSize: '0.85rem' }}
-                    onChange={e => {
-                      if (e.target.files && e.target.files[0]) {
-                        setEditClubImageFile(e.target.files[0]);
-                      }
-                    }} 
-                  />
-                  <input 
-                    className="input" 
-                    placeholder="또는 이미지 URL을 직접 입력하세요" 
-                    value={editClubImageUrl} 
-                    onChange={e => setEditClubImageUrl(e.target.value)} 
-                    disabled={!!editClubImageFile}
-                  />
-                  <p style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginTop: '6px' }}>
-                    * 파일을 업로드하거나 웹 이미지 주소를 직접 붙여넣을 수 있습니다.
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowSettingsModal(false)}>취소</button>
-                  <button type="submit" className="btn btn-primary" disabled={updatingClub || !editClubName.trim()}>
-                    {updatingClub ? '저장 중...' : '저장하기'}
-                  </button>
-                </div>
-              </form>
-            </div>
           </div>
         )}
       </main>
@@ -438,7 +310,7 @@ export default function Dashboard() {
   );
 }
 
-function ScheduleCard({ s, isAdmin, onOpen, onDelete }) {
+function ScheduleCard({ s, members, isAdmin, onOpen, onDelete }) {
   const dateObj = s.matchDate ? new Date(s.matchDate) : (s.updatedAt?.toDate?.() ?? new Date());
   const dateStr = dateObj.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
   const timeStr = !s.matchDate ? dateObj.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
@@ -460,18 +332,64 @@ function ScheduleCard({ s, isAdmin, onOpen, onDelete }) {
         ) : (
           <span className="badge badge-gold">미생성</span>
         )}
-        {s.mensDoublesCount > 0 && <span className="badge badge-blue">남복 {s.mensDoublesCount}게임</span>}
-        {s.womensDoublesCount > 0 && <span className="badge badge-purple">여복 {s.womensDoublesCount}게임</span>}
-        {s.mixedCount > 0 && <span className="badge badge-purple">혼복 {s.mixedCount}게임</span>}
+        {(() => {
+          let totalMens = 0, totalWomens = 0, totalMixed = 0, totalJoint = 0, totalSingles = 0;
+          if (s.schedule) {
+            const memberMap = new Map((members || []).map(m => [m.id, m]));
+            s.schedule.forEach(round => {
+              round.forEach(m => {
+                const getPlayers = (teamIds) => (teamIds || []).map(id => memberMap.get(id)).filter(Boolean);
+                const pA = getPlayers(m.teamA);
+                const pB = getPlayers(m.teamB);
+                const allPlayers = [...pA, ...pB];
+                
+                if (allPlayers.length === 2) {
+                  totalSingles++;
+                } else if (allPlayers.length === 4) {
+                  const aMales = pA.filter(p => p.gender === 'M').length;
+                  const aFemales = pA.filter(p => p.gender === 'F').length;
+                  const bMales = pB.filter(p => p.gender === 'M').length;
+                  const bFemales = pB.filter(p => p.gender === 'F').length;
+                  
+                  if (aMales === 2 && bMales === 2) totalMens++;
+                  else if (aFemales === 2 && bFemales === 2) totalWomens++;
+                  else if (aMales === 1 && aFemales === 1 && bMales === 1 && bFemales === 1) totalMixed++;
+                  else totalJoint++;
+                } else {
+                  totalJoint++; // 3명 등 기타 불완전 매치
+                }
+              });
+            });
+          } else {
+            totalMens = (s.mensDoublesCount || 0) * (s.rounds || 0);
+            totalWomens = (s.womensDoublesCount || 0) * (s.rounds || 0);
+            totalMixed = (s.mixedCount || 0) * (s.rounds || 0);
+            const isSinglesActive = s.allowSingles && s.participants && s.participants.length < s.courts * 4 && s.participants.length > 0;
+            const singlesPerRound = isSinglesActive ? Math.min(s.courts, Math.ceil((s.courts * 4 - s.participants.length) / 2)) : 0;
+            totalSingles = singlesPerRound * (s.rounds || 0);
+            const doublesPerRound = s.courts - singlesPerRound;
+            totalJoint = Math.max(0, (s.rounds || 0) * doublesPerRound - totalMens - totalWomens - totalMixed);
+          }
+
+          return (
+            <>
+              {totalMens > 0 && <span className="badge badge-blue">남복 {totalMens}경기</span>}
+              {totalWomens > 0 && <span className="badge badge-red">여복 {totalWomens}경기</span>}
+              {totalMixed > 0 && <span className="badge badge-purple">혼복 {totalMixed}경기</span>}
+              {totalJoint > 0 && <span className="badge badge-green">잡복 {totalJoint}경기</span>}
+              {totalSingles > 0 && <span className="badge badge-gold">단식 {totalSingles}경기</span>}
+            </>
+          );
+        })()}
       </div>
       {(s.startTime || s.endTime) && (
-        <div style={{ fontSize: '15px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px' }}>
           ⏱ 경기시간: {s.startTime || '?'} ~ {s.endTime || '?'}
         </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <p className={styles.schedDate}>{dateStr} {timeStr}</p>
-        <span style={{ fontSize: '16px', color: 'var(--text-muted)' }}>생성자: {s.createdBy || '알 수 없음'}</span>
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>생성자: {s.createdBy || '알 수 없음'}</span>
       </div>
       <div className={styles.schedActions}>
         <button className="btn btn-secondary" onClick={(e) => { e.stopPropagation(); onOpen(); }}>기록/입력</button>

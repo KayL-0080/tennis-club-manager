@@ -2,8 +2,7 @@
 'use client';
 import { useState } from 'react';
 import { generateSchedule, makeEmptyMatch } from '@/lib/scheduler';
-import { createMember } from '@/lib/firestore';
-import { useAuth } from '@/contexts/AuthContext';
+import { addMember } from '@/lib/firestore';
 import styles from './tabs.module.css';
 
 let _gCounter = 2000;
@@ -16,8 +15,6 @@ const numOptions = (min, max) => {
 };
 
 export default function SettingsTab({
-  clubId,
-
   events = [],
   matchDate, setMatchDate,
   members, participants, setParticipants,
@@ -31,8 +28,6 @@ export default function SettingsTab({
   groups, setGroups,
   onScheduleGenerated, onScheduleManual, onSave, onSaveAndExit, onGoto, onReloadMembers
 }) {
-  const { currentClubId } = useAuth();
-  const activeClubId = clubId || currentClubId;
   const [status, setStatus] = useState('');
   const [warnMsg, setWarnMsg] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -93,7 +88,7 @@ export default function SettingsTab({
     e.preventDefault();
     if (!guestForm.name.trim()) return;
     try {
-      const newId = await createMember(activeClubId, { ...guestForm, role: '게스트' });
+      const newId = await addMember('shared', { ...guestForm, role: '게스트' });
       if (onReloadMembers) await onReloadMembers();
       setParticipants(prev => [...prev, { playerId: newId, target: 0 }]);
       setShowGuestForm(false);

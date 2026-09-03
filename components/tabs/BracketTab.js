@@ -56,8 +56,6 @@ const scoreOptions = () => {
 };
 
 export default function BracketTab({
-  clubId,
-
   schedule, setSchedule, scores, setScores,
   members, participants, lastGenStats,
   scheduleRounds, scheduleCourts, setScheduleRounds, setScheduleCourts,
@@ -139,8 +137,81 @@ export default function BracketTab({
 
   const courts = scheduleCourts || (schedule[0]?.length ?? 0);
 
+  /* ── 라운드별 중복 출전 계산 ── */
+  const roundConflicts = useMemo(() => {
+    if (!schedule) return {};
+    const map = {};
+    schedule.forEach((round, ri) => {
+      const pCount = {};
+      round.forEach(m => {
+        [...(m.teamA || []), ...(m.teamB || [])].forEach(pId => {
+          if (!pId) return;
+          pCount[pId] = (pCount[pId] || 0) + 1;
+        });
+      });
+      Object.keys(pCount).forEach(pId => {
+        if (pCount[pId] > 1) {
+          if (!map[ri]) map[ri] = {};
+          map[ri][pId] = pCount[pId];
+        }
+      });
+    });
+    return map;
+  }, [schedule]);
+
   /* ── 이벤트 핸들러 ── */
   const onPlayerSelect = (ri, ci, team, slot, value) => {
+    if (value) {
+      const currentMatch = schedule[ri]?.[ci];
+      const playerName = byId[value]?.name || '선수';
+      const courtLabel = `${COURT_LABELS[ci] || ci + 1}코트`;
+      const roundLabel = `${ri + 1}R`;
+
+      // 1. 동일 경기(매치) 내 중복 체크
+      if (currentMatch) {
+        const teamA = [...(currentMatch.teamA || [])];
+        const teamB = [...(currentMatch.teamB || [])];
+
+        if (team === 'a') {
+          const otherSlot = slot === 0 ? 1 : 0;
+          if (teamA[otherSlot] === value) {
+            alert(`[${playerName}] 선수는 현재 경기(${roundLabel} ${courtLabel})에 이미 배정되어 있습니다.`);
+            return;
+          }
+          if (teamB.includes(value)) {
+            alert(`[${playerName}] 선수는 현재 경기(${roundLabel} ${courtLabel})의 상대팀에 이미 배정되어 있습니다.`);
+            return;
+          }
+        } else {
+          const otherSlot = slot === 0 ? 1 : 0;
+          if (teamB[otherSlot] === value) {
+            alert(`[${playerName}] 선수는 현재 경기(${roundLabel} ${courtLabel})에 이미 배정되어 있습니다.`);
+            return;
+          }
+          if (teamA.includes(value)) {
+            alert(`[${playerName}] 선수는 현재 경기(${roundLabel} ${courtLabel})의 상대팀에 이미 배정되어 있습니다.`);
+            return;
+          }
+        }
+      }
+
+      // 2. 동일 라운드 내 타 코트 중복 출전 체크
+      const currentRound = schedule[ri];
+      if (currentRound) {
+        for (let otherCi = 0; otherCi < currentRound.length; otherCi++) {
+          if (otherCi === ci) continue;
+          const otherMatch = currentRound[otherCi];
+          if (!otherMatch) continue;
+          const otherPlayers = [...(otherMatch.teamA || []), ...(otherMatch.teamB || [])].filter(Boolean);
+          if (otherPlayers.includes(value)) {
+            const otherCourtLabel = `${COURT_LABELS[otherCi] || otherCi + 1}코트`;
+            alert(`[${playerName}] 선수는 동일 시간대(${roundLabel}, ${otherCourtLabel})에 이미 출전 중입니다.\n동일 라운드 중복 출전은 불가합니다.`);
+            return;
+          }
+        }
+      }
+    }
+
     const next = schedule.map((r, rIdx) => r.map((m, cIdx) => {
       if (rIdx !== ri || cIdx !== ci) return m;
       const updated = { ...m, teamA: [...m.teamA], teamB: [...m.teamB] };
@@ -277,6 +348,20 @@ export default function BracketTab({
       {/* 대진표 */}
       <div className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>대진표 <span className={styles.sectionNote}>(선수·점수 직접 수정 가능)</span></h2>
+
+        {Object.keys(roundConflicts).length > 0 && (
+          <div style={{ marginBottom: '14px', padding: '10px 14px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#991b1b', fontSize: '13px' }} className="no-print">
+            <strong>⚠️ 라운드 내 동시간대 중복 출전 선수 감지:</strong>
+            <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+              {Object.entries(roundConflicts).map(([ri, pMap]) => (
+                <li key={ri}>
+                  <strong>{parseInt(ri) + 1}R:</strong> {Object.keys(pMap).map(pId => `${byId[pId]?.name || '선수'} (${pMap[pId]}회 중복)`).join(', ')}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="table-wrap">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <table>
@@ -318,13 +403,18 @@ export default function BracketTab({
                         <div className={`${styles.matchCellContent} ${courts === 1 ? styles.singleCourt : ''}`}>
                           {/* 팀 A */}
                           <div className={`${styles.teamLine} ${winA ? styles.winner : ''}`}>
-                            {[0, 1].map(slot => (
-                              <select key={slot} className={`${styles.playerSel} ${styles.bgTeamA}`}
-                                value={m.teamA[slot] || ''}
-                                onChange={e => onPlayerSelect(ri, ci, 'a', slot, e.target.value)}>
-                                {playerOptions(m.teamA[slot])}
-                              </select>
-                            ))}
+                            {[0, 1].map(slot => {
+                              const pId = m.teamA[slot];
+                              const isDup = pId && roundConflicts[ri]?.[pId];
+                              return (
+                                <select key={slot} className={`${styles.playerSel} ${styles.bgTeamA}`}
+                                  style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
+                                  value={pId || ''}
+                                  onChange={e => onPlayerSelect(ri, ci, 'a', slot, e.target.value)}>
+                                  {playerOptions(pId)}
+                                </select>
+                              );
+                            })}
                           </div>
                           {/* 스코어 */}
                           <div className={styles.scoreRow}>
@@ -342,13 +432,18 @@ export default function BracketTab({
                           </div>
                           {/* 팀 B */}
                           <div className={`${styles.teamLine} ${winB ? styles.winner : ''}`}>
-                            {[0, 1].map(slot => (
-                              <select key={slot} className={`${styles.playerSel} ${styles.bgTeamB}`}
-                                value={m.teamB[slot] || ''}
-                                onChange={e => onPlayerSelect(ri, ci, 'b', slot, e.target.value)}>
-                                {playerOptions(m.teamB[slot])}
-                              </select>
-                            ))}
+                            {[0, 1].map(slot => {
+                              const pId = m.teamB[slot];
+                              const isDup = pId && roundConflicts[ri]?.[pId];
+                              return (
+                                <select key={slot} className={`${styles.playerSel} ${styles.bgTeamB}`}
+                                  style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
+                                  value={pId || ''}
+                                  onChange={e => onPlayerSelect(ri, ci, 'b', slot, e.target.value)}>
+                                  {playerOptions(pId)}
+                                </select>
+                              );
+                            })}
                           </div>
                         </div>
                       </td>

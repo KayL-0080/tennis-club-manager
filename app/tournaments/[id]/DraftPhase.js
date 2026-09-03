@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { getEvents, getClubSettings } from '@/lib/firestore';
 
 export function generateIndividualTournamentMatches(attendeeIds, byId, roundsCount, courtDetails) {
@@ -341,7 +340,6 @@ export const DEFAULT_MATCH_RULES = {
 };
 
 export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
-  const { currentClubId } = useAuth();
   const isTeam = tournament.type === 'team';
   const isFixedPair = tournament.type === 'fixed_pair';
   const isIndividualRotation = tournament.type === 'individual';
@@ -398,7 +396,7 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
     if (!targetDate) return;
     setFetchingVotes(true);
     try {
-      const evts = await getEvents(currentClubId);
+      const evts = await getEvents('shared');
       const matchedEvt = evts.find(e => e.date === targetDate);
       if (matchedEvt && matchedEvt.attendees) {
         const votedYesIds = Object.keys(matchedEvt.attendees).filter(id => matchedEvt.attendees[id] === 'Y');
@@ -432,7 +430,7 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
       // 1. Fetch default bank account from member management settings if not set in tournament
       if (!tournament.bankAccount) {
         try {
-          const clubSettings = await getClubSettings(currentClubId);
+          const clubSettings = await getClubSettings();
           if (clubSettings && (clubSettings.bankAccount || clubSettings.accountHolder)) {
             const defaultBank = [
               clubSettings.bankAccount,

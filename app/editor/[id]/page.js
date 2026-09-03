@@ -1,11 +1,11 @@
 // app/editor/[id]/page.js — 대진표 스코어 입력 뷰어
 'use client';
-import { useState, useEffect, useCallback, use, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback, use } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getSchedule, updateSchedule,
-  getMembers
+  getMembers, initDefaultMembers
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import BracketTab   from '@/components/tabs/BracketTab';
@@ -19,11 +19,8 @@ const TABS = [
 
 export default function EditorPage({ params }) {
   const { id } = use(params);
-  const { isAdmin, isSuperAdmin, loading, currentClubId, clubs } = useAuth();
+  const { isAdmin, loading } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const queryClubId = searchParams.get('club');
-  const activeClubId = queryClubId || currentClubId;
 
   const [fetching, setFetching] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -42,6 +39,7 @@ export default function EditorPage({ params }) {
   const [womensDoublesCount, setWomensDoublesCount] = useState(0);
   const [mixedCount, setMixedCount] = useState(0);
   const [jointCount, setJointCount] = useState(0);
+  const [allowSingles, setAllowSingles] = useState(false);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [schedule, setSchedule] = useState(null);        // [[{teamA, teamB, type}]]
@@ -58,86 +56,91 @@ export default function EditorPage({ params }) {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      if (!activeClubId) return;
-      try {
-        let mbrs = [];
-        try { mbrs = await getMembers(activeClubId); } catch(e) { console.warn(e); }
-        setMembers(mbrs);
+      // 회원 목록 (별도 컬렉션)
+      await initDefaultMembers('shared');
+      const mbrs = await getMembers('shared');
+      setMembers(mbrs);
 
-        // 대진표 문서
-        let data = null;
-        try { data = await getSchedule(activeClubId, id); } catch(e) { console.warn(e); }
-        
-        if (!data) { router.replace('/dashboard'); return; }
-        
-        setTitle(data.title ?? '');
-        
-        const defaultDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-        setMatchDate(data.matchDate ?? defaultDate);
-        
-        setParticipants(data.participants ?? []);
-        setGroups(data.groups ?? []);
-        setRounds(data.rounds ?? 6);
-        setCourts(data.courts ?? 2);
-        setMensDoublesCount(data.mensDoublesCount ?? 0);
-        setWomensDoublesCount(data.womensDoublesCount ?? 0);
-        setMixedCount(data.mixedCount ?? 0);
-        setJointCount(data.jointCount ?? 0);
-        setStartTime(data.startTime ?? '');
-        setEndTime(data.endTime ?? '');
-        setSchedule(data.schedule ?? null);
-        setScores(data.scores ?? {});
-        setScheduleRounds(data.scheduleRounds_ ?? 0);
-        setScheduleCourts(data.scheduleCourts_ ?? 0);
-        setLastGenStats(data.lastGenStats ?? null);
-        setHistory(data.history ?? []);
-      } catch (err) {
-        console.error('Failed to load schedule data:', err);
-      } finally {
-        setFetching(false);
-      }
+      // 대진표 문서
+      const data = await getSchedule('shared', id);
+      if (!data) { router.replace('/dashboard'); return; }
+      setTitle(data.title ?? '');
+      
+      const defaultDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+      setMatchDate(data.matchDate ?? defaultDate);
+      
+      setParticipants(data.participants ?? []);
+      setGroups(data.groups ?? []);
+      setRounds(data.rounds ?? 6);
+      setCourts(data.courts ?? 2);
+      setMensDoublesCount(data.mensDoublesCount ?? 0);
+      setWomensDoublesCount(data.womensDoublesCount ?? 0);
+      setMixedCount(data.mixedCount ?? 0);
+      setJointCount(data.jointCount ?? 0);
+      setAllowSingles(data.allowSingles ?? false);
+      setStartTime(data.startTime ?? '');
+      setEndTime(data.endTime ?? '');
+      setSchedule(data.schedule ?? null);
+      setScores(data.scores ?? {});
+      setScheduleRounds(data.scheduleRounds_ ?? 0);
+      setScheduleCourts(data.scheduleCourts_ ?? 0);
+      setLastGenStats(data.lastGenStats ?? null);
+      setHistory(data.history ?? []);
+      setFetching(false);
     })();
-  }, [id, activeClubId, router]);
-
-  useEffect(() => {
-    if (!loading && !fetching && !activeClubId) {
-      router.replace('/');
-    }
-  }, [loading, fetching, activeClubId, router]);
+  }, [id, router]);
 
   /* ── Firestore 저장 ── */
   const save = useCallback(async (overrides = {}) => {
     if (!id) return;
     setSaving(true);
+    
+    // Auto-save history entry for current bracket
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const recordDate = matchDate || todayStr;
+    
+    let nextHistory = [...(overrides.history || history)];
+    
+    if (schedule && schedule.length > 0) {
+      const entryIndex = nextHistory.findIndex(h => h.date === recordDate);
+      const entry = {
+        id: entryIndex >= 0 ? nextHistory[entryIndex].id : 'h' + Date.now(),
+        date: recordDate,
+        schedule: JSON.parse(JSON.stringify(schedule)),
+        scores: JSON.parse(JSON.stringify(scores)),
+        playerSnapshot: members.map(m => ({ id: m.id, name: m.name, gender: m.gender, ntrp: m.ntrp })),
+      };
+      if (entryIndex >= 0) {
+        nextHistory[entryIndex] = entry;
+      } else {
+        nextHistory.push(entry);
+      }
+      nextHistory.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+    }
+    
+    if (!overrides.history) {
+      setHistory(nextHistory);
+    }
+
     const payload = {
       title, matchDate, participants, groups, rounds, courts,
-      mensDoublesCount, womensDoublesCount, mixedCount, jointCount,
+      mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles,
       startTime, endTime,
       schedule, scores,
       scheduleRounds_: scheduleRounds,
       scheduleCourts_: scheduleCourts,
-      lastGenStats, history,
+      lastGenStats, history: nextHistory,
       ...overrides,
     };
     try {
-      await updateSchedule(activeClubId, id, payload);
+      await updateSchedule('shared', id, payload);
       setSaveLabel('저장됨 ✓');
       setTimeout(() => setSaveLabel(''), 2000);
     } finally { setSaving(false); }
-  }, [id, activeClubId, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history]);
+  }, [id, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history, members]);
 
-  // participants에 있는 게스트를 members 배열에 임시로 포함시켜 하위 컴포넌트에 전달
-  const extendedMembers = useMemo(() => {
-    const list = [...members];
-    participants.forEach(pt => {
-      if (pt.isGuest && !list.find(m => m.id === pt.playerId)) {
-        list.push({ id: pt.playerId, name: pt.name, gender: pt.gender, ntrp: pt.ntrp });
-      }
-    });
-    return list;
-  }, [members, participants]);
-
-  if (loading || fetching || !activeClubId) {
+  if (loading || fetching) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span className="spinner" />
@@ -179,27 +182,21 @@ export default function EditorPage({ params }) {
             <BracketTab
               schedule={schedule} setSchedule={setSchedule}
               scores={scores} setScores={setScores}
-              members={extendedMembers} participants={participants}
+              members={members} participants={participants}
               lastGenStats={lastGenStats}
               scheduleRounds={scheduleRounds} scheduleCourts={scheduleCourts}
               setScheduleRounds={setScheduleRounds} setScheduleCourts={setScheduleCourts}
               onSave={save}
               onPrint={() => window.print()}
               isAdmin={isAdmin}
-              matchDate={matchDate}
-              startTime={startTime}
-              endTime={endTime}
-              clubId={activeClubId}
-              clubName={clubs.find(c => c.id === activeClubId)?.name || ''}
             />
           )}
           {activeTab === 'history' && (
             <HistoryTab
               schedule={schedule} scores={scores}
-              members={extendedMembers} history={history} setHistory={setHistory}
+              members={members} history={history} setHistory={setHistory}
               onSave={save}
               isAdmin={isAdmin}
-              isSuperAdmin={isSuperAdmin}
             />
           )}
         </div>

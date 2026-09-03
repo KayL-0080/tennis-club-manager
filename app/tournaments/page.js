@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function TournamentsPage() {
-  const { currentClubId, user, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const router = useRouter();
   
   const [tournaments, setTournaments] = useState([]);
@@ -24,9 +24,9 @@ export default function TournamentsPage() {
     (async () => {
       try {
         const [tList, eList, mList] = await Promise.all([
-          getTournaments(currentClubId),
-          getEvents(currentClubId),
-          getMembers(currentClubId)
+          getTournaments('shared'),
+          getEvents('shared'),
+          getMembers('shared')
         ]);
         setTournaments(tList);
         setEvents(eList);
@@ -68,7 +68,7 @@ export default function TournamentsPage() {
     };
 
     try {
-      const id = await createTournament(currentClubId, payload);
+      const id = await createTournament('shared', payload);
       router.push('/tournaments/' + id);
     } catch (err) {
       console.error(err);
@@ -80,7 +80,7 @@ export default function TournamentsPage() {
     if (!isAdmin) return;
     if (!confirm('정말로 대회 [' + title + ']을 삭제하시겠습니까?')) return;
     try {
-      await deleteTournament(currentClubId, id);
+      await deleteTournament('shared', id);
       setTournaments(prev => prev.filter(t => t.id !== id));
     } catch (e) {
       console.error(e);

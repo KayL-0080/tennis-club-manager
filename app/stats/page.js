@@ -8,7 +8,7 @@ import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function StatsPage() {
-  const { currentClubId, loading } = useAuth();
+  const { loading } = useAuth();
   const router = useRouter();
   
   const [fetching, setFetching] = useState(true);
@@ -33,25 +33,21 @@ export default function StatsPage() {
     setEndDate(formatDate(lastDay));
 
     (async () => {
-      if (!currentClubId) {
-        setFetching(false);
-        return;
-      }
       try {
         setFetching(true);
-        const [mbrs, scheds] = await Promise.all([
-          getMembers(currentClubId),
-          getSchedules(currentClubId)
-        ]);
+        await initDefaultMembers('shared');
+        const mbrs = await getMembers('shared');
+        const scheds = await getSchedules('shared');
         setMembers(mbrs);
         setSchedules(scheds);
       } catch (err) {
         console.error('Failed to load stats data:', err);
+        alert('데이터를 불러오지 못했습니다. Firestore 권한 설정을 확인해주세요.');
       } finally {
         setFetching(false);
       }
     })();
-  }, [currentClubId]);
+  }, []);
 
   const globalStandings = useMemo(() => {
     if (!members.length) return [];

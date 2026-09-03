@@ -1,4 +1,4 @@
-// app/login/page.js — 로그인 / 랜딩 페이지
+// app/page.js — 로그인 / 회원가입 페이지
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -14,7 +14,7 @@ export default function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace('/');
+    if (!loading && user) router.replace('/dashboard');
   }, [user, loading, router]);
 
   const handle = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -30,7 +30,7 @@ export default function AuthPage() {
     try {
       if (mode === 'login') await login(form.email, form.password);
       else await signup(form.email, form.password, form.name);
-      router.replace('/');
+      router.replace('/dashboard');
     } catch (err) {
       const msg = {
         'auth/user-not-found': '등록되지 않은 이메일입니다.',
@@ -51,7 +51,7 @@ export default function AuthPage() {
     setError('');
     try {
       await loginWithGoogle();
-      router.replace('/');
+      router.replace('/dashboard');
     } catch (err) {
       console.error('Google login error:', err);
       if (err.code === 'auth/unauthorized-domain') {
@@ -68,7 +68,7 @@ export default function AuthPage() {
 
   if (loading) {
     return (
-      <div className={styles.page} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className={styles.centered}>
         <span className="spinner" />
       </div>
     );
@@ -76,175 +76,112 @@ export default function AuthPage() {
 
   return (
     <div className={styles.page}>
-      {/* 동적 애니메이션 배경 (Kyushu Aesthetic) */}
-      <div className={styles.heroBg} aria-hidden />
-      <div className={styles.heroParticles} aria-hidden />
+      {/* 배경 테니스 코트 패턴 */}
+      <div className={styles.courtBg} aria-hidden />
 
-      {/* 상단 네비게이션 바 */}
-      <header className={styles.header}>
-        <div className={styles.headerLogo}>
-          <div className={styles.headerIcon}>🎾</div>
-          <h1 className={styles.headerTitle}>Tennis Club Manager</h1>
+      <div className={styles.container}>
+        {/* 로고 */}
+        <div className={styles.logo}>
+          <div className={styles.logoIcon}>🎾</div>
+          <h1 className={styles.logoTitle}>Tennis Match</h1>
+          <p className={styles.logoSub}>NTRP 밸런스 대진표 자동 생성</p>
         </div>
-        <div className={styles.headerActions}>
-          <button className="btn btn-secondary btn-sm" onClick={() => router.push('/guide')}>
-            서비스 소개 및 가이드
-          </button>
-          <button className={styles.topLoginBtn} onClick={() => {
-            document.getElementById('auth-section').scrollIntoView({ behavior: 'smooth' });
-          }}>
-            로그인 / 가입
-          </button>
-        </div>
-      </header>
 
-      {/* 메인 컨텐츠 */}
-      <main className={styles.mainContent}>
-        {/* 상단 히어로 섹션 */}
-        <section className={styles.heroSection}>
-          <span className={styles.heroFlag}>🏆</span>
-          <div className={styles.heroLabel}>Tennis Club Management Platform</div>
-          <h2 className={styles.heroTitle}>Tennis Club Manager</h2>
-          <p className={styles.heroDesc}>
-            모임 일정부터 참석 투표, 복잡한 대진표 자동 매칭까지.<br/>
-            클럽 관리를 하나의 플랫폼에서 손쉽게 자동화하세요.
-          </p>
-        </section>
-
-        {/* 가이드 캐러셀 섹션 */}
-        <section className={styles.carouselSection}>
-          <div className={styles.carouselContainer}>
-            <div className={styles.carouselCard}>
-              <div className={styles.cardIcon}>📱</div>
-              <div className={styles.cardStep}>STEP 1. 시작하기</div>
-              <h3 className={styles.cardTitle}>클럽 개설 및 가입</h3>
-              <p className={styles.cardDesc}>누구나 쉽게 무료로 클럽을 만들고 관리할 수 있습니다. 검색을 통해 기존 모임에 간편하게 가입해보세요.</p>
-              <div><span className={styles.cardHighlight}>무제한 클럽 생성</span></div>
-            </div>
-            
-            <div className={styles.carouselCard}>
-              <div className={styles.cardIcon}>🎾</div>
-              <div className={styles.cardStep}>STEP 2. 대진표</div>
-              <h3 className={styles.cardTitle}>자동 대진표 매칭</h3>
-              <p className={styles.cardDesc}>참가 인원, 코트 수, 종목을 입력하면 실력 밸런스를 맞추고 파트너 중복을 최소화한 최적의 대진표가 완성됩니다.</p>
-              <div><span className={styles.cardHighlight}>목표 게임수 균등배분 기능</span></div>
-            </div>
-
-            <div className={styles.carouselCard}>
-              <div className={styles.cardIcon}>📊</div>
-              <div className={styles.cardStep}>STEP 3. 결과 기록</div>
-              <h3 className={styles.cardTitle}>실시간 점수 및 순위표</h3>
-              <p className={styles.cardDesc}>대진표에 경기 결과를 입력하면 실시간으로 순위표가 업데이트됩니다. 승점과 득실차를 기반으로 클럽 랭킹을 관리하세요.</p>
-              <div><span className={styles.cardHighlight}>누적 랭킹 시스템</span></div>
-            </div>
-
-            <div className={styles.carouselCard}>
-              <div className={styles.cardIcon}>🗓️</div>
-              <div className={styles.cardStep}>STEP 4. 일정 관리</div>
-              <h3 className={styles.cardTitle}>원클릭 참석 투표</h3>
-              <p className={styles.cardDesc}>모임 일정을 등록하고 회원들의 참석 여부를 빠르게 취합하여 참석자 기반 대진표 작성의 번거로움을 줄입니다.</p>
-              <div><span className={styles.cardHighlight}>스마트 일정 공유</span></div>
-            </div>
+        {/* 탭 */}
+        <div className={`card ${styles.authCard}`}>
+          <div className={styles.tabs}>
+            <button
+              className={`${styles.tab} ${mode === 'login' ? styles.tabActive : ''}`}
+              onClick={() => { setMode('login'); setError(''); }}
+              type="button"
+            >
+              로그인
+            </button>
+            <button
+              className={`${styles.tab} ${mode === 'signup' ? styles.tabActive : ''}`}
+              onClick={() => { setMode('signup'); setError(''); }}
+              type="button"
+            >
+              회원가입
+            </button>
           </div>
-        </section>
 
-        {/* 하단 로그인/회원가입 폼 */}
-        <section className={styles.authSection} id="auth-section">
-          <div className={`card ${styles.authCard}`}>
-            <div className={styles.tabs}>
-              <button
-                className={`${styles.tab} ${mode === 'login' ? styles.tabActive : ''}`}
-                onClick={() => { setMode('login'); setError(''); }}
-                type="button"
-              >
-                로그인
-              </button>
-              <button
-                className={`${styles.tab} ${mode === 'signup' ? styles.tabActive : ''}`}
-                onClick={() => { setMode('signup'); setError(''); }}
-                type="button"
-              >
-                회원가입
-              </button>
-            </div>
-
-            <form onSubmit={submit} className={styles.form}>
-              {mode === 'signup' && (
-                <div className="form-group">
-                  <label className="form-label">이름</label>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="홍길동"
-                    value={form.name}
-                    onChange={handle('name')}
-                    required
-                    autoComplete="name"
-                  />
-                </div>
-              )}
-
+          <form onSubmit={submit} className={styles.form}>
+            {mode === 'signup' && (
               <div className="form-group">
-                <label className="form-label">이메일</label>
+                <label className="form-label">이름</label>
                 <input
                   className="input"
-                  type="email"
-                  placeholder="example@email.com"
-                  value={form.email}
-                  onChange={handle('email')}
+                  type="text"
+                  placeholder="홍길동"
+                  value={form.name}
+                  onChange={handle('name')}
                   required
-                  autoComplete="email"
+                  autoComplete="name"
                 />
               </div>
+            )}
 
+            <div className="form-group">
+              <label className="form-label">이메일</label>
+              <input
+                className="input"
+                type="email"
+                placeholder="example@email.com"
+                value={form.email}
+                onChange={handle('email')}
+                required
+                autoComplete="email"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">비밀번호</label>
+              <input
+                className="input"
+                type="password"
+                placeholder="6자 이상"
+                value={form.password}
+                onChange={handle('password')}
+                required
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              />
+            </div>
+
+            {mode === 'signup' && (
               <div className="form-group">
-                <label className="form-label">비밀번호</label>
+                <label className="form-label">비밀번호 확인</label>
                 <input
                   className="input"
                   type="password"
-                  placeholder="6자 이상"
-                  value={form.password}
-                  onChange={handle('password')}
+                  placeholder="비밀번호 재입력"
+                  value={form.confirm}
+                  onChange={handle('confirm')}
                   required
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  autoComplete="new-password"
                 />
               </div>
+            )}
 
-              {mode === 'signup' && (
-                <div className="form-group">
-                  <label className="form-label">비밀번호 확인</label>
-                  <input
-                    className="input"
-                    type="password"
-                    placeholder="비밀번호 재입력"
-                    value={form.confirm}
-                    onChange={handle('confirm')}
-                    required
-                    autoComplete="new-password"
-                  />
-                </div>
-              )}
+            {error && <div className="alert alert-error">{error}</div>}
 
-              {error && <div className="alert alert-error" style={{ marginTop: '10px' }}>{error}</div>}
-
-              <button className="btn btn-primary btn-full btn-lg" type="submit" disabled={busy} style={{ marginTop: '10px' }}>
-                {busy ? <span className="spinner spinner-white" /> : mode === 'login' ? '로그인' : '회원가입'}
-              </button>
-            </form>
-
-            <div className="divider mt-3 mb-3">또는</div>
-
-            <button className={`btn btn-google ${styles.googleBtn}`} onClick={googleLogin} disabled={busy} type="button">
-              <GoogleIcon />
-              Google 계정으로 시작하기
+            <button className="btn btn-primary btn-full btn-lg" type="submit" disabled={busy}>
+              {busy ? <span className="spinner" /> : mode === 'login' ? '로그인' : '회원가입'}
             </button>
-            
-            <p className={styles.footer}>
-              Tennis Club Manager — 스마트한 테니스 모임 관리
-            </p>
-          </div>
-        </section>
-      </main>
+          </form>
+
+          <div className="divider mt-3 mb-3">또는</div>
+
+          <button className={`btn btn-google ${styles.googleBtn}`} onClick={googleLogin} disabled={busy} type="button">
+            <GoogleIcon />
+            Google로 계속하기
+          </button>
+        </div>
+
+        <p className={styles.footer}>
+          Tennis Match — NTRP 기반 대진표 생성 서비스
+        </p>
+      </div>
     </div>
   );
 }
