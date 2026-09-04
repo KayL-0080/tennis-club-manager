@@ -126,6 +126,10 @@
     white-space: nowrap;
   }
 
+  .mobileUserSection {
+    display: none;
+  }
+
   .mobileBottomTab {
     display: none;
   }
@@ -188,25 +192,41 @@
     display: none;
   }
 
-  /* ── Floating Capsule Dock for Mobile (iOS Dynamic Island Style) ── */
+  .mobileUserSection {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── Permanently Fixed Bottom Navigation Bar for Mobile (iOS Safari Compatible) ── */
   .mobileBottomTab {
     display: flex;
-    position: fixed;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    left: 16px;
-    right: 16px;
-    height: 60px;
-    background: rgba(255, 255, 255, 0.82);
-    backdrop-filter: blur(28px) saturate(200%);
-    -webkit-backdrop-filter: blur(28px) saturate(200%);
-    border: 1px solid rgba(255, 255, 255, 0.9);
-    border-radius: 36px;
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.12), inset 0 1px 1.5px rgba(255, 255, 255, 0.95);
-    z-index: 9999;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    height: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    border-radius: 0 !important;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.06) !important;
+    z-index: 99999 !important;
     justify-content: space-around;
     align-items: center;
-    padding: 0 8px;
-    animation: fadeInSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    padding-left: 4px;
+    padding-right: 4px;
+    margin: 0 !important;
+    transform: none !important;
+    -webkit-transform: none !important;
+    will-change: auto !important;
+    touch-action: manipulation;
   }
 
   .tabBtn {
@@ -218,13 +238,14 @@
     background: transparent;
     border: none;
     color: var(--txt3);
-    font-size: 0.65rem;
+    font-size: 0.68rem;
     font-weight: 600;
-    gap: 3px;
+    gap: 2px;
     cursor: pointer;
-    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-    padding: 6px 0;
-    border-radius: var(--radius-full);
+    transition: color 0.15s ease;
+    padding: 4px 0;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
   }
   
   .tabBtn.active {
@@ -233,12 +254,14 @@
   }
 
   .tabBtn.active .tabIcon {
-    transform: scale(1.15);
-    filter: drop-shadow(0 2px 6px rgba(0, 122, 255, 0.35));
+    transform: scale(1.1);
+    filter: drop-shadow(0 2px 5px rgba(0, 122, 255, 0.3));
   }
 
   .tabIcon {
     font-size: 1.25rem;
-    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    line-height: 1;
+    transition: transform 0.15s ease;
   }
 }
+

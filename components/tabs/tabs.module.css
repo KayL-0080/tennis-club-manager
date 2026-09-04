@@ -231,6 +231,13 @@ tr:nth-child(even) .matchCell { background: rgba(245, 244, 240, 0.5) !important;
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.15);
 }
+.playerSel:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
+  background-color: rgba(241, 245, 249, 0.85) !important;
+  border-color: rgba(203, 213, 225, 0.7) !important;
+  color: #64748b;
+}
 
 .bgTeamA {
   background-color: rgba(41, 128, 185, 0.08) !important;
@@ -289,6 +296,13 @@ tr:nth-child(even) .matchCell { background: rgba(245, 244, 240, 0.5) !important;
 .scoreInput:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.15);
+}
+.scoreInput:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
+  background-color: rgba(241, 245, 249, 0.85) !important;
+  border-color: rgba(203, 213, 225, 0.7) !important;
+  color: #64748b;
 }
 
 .scoreSep { 

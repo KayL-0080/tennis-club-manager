@@ -1,13 +1,16 @@
 // components/Navbar.js
 'use client';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
+import ManualModal from './ManualModal';
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
   const { user, isSuperAdmin, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [showManual, setShowManual] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -20,23 +23,80 @@ export default function Navbar() {
     { name: '🗓️ 참석 투표', path: '/votes' },
     { name: '🏆 정기 대회', path: '/tournaments' },
     { name: '👥 회원 관리', path: '/members' },
+    { name: '📖 이용 매뉴얼', path: '/manual' },
   ];
 
   return (
     <>
       <nav className={`no-print ${styles.nav}`}>
         <div className={styles.inner}>
-          {/* Logo Section */}
+          {/* Logo Section & Manual Button Icon */}
           <div className={styles.logoContainer}>
-            <button className={styles.logo} onClick={() => router.push('/dashboard')}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <img src="/apple-touch-icon.png" alt="테친회" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }} />
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                  <span className={styles.logoText}>Tennis Match</span>
-                  <span className={styles.logoSub}>테친회</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '6px' }}>
+              <button className={styles.logo} onClick={() => router.push('/dashboard')}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <img 
+                    src="/apple-touch-icon.png" 
+                    alt="테친회" 
+                    style={{ 
+                      width: '32px', 
+                      height: '32px', 
+                      borderRadius: '50%', 
+                      objectFit: 'cover',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                      border: '1.5px solid #fff',
+                      flexShrink: 0
+                    }} 
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <span className={styles.logoText}>Tennis Match</span>
+                    <span className={styles.logoSub}>테친회</span>
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+
+              {/* 📖 Tennis Match 오른쪽 옆 매뉴얼 버튼 아이콘 */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowManual(true);
+                }}
+                title="사용자 & 운영자 이용 매뉴얼"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 8px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '10px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: '#1e293b',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  transition: 'all 0.15s ease',
+                  flexShrink: 0
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#eff6ff';
+                  e.currentTarget.style.borderColor = '#93c5fd';
+                  e.currentTarget.style.color = '#1d4ed8';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ffffff';
+                  e.currentTarget.style.borderColor = '#cbd5e1';
+                  e.currentTarget.style.color = '#1e293b';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <span style={{ fontSize: '12px' }}>📖</span>
+                <span>매뉴얼</span>
+              </button>
+            </div>
           </div>
 
           {/* Desktop Menu - Stacked vertically on PC */}
@@ -82,7 +142,7 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* User Profile and Control Section */}
+          {/* User Profile and Control Section (Desktop) */}
           <div className={styles.userSection}>
             {user ? (
               <div className={styles.userContainer}>
@@ -104,12 +164,43 @@ export default function Navbar() {
                 style={{ width: '100%', fontSize: '11px', opacity: 0.8 }}
                 onClick={() => router.push('/login')}
               >
-                관리자 로그인
+                🔐 운영자 로그인
               </button>
             )}
-            <div style={{ marginTop: '8px', textAlign: 'center', fontSize: '10px', color: 'var(--txt3)' }}>
-              Ver.20260903-02
-            </div>
+          </div>
+
+          {/* User Profile and Control Section (Mobile Header) */}
+          <div className={styles.mobileUserSection}>
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className={styles.avatar} style={{ width: '26px', height: '26px', fontSize: '11px' }}>
+                  {(user.displayName || user.email)?.[0]?.toUpperCase()}
+                </span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '11px', padding: '3px 8px', height: '28px', whiteSpace: 'nowrap' }}
+                  onClick={handleLogout}
+                >
+                  로그아웃
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn btn-primary btn-sm"
+                style={{ 
+                  fontSize: '11px', 
+                  padding: '4px 10px', 
+                  height: '28px', 
+                  whiteSpace: 'nowrap',
+                  fontWeight: 'bold',
+                  backgroundColor: '#2563eb',
+                  borderColor: '#2563eb'
+                }}
+                onClick={() => router.push('/login')}
+              >
+                🔐 운영자 로그인
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -137,6 +228,13 @@ export default function Navbar() {
           <span>회원</span>
         </button>
       </div>
+
+      {/* 📖 통합 매뉴얼 팝업 모달 */}
+      <ManualModal 
+        isOpen={showManual} 
+        onClose={() => setShowManual(false)} 
+        initialTab={user ? 'admin' : 'user'} 
+      />
     </>
   );
 }

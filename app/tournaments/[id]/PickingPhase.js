@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export const TEAM_COLORS = [
   { bg: 'rgba(0, 122, 255, 0.08)', border: 'rgba(0, 122, 255, 0.35)', text: '#0062d2', badgeBg: '#007aff', tagBg: 'rgba(0, 122, 255, 0.15)', tagText: '#0062d2', glow: 'rgba(0, 122, 255, 0.25)' }, // 1조 (iOS Electric Blue)
@@ -18,6 +18,13 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
 
   const [teams, setTeams] = useState(tournament.teams || []);
   const [lineupModalTeamIdx, setLineupModalTeamIdx] = useState(null);
+
+  // 실시간 Firestore 변경사항 동기화 (다른 기기에서 랜덤 뽑기 / 배정 / 출전명단 변경 시 즉시 반영)
+  useEffect(() => {
+    if (tournament.teams) {
+      setTeams(tournament.teams);
+    }
+  }, [tournament.teams]);
 
   // NTRP 높은 순 -> 남자 우선 -> 해당 그룹 내 랜덤 선발 헬퍼
   const getNextRankedRandomPlayer = (unassignedIds) => {
@@ -73,6 +80,9 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
       }
     }
     setTeams(newTeams);
+    if (isAdmin && onUpdate) {
+      onUpdate({ teams: newTeams });
+    }
   };
 
   const handleBatchRandomAssign = () => {
@@ -103,6 +113,9 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
     });
 
     setTeams(newTeams);
+    if (isAdmin && onUpdate) {
+      onUpdate({ teams: newTeams });
+    }
   };
 
   const handleBatchReset = () => {
@@ -117,6 +130,9 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
       };
     });
     setTeams(newTeams);
+    if (isAdmin && onUpdate) {
+      onUpdate({ teams: newTeams });
+    }
   };
 
   const triggerModalAutoComplete = () => {
@@ -148,6 +164,9 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
     }
     newTeams[lineupModalTeamIdx].lineups = lineups;
     setTeams(newTeams);
+    if (isAdmin && onUpdate) {
+      onUpdate({ teams: newTeams });
+    }
   };
 
   const generateTournamentSchedule = (teams, courtDetails, gamesCount) => {
@@ -684,7 +703,14 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
 
   return (
     <div className="card" style={{ padding: '20px' }}>
-      <h2 style={{ marginTop: 0, color: 'var(--navy)', fontSize: '18px' }}>3단계. {type === 'team' ? '팀원 배정 및 선수 구성' : '매치(대진표) 생성'}</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>3단계. {type === 'team' ? '팀원 배정 및 선수 구성' : '매치(대진표) 생성'}</h2>
+          <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '2px 8px' }}>
+            ⚡ 실시간 동기화 ON
+          </span>
+        </div>
+      </div>
       
       {type === 'team' && (
         <>
@@ -743,6 +769,9 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                           return { ...t, lineups };
                         });
                         setTeams(newTeams);
+                        if (isAdmin && onUpdate) {
+                          onUpdate({ teams: newTeams });
+                        }
                       }}
                     >
                       🎲 모든 조 대진 자동 완성
@@ -770,13 +799,15 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                       <input 
                         type="text" 
                         className="input input-sm" 
+                        disabled={!isAdmin}
                         style={{ 
                           width: '100%', 
                           marginBottom: '8px', 
                           fontWeight: '800', 
                           borderColor: colorTheme.border,
                           color: colorTheme.text,
-                          backgroundColor: '#fff'
+                          backgroundColor: '#fff',
+                          cursor: isAdmin ? 'text' : 'default'
                         }} 
                         value={t.name} 
                         onChange={e => {
@@ -784,6 +815,11 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                           newTeams[tIdx].name = e.target.value;
                           setTeams(newTeams);
                         }} 
+                        onBlur={() => {
+                          if (isAdmin && onUpdate) {
+                            onUpdate({ teams });
+                          }
+                        }}
                       />
                       
                       <div style={{ marginBottom: '8px' }}>
@@ -809,28 +845,32 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                           }}
                           onClick={() => setLineupModalTeamIdx(tIdx)}
                         >
-                          {completed ? '✅ 출전 명단 완료' : '⚠️ 출전 명단 설정 필요'}
+                          {completed ? '✅ 출전 명단 완료' : (isAdmin ? '⚠️ 출전 명단 설정 필요' : '⚠️ 출전 명단 확인')}
                         </button>
                       </div>
                       
-                      <div style={{ marginBottom: '8px' }}>
-                        <button 
-                          className="btn btn-sm" 
-                          style={{ 
-                            width: '100%',
-                            backgroundColor: colorTheme.badgeBg,
-                            color: '#fff',
-                            border: 'none',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                          }} 
-                          onClick={() => pickRandomPlayer(tIdx)}
-                        >
-                          🎲 랜덤 뽑기
-                        </button>
-                      </div>
+                      {isAdmin && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <button 
+                            className="btn btn-sm" 
+                            style={{ 
+                              width: '100%', 
+                              backgroundColor: colorTheme.badgeBg, 
+                              color: '#fff', 
+                              border: 'none', 
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)' 
+                            }} 
+                            onClick={() => pickRandomPlayer(tIdx)}
+                          >
+                            🎲 랜덤 뽑기
+                          </button>
+                        </div>
+                      )}
 
                       <div style={{ minHeight: '90px', border: `1px dashed ${colorTheme.border}`, padding: '8px', backgroundColor: '#fff', borderRadius: '8px' }}>
-                        <p style={{ fontSize: '11px', color: 'var(--txt3)', margin: '0 0 6px 0' }}>팀원 명단 <span style={{ fontSize: '9px' }}>(클릭 시 제거)</span></p>
+                        <p style={{ fontSize: '11px', color: 'var(--txt3)', margin: '0 0 6px 0' }}>
+                          팀원 명단 {isAdmin && <span style={{ fontSize: '9px' }}>(클릭 시 제거)</span>}
+                        </p>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                           {t.players.map(pid => (
                              <div key={pid} 
@@ -874,10 +914,12 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                   {unassignedPlayers.map(aid => (
                      <div key={aid} style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#fff' }}>
                         <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{byId[aid]?.name}</span>
-                        <select className="input input-sm" style={{ width: '80px', padding: '2px 4px' }} onChange={e => assignPlayerToTeam(aid, parseInt(e.target.value))}>
-                          <option value="-1">배정</option>
-                          {teams.map((t, i) => <option key={t.id} value={i}>{t.name}</option>)}
-                        </select>
+                        {isAdmin && (
+                          <select className="input input-sm" style={{ width: '80px', padding: '2px 4px' }} onChange={e => assignPlayerToTeam(aid, parseInt(e.target.value))}>
+                            <option value="-1">배정</option>
+                            {teams.map((t, i) => <option key={t.id} value={i}>{t.name}</option>)}
+                          </select>
+                        )}
                      </div>
                   ))}
                   {unassignedPlayers.length === 0 && (
@@ -887,27 +929,33 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
               </div>
 
               <div style={{ marginTop: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button className="btn btn-secondary" onClick={() => onUpdate({ status: 'draft' })}>👈 이전 (조장 재조정)</button>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                    <button 
-                      className="btn btn-primary" 
-                      onClick={finalizeTeamDraft}
-                      disabled={!allLineupsComplete}
-                      style={{
-                        opacity: allLineupsComplete ? 1 : 0.5,
-                        cursor: allLineupsComplete ? 'pointer' : 'not-allowed'
-                      }}
-                    >
-                      팀 구성 완료 🚀
-                    </button>
-                    {!allLineupsComplete && (
-                      <span style={{ color: 'var(--red)', fontSize: '12px', marginTop: '6px' }}>
-                        ⚠️ 모든 조의 출전 명단(대진) 설정이 완료되어야 합니다.
-                      </span>
-                    )}
+                {isAdmin ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <button className="btn btn-secondary" onClick={() => onUpdate({ status: 'draft' })}>👈 이전 (조장 재조정)</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <button 
+                        className="btn btn-primary" 
+                        onClick={finalizeTeamDraft}
+                        disabled={!allLineupsComplete}
+                        style={{
+                          opacity: allLineupsComplete ? 1 : 0.5,
+                          cursor: allLineupsComplete ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        팀 구성 완료 🚀
+                      </button>
+                      {!allLineupsComplete && (
+                        <span style={{ color: 'var(--red)', fontSize: '12px', marginTop: '6px' }}>
+                          ⚠️ 모든 조의 출전 명단(대진) 설정이 완료되어야 합니다.
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--txt2)', padding: '12px', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    🤝 현재 운영진이 팀원 배정 및 출전 명단을 구성하고 있습니다. (실시간 동기화 중)
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -964,17 +1012,19 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
             </p>
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginBottom: '16px' }}>
-              <button 
-                className="btn btn-secondary btn-sm" 
-                onClick={triggerModalAutoComplete}
-              >
-                🎲 자동 완성
-              </button>
+              {isAdmin && (
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={triggerModalAutoComplete}
+                >
+                  🎲 자동 완성
+                </button>
+              )}
               <button 
                 className="btn btn-primary btn-sm" 
                 onClick={() => setLineupModalTeamIdx(null)}
               >
-                확정 및 닫기
+                {isAdmin ? '확정 및 닫기' : '닫기'}
               </button>
             </div>
 
@@ -1025,6 +1075,7 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                       <select
                         className="input input-sm"
                         style={{ flex: 1 }}
+                        disabled={!isAdmin}
                         value={currentLineup.player1 || ''}
                         onChange={e => {
                           const newTeams = [...teams];
@@ -1034,6 +1085,9 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                             player1: e.target.value
                           };
                           setTeams(newTeams);
+                          if (isAdmin && onUpdate) {
+                            onUpdate({ teams: newTeams });
+                          }
                         }}
                       >
                         <option value="">선수 1</option>
@@ -1045,6 +1099,7 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                       <select
                         className="input input-sm"
                         style={{ flex: 1 }}
+                        disabled={!isAdmin}
                         value={currentLineup.player2 || ''}
                         onChange={e => {
                           const newTeams = [...teams];
@@ -1054,6 +1109,9 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                             player2: e.target.value
                           };
                           setTeams(newTeams);
+                          if (isAdmin && onUpdate) {
+                            onUpdate({ teams: newTeams });
+                          }
                         }}
                       >
                         <option value="">선수 2</option>

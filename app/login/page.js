@@ -82,7 +82,19 @@ export default function AuthPage() {
       <div className={styles.container}>
         {/* 로고 */}
         <div className={styles.logo}>
-          <div className={styles.logoIcon}>🎾</div>
+          <img 
+            src="/apple-touch-icon.png" 
+            alt="테친회 로고" 
+            style={{ 
+              width: '68px', 
+              height: '68px', 
+              borderRadius: '50%', 
+              objectFit: 'cover',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+              border: '2px solid #fff',
+              marginBottom: '10px'
+            }} 
+          />
           <h1 className={styles.logoTitle}>Tennis Match</h1>
           <p className={styles.logoSub}>NTRP 밸런스 대진표 자동 생성</p>
         </div>

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTournament, updateTournament, getMembers } from '@/lib/firestore';
+import { getTournament, updateTournament, subscribeTournament, getMembers } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import styles from '../../dashboard/dashboard.module.css';
 
@@ -20,33 +20,36 @@ export default function TournamentDetailPage() {
   const [members, setMembers] = useState([]);
   const [fetching, setFetching] = useState(true);
 
-  const loadData = async () => {
-    try {
-      const [tData, mList] = await Promise.all([
-        getTournament('shared', id),
-        getMembers('shared')
-      ]);
-      if (!tData) {
-        alert('대회를 찾을 수 없습니다.');
-        router.replace('/tournaments');
-        return;
-      }
-      setTournament(tData);
-      setMembers(mList);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setFetching(false);
-    }
-  };
-
   useEffect(() => {
-    loadData();
-  }, [id]);
+    if (!id) return;
+    let unsub = () => {};
+
+    (async () => {
+      try {
+        const mList = await getMembers('shared');
+        setMembers(mList);
+
+        // 정기 대회 문서 실시간 구독 (onSnapshot)
+        unsub = subscribeTournament('shared', id, (tData) => {
+          if (!tData) {
+            alert('대회를 찾을 수 없습니다.');
+            router.replace('/tournaments');
+            return;
+          }
+          setTournament(tData);
+          setFetching(false);
+        });
+      } catch (e) {
+        console.error('Error loading tournament:', e);
+        setFetching(false);
+      }
+    })();
+
+    return () => unsub();
+  }, [id, router]);
 
   const handleUpdate = async (updates) => {
     await updateTournament('shared', id, updates);
-    setTournament(prev => ({ ...prev, ...updates }));
   };
 
   if (fetching) {
@@ -118,20 +121,7 @@ export default function TournamentDetailPage() {
           )
         )}
         {tournament.status === 'picking' && (
-          isAdmin ? (
-            <PickingPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={isAdmin} />
-          ) : (
-            <div className="card" style={{ padding: '40px 24px', textAlign: 'center' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🤝</div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--txt)', marginBottom: '8px' }}>
-                조 편성 및 팀원 배정 진행 중입니다
-              </h2>
-              <p style={{ color: 'var(--txt2)', fontSize: '0.92rem', lineHeight: 1.6, maxWidth: '480px', margin: '0 auto' }}>
-                현재 운영진이 팀원 배정 및 출전 명단을 구성하고 있습니다.<br />
-                3단계 구성이 완료되면 <strong>4단계 실시간 대진표 및 실시간 순위</strong>가 자동으로 공개됩니다.
-              </p>
-            </div>
-          )
+          <PickingPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={isAdmin} />
         )}
         {tournament.status === 'playing' && (
           <PlayingPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={isAdmin} />

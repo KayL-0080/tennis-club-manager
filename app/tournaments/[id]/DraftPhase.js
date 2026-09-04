@@ -770,7 +770,7 @@ ${isFixedPair && pairs.length > 0 ? `\n👫 [확정된 페어 명단 (${pairs.le
 ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`).join('\n') : '참가자 미정'}
 
 ※ 원활한 대회 준비를 위해 기한 내 입금 부탁드립니다. 감사합니다! 🎾
-🔗 실시간 대진 및 순위 확인: https://tmradal.vercel.app`;
+🔗 실시간 대진 및 순위 확인: https://tcmngr.vercel.app`;
 
     setFeeNoticeText(text);
     setShowFeeNoticeModal(true);

@@ -79,18 +79,21 @@ html {
   font-size: 16px; 
   scroll-behavior: smooth; 
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+  width: 100%;
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
   background: var(--bg-gradient);
-  background-attachment: fixed;
+  background-color: var(--bg);
   color: var(--txt);
   line-height: 1.5;
   letter-spacing: -0.015em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-  overflow-x: hidden;
+  width: 100%;
+  position: relative;
 }
 
 @media (min-width: 769px) {
@@ -101,7 +104,7 @@ body {
 
 @media (max-width: 768px) {
   body {
-    padding-bottom: calc(75px + var(--safe-bottom));
+    padding-bottom: calc(75px + var(--safe-bottom)) !important;
   }
 }
 

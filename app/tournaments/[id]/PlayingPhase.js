@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { TEAM_COLORS } from './PickingPhase';
 
 export default function PlayingPhase({ tournament, members, onUpdate, isAdmin }) {
@@ -18,6 +18,37 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   const [localMatches, setLocalMatches] = useState(matches || []);
   const [maxGames, setMaxGames] = useState(tournament.maxGames || 6);
   const [showRules, setShowRules] = useState(false);
+  const [activeOnlyMode, setActiveOnlyMode] = useState(false);
+  const [collapsedCourts, setCollapsedCourts] = useState({});
+
+  const isCourtCollapsed = (courtId) => {
+    if (collapsedCourts[courtId] !== undefined) {
+      return collapsedCourts[courtId];
+    }
+    return activeOnlyMode;
+  };
+
+  const toggleCourtCollapse = (courtId) => {
+    setCollapsedCourts(prev => ({
+      ...prev,
+      [courtId]: !isCourtCollapsed(courtId)
+    }));
+  };
+
+  const setGlobalMode = (activeOnly) => {
+    setActiveOnlyMode(activeOnly);
+    setCollapsedCourts({});
+  };
+
+  // 실시간 Firestore 변경사항 동기화 (다른 기기에서 점수 입력 시 자동 반영)
+  useEffect(() => {
+    if (tournament.matches) {
+      setLocalMatches(tournament.matches);
+    }
+    if (tournament.maxGames !== undefined) {
+      setMaxGames(tournament.maxGames);
+    }
+  }, [tournament.matches, tournament.maxGames]);
   const [courtSets, setCourtSets] = useState(() => {
     const init = {};
     const courtDetails = tournament.courtDetails || [
@@ -83,7 +114,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
   const handleMaxGamesChange = (newMax) => {
     setMaxGames(newMax);
-    setLocalMatches(prev => prev.map(m => {
+    const updatedMatches = localMatches.map(m => {
       let updated = { ...m };
       if (updated.scoreA !== null && updated.scoreA > newMax) {
         updated.scoreA = newMax;
@@ -100,7 +131,11 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
         });
       }
       return updated;
-    }));
+    });
+    setLocalMatches(updatedMatches);
+    if (isAdmin && onUpdate) {
+      onUpdate({ matches: updatedMatches, maxGames: newMax, courtSets });
+    }
   };
 
   const updateMatchScore = (matchIdx, field, val) => {
@@ -109,8 +144,11 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     if (scoreVal !== null) {
       scoreVal = Math.max(0, Math.min(maxGames, scoreVal));
     }
-    newMatches[matchIdx][field] = scoreVal;
+    newMatches[matchIdx] = { ...newMatches[matchIdx], [field]: scoreVal };
     setLocalMatches(newMatches);
+    if (isAdmin && onUpdate) {
+      onUpdate({ matches: newMatches, maxGames, courtSets });
+    }
   };
 
   const handleUpdateMatchSlot = (courtId, courtName, setIdx, field, val) => {
@@ -160,11 +198,10 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
     setLocalMatches(prev => {
       const idx = prev.findIndex(m => (m.courtId === courtId || m.court === courtName) && m.setIndex === setIdx);
-
+      let newMatches;
       if (idx !== -1) {
-        const newMatches = [...prev];
+        newMatches = [...prev];
         newMatches[idx] = { ...newMatches[idx], [field]: parsedVal };
-        return newMatches;
       } else {
         const newSlot = {
           id: `court-${courtId}-set-${setIdx}`,
@@ -181,8 +218,12 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
           scoreB: null,
           [field]: parsedVal
         };
-        return [...prev, newSlot];
+        newMatches = [...prev, newSlot];
       }
+      if (isAdmin && onUpdate) {
+        onUpdate({ matches: newMatches, maxGames, courtSets });
+      }
+      return newMatches;
     });
   };
 
@@ -307,6 +348,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
         newMatches.push({ ...stub2, ...m1Data });
       }
 
+      if (isAdmin && onUpdate) {
+        onUpdate({ matches: newMatches, maxGames, courtSets });
+      }
       return newMatches;
     });
   };
@@ -315,6 +359,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     const newMatches = [...localMatches];
     newMatches[matchIdx].court = val;
     setLocalMatches(newMatches);
+    if (isAdmin && onUpdate) {
+      onUpdate({ matches: newMatches, maxGames, courtSets });
+    }
   };
 
   const updateIndividualMatchPlayer = (matchIdx, field, newPlayerId) => {
@@ -363,6 +410,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
       [field]: newPlayerId || null
     };
     setLocalMatches(newMatches);
+    if (isAdmin && onUpdate) {
+      onUpdate({ matches: newMatches, maxGames, courtSets });
+    }
   };
 
   const unassignIndividualCourts = () => {
@@ -375,6 +425,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
       setIndex: null
     }));
     setLocalMatches(newMatches);
+    if (onUpdate) {
+      onUpdate({ matches: newMatches, maxGames, courtSets });
+    }
   };
 
   const attendeeOptions = useMemo(() => {
@@ -461,6 +514,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     });
 
     setLocalMatches(newMatches);
+    if (onUpdate) {
+      onUpdate({ matches: newMatches, maxGames, courtSets });
+    }
   };
 
   const conflictMap = useMemo(() => {
@@ -557,6 +613,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
     newMatches.sort((a, b) => (a.round || 1) - (b.round || 1));
     setLocalMatches(newMatches);
+    if (isAdmin && onUpdate) {
+      onUpdate({ matches: newMatches, maxGames, courtSets });
+    }
   };
 
   const getSetTimeSlot = (startTime, setIdx) => {
@@ -600,6 +659,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     const newMatches = [...localMatches];
     newMatches[matchIdx].sets[setIdx][field] = val !== '' ? val : null;
     setLocalMatches(newMatches);
+    if (isAdmin && onUpdate) {
+      onUpdate({ matches: newMatches, maxGames, courtSets });
+    }
   };
 
   const updateTeamSetScore = (matchIdx, setIdx, field, val) => {
@@ -610,6 +672,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     }
     newMatches[matchIdx].sets[setIdx][field] = scoreVal;
     setLocalMatches(newMatches);
+    if (isAdmin && onUpdate) {
+      onUpdate({ matches: newMatches, maxGames, courtSets });
+    }
   };
 
   const renderTeamMatch = (m) => (
@@ -1145,36 +1210,30 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-        <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>
-          4단계. 실시간 순위 및 {isAdmin ? '점수 입력' : '경기 현황'}
-        </h2>
-        {isAdmin && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>
+            4단계. 실시간 순위 및 {isAdmin ? '점수 입력' : '경기 현황'}
+          </h2>
+          <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '2px 8px' }}>
+            ⚡ 실시간 동기화 ON
+          </span>
+        </div>
+        {isAdmin && type !== 'team' && (
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {type !== 'team' && (
-              <>
-                <button 
-                  className="btn btn-secondary btn-sm"
-                  style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc', fontWeight: 'bold' }}
-                  onClick={autoAssignIndividualCourts}
-                >
-                  🎲 코트 자동 배정
-                </button>
-                <button 
-                  className="btn btn-secondary btn-sm"
-                  style={{ background: '#fef2f2', color: '#b91c1c', borderColor: '#fca5a5', fontWeight: 'bold' }}
-                  onClick={unassignIndividualCourts}
-                >
-                  🧹 코트 배정 해제
-                </button>
-              </>
-            )}
-            <button className="btn btn-secondary btn-sm" onClick={() => {
-              if (confirm('이전 설정 단계로 돌아가시겠습니까? 현재 입력된 점수는 보존됩니다.')) {
-                onUpdate({ status: type === 'team' ? 'picking' : 'draft' });
-              }
-            }}>👈 이전</button>
-            <button className="btn btn-secondary btn-sm" onClick={handleSave}>저장</button>
-            <button className="btn btn-primary btn-sm" onClick={handleFinish}>종료</button>
+            <button 
+              className="btn btn-secondary btn-sm"
+              style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc', fontWeight: 'bold' }}
+              onClick={autoAssignIndividualCourts}
+            >
+              🎲 코트 자동 배정
+            </button>
+            <button 
+              className="btn btn-secondary btn-sm"
+              style={{ background: '#fef2f2', color: '#b91c1c', borderColor: '#fca5a5', fontWeight: 'bold' }}
+              onClick={unassignIndividualCourts}
+            >
+              🧹 코트 배정 해제
+            </button>
           </div>
         )}
       </div>
@@ -1224,7 +1283,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
               )}
               {tournament.matchRules.tiebreak && (
                 <div>
-                  <strong style={{ color: '#4338ca' }}>⚡ 2. 타이브레이크 룰:</strong>
+                  <strong style={{ color: '#4338ca' }}>⏱️ 2. 타이브레이크 룰:</strong>
                   <div style={{ whiteSpace: 'pre-line', marginTop: '3px', color: 'var(--txt)', paddingLeft: '8px', lineHeight: '1.5' }}>
                     {tournament.matchRules.tiebreak}
                   </div>
@@ -1232,7 +1291,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
               )}
               {tournament.matchRules.noAd && (
                 <div>
-                  <strong style={{ color: '#4338ca' }}>🎯 3. No-Ad 룰:</strong>
+                  <strong style={{ color: '#4338ca' }}>⚡ 3. No-Ad (노애드) 룰:</strong>
                   <div style={{ whiteSpace: 'pre-line', marginTop: '3px', color: 'var(--txt)', paddingLeft: '8px', lineHeight: '1.5' }}>
                     {tournament.matchRules.noAd}
                   </div>
@@ -1240,7 +1299,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
               )}
               {tournament.matchRules.custom && (
                 <div>
-                  <strong style={{ color: '#4338ca' }}>📝 4. 추가 수칙:</strong>
+                  <strong style={{ color: '#4338ca' }}>📌 4. 기타 로컬 룰:</strong>
                   <div style={{ whiteSpace: 'pre-line', marginTop: '3px', color: 'var(--txt)', paddingLeft: '8px', lineHeight: '1.5' }}>
                     {tournament.matchRules.custom}
                   </div>
@@ -1251,6 +1310,69 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
         </div>
       )}
 
+      {/* 👁️ 대진표 보기 모드 컨트롤러 (모아보기 / 전체 펼치기) */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        flexWrap: 'wrap', 
+        gap: '8px', 
+        padding: '10px 14px', 
+        backgroundColor: '#f8fafc', 
+        borderRadius: '10px', 
+        border: '1px solid var(--border)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+        marginBottom: '16px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)' }}>
+            👁️ 대진표 보기:
+          </span>
+          <div style={{ display: 'flex', backgroundColor: '#e2e8f0', borderRadius: '8px', padding: '2px', gap: '2px' }}>
+            <button
+              type="button"
+              style={{
+                border: 'none',
+                padding: '4px 12px',
+                fontSize: '12px',
+                fontWeight: !activeOnlyMode ? 'bold' : 'normal',
+                backgroundColor: !activeOnlyMode ? '#fff' : 'transparent',
+                color: !activeOnlyMode ? 'var(--navy)' : 'var(--txt3)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                boxShadow: !activeOnlyMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+              }}
+              onClick={() => setGlobalMode(false)}
+            >
+              📋 전체 대진 펼치기
+            </button>
+            <button
+              type="button"
+              style={{
+                border: 'none',
+                padding: '4px 12px',
+                fontSize: '12px',
+                fontWeight: activeOnlyMode ? 'bold' : 'normal',
+                backgroundColor: activeOnlyMode ? '#2563eb' : 'transparent',
+                color: activeOnlyMode ? '#fff' : 'var(--txt3)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                boxShadow: activeOnlyMode ? '0 1px 3px rgba(37,99,235,0.3)' : 'none'
+              }}
+              onClick={() => setGlobalMode(true)}
+            >
+              ⚡ 진행중 경기만 모아보기
+            </button>
+          </div>
+        </div>
+
+        {activeOnlyMode && (
+          <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold' }}>
+            ※ 완료된 세트와 아직 시작하지 않은 대기 세트는 숨겨집니다.
+          </span>
+        )}
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {/* Group by Court */}
         {type === 'team' && (
@@ -1259,12 +1381,73 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
               const courtId = court.id || `c-${cIdx+1}`;
               const courtNum = court.name;
               const courtMaxGames = court.games || 2;
+              const isCollapsed = isCourtCollapsed(courtId);
+              const totalSets = courtSets[courtId] || courtMaxGames;
+              const allSetIndices = Array.from({ length: totalSets }, (_, i) => i + 1);
+
+              const matchBySet = {};
+              allSetIndices.forEach(setIdx => {
+                matchBySet[setIdx] = localMatches.find(match => 
+                  (match.courtId === courtId || match.court === courtNum) && match.setIndex === setIdx
+                ) || {
+                  court: courtNum,
+                  courtId: courtId,
+                  setIndex: setIdx,
+                  teamAId: '',
+                  teamBId: '',
+                  playerA1: null,
+                  playerA2: null,
+                  playerB1: null,
+                  playerB2: null,
+                  scoreA: null,
+                  scoreB: null
+                };
+              });
+
+              const completedSets = allSetIndices.filter(setIdx => {
+                const m = matchBySet[setIdx];
+                return m.scoreA !== null && m.scoreB !== null;
+              });
+
+              const activeSetIdx = allSetIndices.find(setIdx => {
+                const m = matchBySet[setIdx];
+                return m.scoreA === null || m.scoreB === null;
+              }) || null;
+
+              const setsToRender = isCollapsed 
+                ? (activeSetIdx !== null ? [activeSetIdx] : [])
+                : allSetIndices;
+
               return (
-                <div key={courtId} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', backgroundColor: '#f8fafc', overflowX: 'auto' }}>
+                <div key={courtId} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '14px', backgroundColor: '#f8fafc', overflowX: 'auto' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                    <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      🎾 {courtNum} 대진
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
+                        🎾 {courtNum} 대진
+                      </h3>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          padding: '2px 8px',
+                          fontSize: '11px',
+                          height: '24px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          borderRadius: '12px',
+                          backgroundColor: isCollapsed ? '#e0f2fe' : '#fff',
+                          color: isCollapsed ? '#0369a1' : 'var(--txt)',
+                          borderColor: isCollapsed ? '#7dd3fc' : 'var(--border)',
+                          fontWeight: isCollapsed ? 'bold' : 'normal'
+                        }}
+                        onClick={() => toggleCourtCollapse(courtId)}
+                      >
+                        {isCollapsed ? '⚡ 진행중만 모아보기' : '📋 전체 펼쳐보기'}
+                        <span>{isCollapsed ? '▲' : '▼'}</span>
+                      </button>
+                    </div>
+
                     {isAdmin && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <button
@@ -1316,289 +1499,310 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                       </div>
                     )}
                   </div>
-                  
-                  <table className="table" style={{ width: '100%', minWidth: '320px', textAlign: 'center', fontSize: '12px', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#edf2f7' }}>
-                        <th style={{ width: '48px', padding: '6px 2px', fontSize: '11px' }}>시간</th>
-                        <th style={{ width: '38px', padding: '6px 2px', fontSize: '11px' }}>세트</th>
-                        <th style={{ padding: '6px 4px', fontSize: '11px' }}>대진</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Array.from({ length: courtSets[courtId] || court.games || 2 }).map((_, idx) => {
-                        const setIdx = idx + 1;
-                        const m = localMatches.find(match => (match.courtId === courtId || match.court === courtNum) && match.setIndex === setIdx) || {
-                          court: courtNum,
-                          courtId: courtId,
-                          setIndex: setIdx,
-                          teamAId: '',
-                          teamBId: '',
-                          playerA1: null,
-                          playerA2: null,
-                          playerB1: null,
-                          playerB2: null,
-                          scoreA: null,
-                          scoreB: null
-                        };
-                        
-                        const teamAPlayers = teamMap[m.teamAId]?.players || [];
-                        const teamBPlayers = teamMap[m.teamBId]?.players || [];
 
-                        const teamAIdx = m.teamAId ? teamIndexMap[m.teamAId] : undefined;
-                        const teamATheme = (teamAIdx !== undefined && teamAIdx >= 0) ? TEAM_COLORS[teamAIdx % TEAM_COLORS.length] : { bg: '#f8fafc', border: '#e2e8f0', text: 'var(--txt)', badgeBg: 'var(--blue)' };
+                  {isCollapsed && (
+                    <div style={{ marginBottom: '10px', padding: '6px 10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                      <span>
+                        {activeSetIdx !== null ? (
+                          <>🔥 <strong>{activeSetIdx}세트</strong> 경기 진행 중 ({completedSets.length}세트 완료 / {totalSets - activeSetIdx}세트 대기)</>
+                        ) : (
+                          <>✅ <strong>모든 경기({totalSets}세트) 완료됨</strong></>
+                        )}
+                      </span>
+                      <button 
+                        type="button"
+                        onClick={() => toggleCourtCollapse(courtId)} 
+                        style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', textDecoration: 'underline' }}
+                      >
+                        전체 세트 펼치기 ({totalSets}세트)
+                      </button>
+                    </div>
+                  )}
 
-                        const teamBIdx = m.teamBId ? teamIndexMap[m.teamBId] : undefined;
-                        const teamBTheme = (teamBIdx !== undefined && teamBIdx >= 0) ? TEAM_COLORS[teamBIdx % TEAM_COLORS.length] : { bg: '#f8fafc', border: '#e2e8f0', text: 'var(--txt)', badgeBg: 'var(--red)' };
-                        
-                        return (
-                          <tr 
-                            key={setIdx} 
-                            style={{ 
-                              borderBottom: '1px solid #e2e8f0',
-                              cursor: isAdmin ? 'grab' : 'default',
-                              transition: 'background-color 0.2s'
-                            }}
-                            draggable={isAdmin}
-                            onDragStart={(e) => {
-                              if (!isAdmin) return;
-                              e.dataTransfer.setData('courtId', courtId);
-                              e.dataTransfer.setData('courtNum', courtNum);
-                              e.dataTransfer.setData('setIndex', setIdx);
-                              e.currentTarget.style.opacity = '0.5';
-                            }}
-                            onDragEnd={(e) => {
-                              e.currentTarget.style.opacity = '1';
-                            }}
-                            onDragOver={(e) => {
-                              if (isAdmin) e.preventDefault();
-                            }}
-                            onDragEnter={(e) => {
-                              if (isAdmin) e.currentTarget.style.backgroundColor = '#e0f2fe';
-                            }}
-                            onDragLeave={(e) => {
-                              if (isAdmin) e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
-                            onDrop={(e) => {
-                              if (!isAdmin) return;
-                              e.currentTarget.style.backgroundColor = 'transparent';
-                              const sourceCourtId = e.dataTransfer.getData('courtId');
-                              const sourceCourtNum = e.dataTransfer.getData('courtNum');
-                              const sourceSetIndex = parseInt(e.dataTransfer.getData('setIndex'));
+                  {setsToRender.length > 0 ? (
+                    <table className="table" style={{ width: '100%', minWidth: '320px', textAlign: 'center', fontSize: '12px', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#edf2f7' }}>
+                          <th style={{ width: '48px', padding: '6px 2px', fontSize: '11px' }}>시간</th>
+                          <th style={{ width: '38px', padding: '6px 2px', fontSize: '11px' }}>세트</th>
+                          <th style={{ padding: '6px 4px', fontSize: '11px' }}>대진</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {setsToRender.map((setIdx) => {
+                          const m = matchBySet[setIdx];
+                          const teamAPlayers = teamMap[m.teamAId]?.players || [];
+                          const teamBPlayers = teamMap[m.teamBId]?.players || [];
+
+                          const teamAIdx = m.teamAId ? teamIndexMap[m.teamAId] : undefined;
+                          const teamATheme = (teamAIdx !== undefined && teamAIdx >= 0) ? TEAM_COLORS[teamAIdx % TEAM_COLORS.length] : { bg: '#f8fafc', border: '#e2e8f0', text: 'var(--txt)', badgeBg: 'var(--blue)' };
+
+                          const teamBIdx = m.teamBId ? teamIndexMap[m.teamBId] : undefined;
+                          const teamBTheme = (teamBIdx !== undefined && teamBIdx >= 0) ? TEAM_COLORS[teamBIdx % TEAM_COLORS.length] : { bg: '#f8fafc', border: '#e2e8f0', text: 'var(--txt)', badgeBg: 'var(--red)' };
+
+                          return (
+                            <tr 
+                              key={setIdx} 
+                              style={{ 
+                                borderBottom: '1px solid #e2e8f0',
+                                cursor: isAdmin ? 'grab' : 'default',
+                                transition: 'background-color 0.2s',
+                                backgroundColor: isCollapsed ? '#fff' : 'transparent'
+                              }}
+                              draggable={isAdmin}
+                              onDragStart={(e) => {
+                                if (!isAdmin) return;
+                                e.dataTransfer.setData('courtId', courtId);
+                                e.dataTransfer.setData('courtNum', courtNum);
+                                e.dataTransfer.setData('setIndex', setIdx);
+                                e.currentTarget.style.opacity = '0.5';
+                              }}
+                              onDragEnd={(e) => {
+                                e.currentTarget.style.opacity = '1';
+                              }}
+                              onDragOver={(e) => {
+                                if (isAdmin) e.preventDefault();
+                              }}
+                              onDragEnter={(e) => {
+                                if (isAdmin) e.currentTarget.style.backgroundColor = '#e0f2fe';
+                              }}
+                              onDragLeave={(e) => {
+                                if (isAdmin) e.currentTarget.style.backgroundColor = isCollapsed ? '#fff' : 'transparent';
+                              }}
+                              onDrop={(e) => {
+                                if (!isAdmin) return;
+                                e.currentTarget.style.backgroundColor = isCollapsed ? '#fff' : 'transparent';
+                                const sourceCourtId = e.dataTransfer.getData('courtId');
+                                const sourceCourtNum = e.dataTransfer.getData('courtNum');
+                                const sourceSetIndex = parseInt(e.dataTransfer.getData('setIndex'));
+                                
+                                if (sourceCourtId !== courtId) {
+                                  alert('다른 코트로는 경기를 이동할 수 없습니다.');
+                                  return;
+                                }
+                                if (sourceSetIndex !== setIdx) {
+                                  handleSwapMatches(courtId, courtNum, sourceSetIndex, setIdx);
+                                }
+                              }}
+                            >
+                              <td style={{ padding: '6px 2px', fontSize: '11px', whiteSpace: 'nowrap', color: 'var(--txt2)' }}>
+                                {getSetTimeSlot(tournament.startTime, setIdx)}
+                              </td>
+                              <td style={{ padding: '6px 2px', fontWeight: 'bold', fontSize: '12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                                  {isAdmin && <span style={{ color: '#94a3b8', cursor: 'grab', fontSize: '11px', userSelect: 'none' }}>☰</span>}
+                                  <span>{setIdx}</span>
+                                </div>
+                              </td>
                               
-                              if (sourceCourtId !== courtId) {
-                                alert('다른 코트로는 경기를 이동할 수 없습니다.');
-                                return;
-                              }
-                              if (sourceSetIndex !== setIdx) {
-                                handleSwapMatches(courtId, courtNum, sourceSetIndex, setIdx);
-                              }
-                            }}
-                          >
-                            <td style={{ padding: '6px 2px', fontSize: '11px', whiteSpace: 'nowrap', color: 'var(--txt2)' }}>
-                              {getSetTimeSlot(tournament.startTime, setIdx)}
-                            </td>
-                            <td style={{ padding: '6px 2px', fontWeight: 'bold', fontSize: '12px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
-                                {isAdmin && <span style={{ color: '#94a3b8', cursor: 'grab', fontSize: '11px', userSelect: 'none' }}>☰</span>}
-                                <span>{setIdx}</span>
-                              </div>
-                            </td>
-                            
-                            <td style={{ padding: '6px 2px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', width: '100%' }}>
-                                {/* Team A Block: Team on top, Player 1 & Player 2 stacked vertically */}
-                                <div style={{ 
-                                  flex: 1, 
-                                  minWidth: '70px', 
-                                  display: 'flex', 
-                                  flexDirection: 'column', 
-                                  gap: '3px', 
-                                  border: `1.5px solid ${teamATheme.border}`, 
-                                  borderRadius: '6px', 
-                                  padding: '3px', 
-                                  backgroundColor: teamATheme.bg 
-                                }}>
+                              <td style={{ padding: '6px 2px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', width: '100%' }}>
+                                  {/* Team A Block */}
+                                  <div style={{ 
+                                    flex: 1, 
+                                    minWidth: '70px', 
+                                    display: 'flex', 
+                                    flexDirection: 'column', 
+                                    gap: '3px', 
+                                    border: `1.5px solid ${teamATheme.border}`, 
+                                    borderRadius: '6px', 
+                                    padding: '3px', 
+                                    backgroundColor: teamATheme.bg 
+                                  }}>
+                                    <select
+                                      className="input input-sm"
+                                      style={{ 
+                                        width: '100%', 
+                                        fontWeight: 'bold', 
+                                        fontSize: '12px', 
+                                        padding: '2px 4px', 
+                                        height: '26px', 
+                                        lineHeight: 'normal',
+                                        textAlign: 'center',
+                                        textAlignLast: 'center',
+                                        backgroundColor: '#fff',
+                                        borderColor: teamATheme.border,
+                                        color: teamATheme.text,
+                                        opacity: 1,
+                                        cursor: isAdmin ? 'pointer' : 'default',
+                                        pointerEvents: isAdmin ? 'auto' : 'none',
+                                        appearance: isAdmin ? 'auto' : 'none'
+                                      }}
+                                      value={m.teamAId || ''}
+                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamAId', e.target.value)}
+                                      disabled={!isAdmin}
+                                    >
+                                      <option value="">A팀</option>
+                                      {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                    
+                                    <select
+                                      className="input input-sm"
+                                      style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamATheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
+                                      value={m.playerA1 || ''}
+                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerA1', e.target.value)}
+                                      disabled={!isAdmin || !m.teamAId}
+                                    >
+                                      <option value="">선수1</option>
+                                      {teamAPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
+                                    </select>
+                                    
+                                    <select
+                                      className="input input-sm"
+                                      style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamATheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
+                                      value={m.playerA2 || ''}
+                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerA2', e.target.value)}
+                                      disabled={!isAdmin || !m.teamAId}
+                                    >
+                                      <option value="">선수2</option>
+                                      {teamAPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
+                                    </select>
+                                  </div>
+
+                                  {/* Score A */}
                                   <select
                                     className="input input-sm"
                                     style={{ 
-                                      width: '100%', 
+                                      width: '38px', 
+                                      height: '54px', 
+                                      textAlign: 'center', 
+                                      textAlignLast: 'center', 
+                                      fontSize: '14px', 
                                       fontWeight: 'bold', 
-                                      fontSize: '12px', 
-                                      padding: '2px 4px', 
-                                      height: '26px', 
-                                      lineHeight: 'normal',
-                                      textAlign: 'center',
-                                      textAlignLast: 'center',
-                                      backgroundColor: '#fff',
-                                      borderColor: teamATheme.border,
-                                      color: teamATheme.text,
+                                      padding: 0, 
+                                      borderRadius: '6px', 
+                                      flexShrink: 0,
                                       opacity: 1,
                                       cursor: isAdmin ? 'pointer' : 'default',
                                       pointerEvents: isAdmin ? 'auto' : 'none',
-                                      appearance: isAdmin ? 'auto' : 'none'
+                                      appearance: isAdmin ? 'auto' : 'none',
+                                      backgroundColor: m.scoreA !== null ? '#f8fafc' : '#ffffff',
+                                      color: m.scoreA !== null ? 'var(--blue)' : 'var(--txt3)'
                                     }}
-                                    value={m.teamAId || ''}
-                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamAId', e.target.value)}
-                                    disabled={!isAdmin}
+                                    value={m.scoreA !== null ? m.scoreA : ''}
+                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreA', e.target.value)}
+                                    disabled={!isAdmin || !m.teamAId || !m.teamBId}
                                   >
-                                    <option value="">A팀</option>
-                                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    <option value="">-</option>
+                                    {Array.from({ length: maxGames + 1 }).map((_, i) => (
+                                      <option key={i} value={i}>{i}</option>
+                                    ))}
                                   </select>
-                                  
-                                  <select
-                                    className="input input-sm"
-                                    style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamATheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
-                                    value={m.playerA1 || ''}
-                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerA1', e.target.value)}
-                                    disabled={!isAdmin || !m.teamAId}
-                                  >
-                                    <option value="">선수1</option>
-                                    {teamAPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
-                                  </select>
-                                  
-                                  <select
-                                    className="input input-sm"
-                                    style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamATheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
-                                    value={m.playerA2 || ''}
-                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerA2', e.target.value)}
-                                    disabled={!isAdmin || !m.teamAId}
-                                  >
-                                    <option value="">선수2</option>
-                                    {teamAPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
-                                  </select>
-                                </div>
 
-                                {/* Score A */}
-                                <select
-                                  className="input input-sm"
-                                  style={{ 
-                                    width: '38px', 
-                                    height: '54px', 
-                                    textAlign: 'center', 
-                                    textAlignLast: 'center', 
-                                    fontSize: '14px', 
-                                    fontWeight: 'bold', 
-                                    padding: 0, 
-                                    borderRadius: '6px', 
-                                    flexShrink: 0,
-                                    opacity: 1,
-                                    cursor: isAdmin ? 'pointer' : 'default',
-                                    pointerEvents: isAdmin ? 'auto' : 'none',
-                                    appearance: isAdmin ? 'auto' : 'none',
-                                    backgroundColor: m.scoreA !== null ? '#f8fafc' : '#ffffff',
-                                    color: m.scoreA !== null ? 'var(--blue)' : 'var(--txt3)'
-                                  }}
-                                  value={m.scoreA !== null ? m.scoreA : ''}
-                                  onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreA', e.target.value)}
-                                  disabled={!isAdmin || !m.teamAId || !m.teamBId}
-                                >
-                                  <option value="">-</option>
-                                  {Array.from({ length: maxGames + 1 }).map((_, i) => (
-                                    <option key={i} value={i}>{i}</option>
-                                  ))}
-                                </select>
+                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--txt3)', flexShrink: 0, padding: '0 1px' }}>vs</span>
 
-                                <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--txt3)', flexShrink: 0, padding: '0 1px' }}>vs</span>
-
-                                {/* Score B */}
-                                <select
-                                  className="input input-sm"
-                                  style={{ 
-                                    width: '38px', 
-                                    height: '54px', 
-                                    textAlign: 'center', 
-                                    textAlignLast: 'center', 
-                                    fontSize: '14px', 
-                                    fontWeight: 'bold', 
-                                    padding: 0, 
-                                    borderRadius: '6px', 
-                                    flexShrink: 0,
-                                    opacity: 1,
-                                    cursor: isAdmin ? 'pointer' : 'default',
-                                    pointerEvents: isAdmin ? 'auto' : 'none',
-                                    appearance: isAdmin ? 'auto' : 'none',
-                                    backgroundColor: m.scoreB !== null ? '#f8fafc' : '#ffffff',
-                                    color: m.scoreB !== null ? 'var(--red)' : 'var(--txt3)'
-                                  }}
-                                  value={m.scoreB !== null ? m.scoreB : ''}
-                                  onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreB', e.target.value)}
-                                  disabled={!isAdmin || !m.teamAId || !m.teamBId}
-                                >
-                                  <option value="">-</option>
-                                  {Array.from({ length: maxGames + 1 }).map((_, i) => (
-                                    <option key={i} value={i}>{i}</option>
-                                  ))}
-                                </select>
-
-                                {/* Team B Block: Team on top, Player 1 & Player 2 stacked vertically */}
-                                <div style={{ 
-                                  flex: 1, 
-                                  minWidth: '70px', 
-                                  display: 'flex', 
-                                  flexDirection: 'column', 
-                                  gap: '3px', 
-                                  border: `1.5px solid ${teamBTheme.border}`, 
-                                  borderRadius: '6px', 
-                                  padding: '3px', 
-                                  backgroundColor: teamBTheme.bg 
-                                }}>
+                                  {/* Score B */}
                                   <select
                                     className="input input-sm"
                                     style={{ 
-                                      width: '100%', 
+                                      width: '38px', 
+                                      height: '54px', 
+                                      textAlign: 'center', 
+                                      textAlignLast: 'center', 
+                                      fontSize: '14px', 
                                       fontWeight: 'bold', 
-                                      fontSize: '12px', 
-                                      padding: '2px 4px', 
-                                      height: '26px', 
-                                      lineHeight: 'normal',
-                                      textAlign: 'center',
-                                      textAlignLast: 'center',
-                                      backgroundColor: '#fff',
-                                      borderColor: teamBTheme.border,
-                                      color: teamBTheme.text,
+                                      padding: 0, 
+                                      borderRadius: '6px', 
+                                      flexShrink: 0,
                                       opacity: 1,
                                       cursor: isAdmin ? 'pointer' : 'default',
                                       pointerEvents: isAdmin ? 'auto' : 'none',
-                                      appearance: isAdmin ? 'auto' : 'none'
+                                      appearance: isAdmin ? 'auto' : 'none',
+                                      backgroundColor: m.scoreB !== null ? '#f8fafc' : '#ffffff',
+                                      color: m.scoreB !== null ? 'var(--red)' : 'var(--txt3)'
                                     }}
-                                    value={m.teamBId || ''}
-                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamBId', e.target.value)}
-                                    disabled={!isAdmin}
+                                    value={m.scoreB !== null ? m.scoreB : ''}
+                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreB', e.target.value)}
+                                    disabled={!isAdmin || !m.teamAId || !m.teamBId}
                                   >
-                                    <option value="">B팀</option>
-                                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    <option value="">-</option>
+                                    {Array.from({ length: maxGames + 1 }).map((_, i) => (
+                                      <option key={i} value={i}>{i}</option>
+                                    ))}
                                   </select>
-                                  
-                                  <select
-                                    className="input input-sm"
-                                    style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamBTheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
-                                    value={m.playerB1 || ''}
-                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerB1', e.target.value)}
-                                    disabled={!isAdmin || !m.teamBId}
-                                  >
-                                    <option value="">선수1</option>
-                                    {teamBPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
-                                  </select>
-                                  
-                                  <select
-                                    className="input input-sm"
-                                    style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamBTheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
-                                    value={m.playerB2 || ''}
-                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerB2', e.target.value)}
-                                    disabled={!isAdmin || !m.teamBId}
-                                  >
-                                    <option value="">선수2</option>
-                                    {teamBPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
-                                  </select>
+
+                                  {/* Team B Block */}
+                                  <div style={{ 
+                                    flex: 1, 
+                                    minWidth: '70px', 
+                                    display: 'flex', 
+                                    flexDirection: 'column', 
+                                    gap: '3px', 
+                                    border: `1.5px solid ${teamBTheme.border}`, 
+                                    borderRadius: '6px', 
+                                    padding: '3px', 
+                                    backgroundColor: teamBTheme.bg 
+                                  }}>
+                                    <select
+                                      className="input input-sm"
+                                      style={{ 
+                                        width: '100%', 
+                                        fontWeight: 'bold', 
+                                        fontSize: '12px', 
+                                        padding: '2px 4px', 
+                                        height: '26px', 
+                                        lineHeight: 'normal',
+                                        textAlign: 'center',
+                                        textAlignLast: 'center',
+                                        backgroundColor: '#fff',
+                                        borderColor: teamBTheme.border,
+                                        color: teamBTheme.text,
+                                        opacity: 1,
+                                        cursor: isAdmin ? 'pointer' : 'default',
+                                        pointerEvents: isAdmin ? 'auto' : 'none',
+                                        appearance: isAdmin ? 'auto' : 'none'
+                                      }}
+                                      value={m.teamBId || ''}
+                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamBId', e.target.value)}
+                                      disabled={!isAdmin}
+                                    >
+                                      <option value="">B팀</option>
+                                      {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                    
+                                    <select
+                                      className="input input-sm"
+                                      style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamBTheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
+                                      value={m.playerB1 || ''}
+                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerB1', e.target.value)}
+                                      disabled={!isAdmin || !m.teamBId}
+                                    >
+                                      <option value="">선수1</option>
+                                      {teamBPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
+                                    </select>
+                                    
+                                    <select
+                                      className="input input-sm"
+                                      style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamBTheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
+                                      value={m.playerB2 || ''}
+                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerB2', e.target.value)}
+                                      disabled={!isAdmin || !m.teamBId}
+                                    >
+                                      <option value="">선수2</option>
+                                      {teamBPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
+                                    </select>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '24px', marginBottom: '6px' }}>🏆</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#166534' }}>{courtNum}의 모든 경기({totalSets}세트)가 완료되었습니다!</div>
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-sm" 
+                        style={{ marginTop: '8px', fontSize: '11px' }}
+                        onClick={() => toggleCourtCollapse(courtId)}
+                      >
+                        📋 전체 세트 결과 펼쳐보기 ({totalSets}세트)
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1742,29 +1946,97 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
             {indViewMode === 'court' ? (
               <>
                 {courtDetails.map((court, cIdx) => {
+                  const courtId = court.id || `c-${cIdx+1}`;
                   const courtNum = court.name;
                   const courtMatches = matchesForRender
                     .filter(m => m.court === courtNum)
                     .sort((a, b) => (a.setIndex || a.round || 0) - (b.setIndex || b.round || 0));
 
+                  const isCollapsed = isCourtCollapsed(courtId);
+                  const completedMatches = courtMatches.filter(m => m.scoreA !== null && m.scoreB !== null);
+                  const activeMatch = courtMatches.find(m => m.scoreA === null || m.scoreB === null) || null;
+                  const activeMatchIdx = activeMatch ? courtMatches.indexOf(activeMatch) + 1 : null;
+                  const matchesToRender = isCollapsed
+                    ? (activeMatch ? [activeMatch] : [])
+                    : courtMatches;
+
                   return (
                     <div key={court.id || cIdx} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '14px', backgroundColor: '#f8fafc' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '6px' }}>
-                        <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
-                          🎾 {courtNum} 대진 ({courtMatches.length}경기)
-                        </h3>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
+                            🎾 {courtNum} 대진 ({courtMatches.length}경기)
+                          </h3>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{
+                              padding: '2px 8px',
+                              fontSize: '11px',
+                              height: '24px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              borderRadius: '12px',
+                              backgroundColor: isCollapsed ? '#e0f2fe' : '#fff',
+                              color: isCollapsed ? '#0369a1' : 'var(--txt)',
+                              borderColor: isCollapsed ? '#7dd3fc' : 'var(--border)',
+                              fontWeight: isCollapsed ? 'bold' : 'normal'
+                            }}
+                            onClick={() => toggleCourtCollapse(courtId)}
+                          >
+                            {isCollapsed ? '⚡ 진행중만 모아보기' : '📋 전체 펼쳐보기'}
+                            <span>{isCollapsed ? '▲' : '▼'}</span>
+                          </button>
+                        </div>
                         {courtMatches.length > 0 && (
                           <span style={{ fontSize: '12px', color: 'var(--txt3)', fontWeight: 600 }}>
                             시작 시간: ⏰ {formatMatchTimeSlot(tournament.startTime, courtMatches[0].setIndex || 1).split('~')[0].trim()}
                           </span>
                         )}
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {courtMatches.map(m => renderIndividualMatch(m))}
-                        {courtMatches.length === 0 && (
-                          <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '14px 0' }}>배정된 대진이 없습니다.</div>
-                        )}
-                      </div>
+
+                      {isCollapsed && (
+                        <div style={{ marginBottom: '10px', padding: '6px 10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                          <span>
+                            {activeMatch !== null ? (
+                              <>🔥 <strong>{activeMatch.setIndex || activeMatchIdx}경기</strong> 진행 중 ({completedMatches.length}경기 완료 / {courtMatches.length - activeMatchIdx}경기 대기)</>
+                            ) : (
+                              <>✅ <strong>모든 경기({courtMatches.length}경기) 완료됨</strong></>
+                            )}
+                          </span>
+                          <button 
+                            type="button"
+                            onClick={() => toggleCourtCollapse(courtId)} 
+                            style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', textDecoration: 'underline' }}
+                          >
+                            전체 경기 펼치기 ({courtMatches.length}경기)
+                          </button>
+                        </div>
+                      )}
+
+                      {matchesToRender.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {matchesToRender.map(m => renderIndividualMatch(m))}
+                        </div>
+                      ) : isCollapsed && courtMatches.length > 0 && activeMatch === null ? (
+                        <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                          <div style={{ fontSize: '24px', marginBottom: '6px' }}>🏆</div>
+                          <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#166534' }}>{courtNum}의 모든 경기({courtMatches.length}경기)가 완료되었습니다!</div>
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary btn-sm" 
+                            style={{ marginTop: '8px', fontSize: '11px' }}
+                            onClick={() => toggleCourtCollapse(courtId)}
+                          >
+                            📋 전체 경기 결과 펼쳐보기 ({courtMatches.length}경기)
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '14px 0' }}>
+                          배정된 대진이 없습니다.
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1814,6 +2086,13 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
                   const isOver = dragOverRound === r;
                   const isBeingDragged = draggingRound === r;
+                  const completedInRound = roundMatches.filter(m => m.scoreA !== null && m.scoreB !== null);
+                  const activeInRound = roundMatches.filter(m => m.scoreA === null || m.scoreB === null);
+                  const isRoundDone = roundMatches.length > 0 && activeInRound.length === 0;
+
+                  const matchesToRender = activeOnlyMode
+                    ? activeInRound
+                    : roundMatches;
 
                   return (
                     <div
@@ -1850,13 +2129,36 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                         <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
                           {isAdmin && <span style={{ color: 'var(--txt3)', fontSize: '12px', cursor: 'grab' }}>☰</span>}
                           🔄 {r}라운드 대진 ({roundMatches.length}경기)
+                          {isRoundDone && (
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '10px' }}>
+                              ✅ 완료
+                            </span>
+                          )}
                         </h3>
                         <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
                           {isAdmin ? '드래그하여 라운드 순서 변경 가능' : ''}
                         </span>
                       </div>
+
+                      {activeOnlyMode && (
+                        <div style={{ marginBottom: '10px', padding: '6px 10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                          <span>
+                            {!isRoundDone ? (
+                              <>🔥 <strong>{activeInRound.length}경기 진행 중</strong> ({completedInRound.length}경기 완료)</>
+                            ) : (
+                              <>✅ <strong>{r}라운드 모든 경기({roundMatches.length}경기) 완료됨</strong></>
+                            )}
+                          </span>
+                        </div>
+                      )}
+
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {roundMatches.map(m => renderIndividualMatch(m))}
+                        {matchesToRender.map(m => renderIndividualMatch(m))}
+                        {matchesToRender.length === 0 && roundMatches.length > 0 && activeOnlyMode && isRoundDone && (
+                          <div style={{ padding: '16px', textAlign: 'center', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12px', color: '#166534', fontWeight: 'bold' }}>
+                            🏆 {r}라운드의 모든 경기가 완료되었습니다.
+                          </div>
+                        )}
                         {roundMatches.length === 0 && (
                           <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '14px 0' }}>해당 라운드에 대진이 없습니다.</div>
                         )}
@@ -1969,6 +2271,43 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
             </table>
           </div>
         )}
+
+        {/* 하단 액션 버튼 바 (이전 단계의 버튼 크기와 동일하게 매칭 및 하단 배치) */}
+        <div style={{ marginTop: '28px', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+          {isAdmin ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  if (confirm('이전 설정 단계로 돌아가시겠습니까? 현재 입력된 점수는 보존됩니다.')) {
+                    onUpdate({ status: type === 'team' ? 'picking' : 'draft' });
+                  }
+                }}
+              >
+                👈 이전 ({type === 'team' ? '팀원 배정' : '참석자/코트 설정'})
+              </button>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={handleSave}
+                >
+                  저장
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleFinish}
+                >
+                  대회 종료 🏁
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', color: 'var(--txt2)', padding: '12px', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              🎾 실시간 경기 진행 및 순위 집계 중입니다. (실시간 동기화 중)
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

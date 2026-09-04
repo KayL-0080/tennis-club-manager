@@ -59,7 +59,7 @@ export default function BracketTab({
   schedule, setSchedule, scores, setScores,
   members, participants, lastGenStats,
   scheduleRounds, scheduleCourts, setScheduleRounds, setScheduleCourts,
-  onSave, onPrint, isAdmin,
+  onSave, onPrint, isAdmin, isReadOnly, isPastMatch,
 }) {
   const byId = useMemo(() => {
     const m = {}; members.forEach(p => m[p.id] = p); return m;
@@ -91,6 +91,7 @@ export default function BracketTab({
   );
 
   const handleDragEnd = (event) => {
+    if (isReadOnly || !isAdmin) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -123,6 +124,7 @@ export default function BracketTab({
     roundIdsRef.current = arrayMove(roundIdsRef.current, oldIndex, newIndex);
     setScores(remappedScores);
     setSchedule(newSchedule);
+    if (onSave) onSave({ schedule: newSchedule, scores: remappedScores });
   };
 
 
@@ -159,8 +161,9 @@ export default function BracketTab({
     return map;
   }, [schedule]);
 
-  /* ── 이벤트 핸들러 ── */
+  /* ── 이벤트 핸들러 (입력 즉시 자동 저장 및 실시간 동기화) ── */
   const onPlayerSelect = (ri, ci, team, slot, value) => {
+    if (isReadOnly) return;
     if (value) {
       const currentMatch = schedule[ri]?.[ci];
       const playerName = byId[value]?.name || '선수';
@@ -220,52 +223,75 @@ export default function BracketTab({
       return updated;
     }));
     setSchedule(next);
+    if (onSave) onSave({ schedule: next });
   };
 
   const onScore = (ri, ci, team, value) => {
+    if (isReadOnly) return;
     const key = `${ri}-${ci}`;
-    setScores(prev => ({
-      ...prev,
-      [key]: { ...(prev[key] || { a: null, b: null }), [team]: value === '' ? null : Number(value) },
-    }));
+    const nextVal = value === '' ? null : Number(value);
+    const newScores = {
+      ...scores,
+      [key]: { ...(scores[key] || { a: null, b: null }), [team]: nextVal },
+    };
+    setScores(newScores);
+    if (onSave) onSave({ scores: newScores });
   };
 
   /* ── 라운드/코트 편집 ── */
   const addRound = () => {
+    if (isReadOnly || !isAdmin) return;
     const newRound = Array.from({ length: courts }, makeEmptyMatch);
-    setSchedule(prev => [...prev, newRound]);
+    const next = [...schedule, newRound];
+    setSchedule(next);
     setScheduleRounds(prev => prev + 1);
+    if (onSave) onSave({ schedule: next, scheduleRounds_: (scheduleRounds || schedule.length) + 1 });
   };
   const removeRound = () => {
+    if (isReadOnly || !isAdmin) return;
     if (!confirm('마지막 라운드를 삭제할까요?')) return;
     const ri = schedule.length - 1;
-    setScores(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(k => { if (k.startsWith(ri + '-')) delete next[k]; });
-      return next;
-    });
-    setSchedule(prev => prev.slice(0, -1));
+    const nextScores = { ...scores };
+    Object.keys(nextScores).forEach(k => { if (k.startsWith(ri + '-')) delete nextScores[k]; });
+    const nextSchedule = schedule.slice(0, -1);
+    setScores(nextScores);
+    setSchedule(nextSchedule);
     setScheduleRounds(prev => prev - 1);
+    if (onSave) onSave({ schedule: nextSchedule, scores: nextScores, scheduleRounds_: Math.max(0, (scheduleRounds || schedule.length) - 1) });
   };
   const addCourt = () => {
-    setSchedule(prev => prev.map(r => [...r, makeEmptyMatch()]));
+    if (isReadOnly || !isAdmin) return;
+    const next = schedule.map(r => [...r, makeEmptyMatch()]);
+    setSchedule(next);
     setScheduleCourts(prev => prev + 1);
+    if (onSave) onSave({ schedule: next, scheduleCourts_: (scheduleCourts || courts) + 1 });
   };
   const removeCourt = () => {
+    if (isReadOnly || !isAdmin) return;
     if (courts <= 1) { alert('코트가 1개뿐입니다.'); return; }
     if (!confirm('마지막 코트를 삭제할까요?')) return;
     const ci = courts - 1;
-    setScores(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(k => { if (k.endsWith('-' + ci)) delete next[k]; });
-      return next;
-    });
-    setSchedule(prev => prev.map(r => r.slice(0, -1)));
+    const nextScores = { ...scores };
+    Object.keys(nextScores).forEach(k => { if (k.endsWith('-' + ci)) delete nextScores[k]; });
+    const nextSchedule = schedule.map(r => r.slice(0, -1));
+    setScores(nextScores);
+    setSchedule(nextSchedule);
     setScheduleCourts(prev => prev - 1);
+    if (onSave) onSave({ schedule: nextSchedule, scores: nextScores, scheduleCourts_: Math.max(1, (scheduleCourts || courts) - 1) });
   };
   const clearScores = () => {
+    if (isReadOnly || !isAdmin) return;
     if (!confirm('점수를 모두 지울까요?')) return;
     setScores({});
+    if (onSave) onSave({ scores: {} });
+  };
+  const clearSchedule = () => {
+    if (isReadOnly || !isAdmin) return;
+    if (confirm('정말로 전체 대진표를 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)')) {
+      setSchedule([]);
+      setScores({});
+      if (onSave) onSave({ schedule: [], scores: {} });
+    }
   };
 
   /* ── 선수 선택 옵션 ── */
@@ -307,12 +333,6 @@ export default function BracketTab({
       alert('이 브라우저에서는 기본 공유 기능을 지원하지 않습니다. URL 복사를 이용해주세요.');
     }
   };
-  const clearSchedule = () => {
-    if (confirm('정말로 전체 대진표를 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)')) {
-      setSchedule([]);
-      setScores({});
-    }
-  };
 
   return (
     <div>
@@ -322,9 +342,32 @@ export default function BracketTab({
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <div className={styles.toolbarGroup} style={{ flex: 1, minWidth: 200 }}>
-              <span className={styles.toolbarLabel}>데이터 관리</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className={styles.toolbarLabel}>데이터 관리</span>
+                {isReadOnly ? (
+                  <span style={{ fontSize: '11px', color: '#64748b', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '1px 7px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
+                    🔒 읽기 전용 (수정 불가)
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '11px', color: '#16a34a', backgroundColor: '#dcfce7', padding: '1px 7px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#16a34a', display: 'inline-block' }}></span>
+                    실시간 자동 저장 중
+                  </span>
+                )}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? 'repeat(3, 1fr)' : '1fr', gap: '8px' }}>
-                <button className="btn btn-primary btn-sm" onClick={async () => { await onSave(); alert('저장되었습니다.'); }}>💾 저장</button>
+                <button 
+                  className="btn btn-primary btn-sm" 
+                  disabled={isReadOnly}
+                  style={isReadOnly ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                  onClick={async () => { 
+                    if (isReadOnly) return;
+                    await onSave(); 
+                    alert('저장되었습니다.'); 
+                  }}
+                >
+                  💾 수동 저장
+                </button>
                 {isAdmin && (
                   <>
                     <button className="btn btn-secondary btn-sm" onClick={clearScores}>점수 초기화</button>
@@ -347,7 +390,29 @@ export default function BracketTab({
 
       {/* 대진표 */}
       <div className={`card ${styles.section}`}>
-        <h2 className={styles.sectionTitle}>대진표 <span className={styles.sectionNote}>(선수·점수 직접 수정 가능)</span></h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+          <h2 className={styles.sectionTitle} style={{ margin: 0, border: 'none', padding: 0 }}>
+            대진표 <span className={styles.sectionNote}>{isReadOnly ? '(종료된 경기 기록)' : '(선수·점수 입력 즉시 전원에게 실시간 반영)'}</span>
+          </h2>
+          {isReadOnly ? (
+            <span style={{ fontSize: '11.5px', color: '#64748b', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '3px 10px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
+              🔒 읽기 전용 모드
+            </span>
+          ) : (
+            <span style={{ fontSize: '11.5px', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '3px 10px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
+              ⚡ 모바일 실시간 동기화 ON
+            </span>
+          )}
+        </div>
+
+        {isReadOnly && (
+          <div style={{ marginBottom: '14px', padding: '10px 14px', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#475569', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }} className="no-print">
+            <span style={{ fontSize: '16px' }}>🔒</span>
+            <span>
+              <strong>종료된 경기 기록 (읽기 전용):</strong> 지난 경기 기록은 일반 사용자의 점수 수정, 저장, 초기화, 삭제가 비활성화됩니다.
+            </span>
+          </div>
+        )}
 
         {Object.keys(roundConflicts).length > 0 && (
           <div style={{ marginBottom: '14px', padding: '10px 14px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#991b1b', fontSize: '13px' }} className="no-print">
@@ -407,7 +472,10 @@ export default function BracketTab({
                               const pId = m.teamA[slot];
                               const isDup = pId && roundConflicts[ri]?.[pId];
                               return (
-                                <select key={slot} className={`${styles.playerSel} ${styles.bgTeamA}`}
+                                <select 
+                                  key={slot} 
+                                  disabled={isReadOnly}
+                                  className={`${styles.playerSel} ${styles.bgTeamA}`}
                                   style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
                                   value={pId || ''}
                                   onChange={e => onPlayerSelect(ri, ci, 'a', slot, e.target.value)}>
@@ -418,13 +486,17 @@ export default function BracketTab({
                           </div>
                           {/* 스코어 */}
                           <div className={styles.scoreRow}>
-                            <select className={styles.scoreInput}
+                            <select 
+                              disabled={isReadOnly}
+                              className={styles.scoreInput}
                               value={sc.a === null || sc.a === undefined ? '' : sc.a}
                               onChange={e => onScore(ri, ci, 'a', e.target.value)}>
                               {scoreOptions()}
                             </select>
                             <span className={styles.scoreSep}>:</span>
-                            <select className={styles.scoreInput}
+                            <select 
+                              disabled={isReadOnly}
+                              className={styles.scoreInput}
                               value={sc.b === null || sc.b === undefined ? '' : sc.b}
                               onChange={e => onScore(ri, ci, 'b', e.target.value)}>
                               {scoreOptions()}
@@ -436,7 +508,10 @@ export default function BracketTab({
                               const pId = m.teamB[slot];
                               const isDup = pId && roundConflicts[ri]?.[pId];
                               return (
-                                <select key={slot} className={`${styles.playerSel} ${styles.bgTeamB}`}
+                                <select 
+                                  key={slot} 
+                                  disabled={isReadOnly}
+                                  className={`${styles.playerSel} ${styles.bgTeamB}`}
                                   style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
                                   value={pId || ''}
                                   onChange={e => onPlayerSelect(ri, ci, 'b', slot, e.target.value)}>
