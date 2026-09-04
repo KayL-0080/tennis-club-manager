@@ -2,7 +2,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getMembers, getEvents, createEvent, updateEventAttendees, updateEvent, deleteEvent, getMonthlyFinance, updateMonthlyFinance } from '@/lib/firestore';
+import {
+  getMembers, getEvents, createEvent, updateEventAttendees, updateEvent, deleteEvent,
+  getMonthlyFinance, updateMonthlyFinance, getMeetingRules, updateMeetingRules
+} from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
 
@@ -43,7 +46,18 @@ export default function VotesPage() {
   const [editEndTime, setEditEndTime] = useState('');
   const [editLocation, setEditLocation] = useState('');
   
+  // Meeting Rules State (클럽 정기 모임 설정)
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [meetingRules, setMeetingRules] = useState([]);
+  const [newRuleDay, setNewRuleDay] = useState(2); // 2 = 화요일
+  const [newRuleTitle, setNewRuleTitle] = useState('정기 모임 (화)');
+  const [newRuleStartTime, setNewRuleStartTime] = useState('18:00');
+  const [newRuleEndTime, setNewRuleEndTime] = useState('20:00');
+  const [newRuleLocation, setNewRuleLocation] = useState('별도 테니스장');
+  const [savingRules, setSavingRules] = useState(false);
+
+  const DAY_NAMES = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+  const DAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
 
   useEffect(() => {
     setMounted(true);
@@ -57,26 +71,30 @@ export default function VotesPage() {
       validMembers.sort((a, b) => a.name.localeCompare(b.name));
       setMembers(validMembers);
       
+      const rules = await getMeetingRules();
+      setMeetingRules(rules);
+
       const evts = await getEvents('shared');
       
-      // Auto-generate missing events for the next 6 weeks
+      // Auto-generate missing events for the next 6 weeks based on meetingRules
       const now = new Date();
       const generated = [];
       for (let i = 0; i < 42; i++) {
         const d = new Date(now);
         d.setDate(d.getDate() + i);
-        const day = d.getDay(); // 2=Tue, 4=Thu
-        if (day === 2 || day === 4) {
+        const day = d.getDay();
+        const matchingRules = (rules || []).filter(r => r.enabled !== false && Number(r.day) === day);
+        
+        for (const rule of matchingRules) {
           const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
-          // Check if event exists
-          if (!evts.find(e => e.date === dateStr)) {
-            // Auto create
+          // Check if event already exists for this date and title
+          if (!evts.find(e => e.date === dateStr && (e.title === rule.title || !rule.title))) {
             const newEvent = {
               date: dateStr,
-              title: `정기 모임 (${day === 2 ? '화' : '목'})`,
-              startTime: day === 2 ? '18:00' : '19:00',
-              endTime: day === 2 ? '20:00' : '22:00',
-              location: day === 2 ? '별도 테니스장' : '그린테니스장',
+              title: rule.title || `정기 모임 (${rule.dayName || DAY_SHORT[day]})`,
+              startTime: rule.startTime || '19:00',
+              endTime: rule.endTime || '22:00',
+              location: rule.location || '그린테니스장',
               attendees: {}
             };
             const id = await createEvent('shared', newEvent);
@@ -98,6 +116,45 @@ export default function VotesPage() {
       setFetching(false);
     }
   }, []);
+
+  const handleAddMeetingRule = () => {
+    if (!newRuleStartTime || !newRuleEndTime) {
+      alert('시작 시간과 종료 시간을 입력해주세요.');
+      return;
+    }
+    const dayNum = Number(newRuleDay);
+    const newRule = {
+      id: 'rule_' + Date.now(),
+      day: dayNum,
+      dayName: DAY_NAMES[dayNum],
+      title: newRuleTitle || `정기 모임 (${DAY_SHORT[dayNum]})`,
+      startTime: newRuleStartTime,
+      endTime: newRuleEndTime,
+      location: newRuleLocation || '그린테니스장',
+      enabled: true
+    };
+    setMeetingRules(prev => [...prev, newRule].sort((a, b) => a.day - b.day));
+  };
+
+  const handleRemoveMeetingRule = (ruleId) => {
+    if (!confirm('이 모임 요일 설정을 삭제하시겠습니까?')) return;
+    setMeetingRules(prev => prev.filter(r => r.id !== ruleId));
+  };
+
+  const handleSaveMeetingRules = async () => {
+    setSavingRules(true);
+    try {
+      await updateMeetingRules(meetingRules);
+      alert('클럽 정기 모임 설정이 저장되었습니다.\n향후 6주간의 일정이 새로 갱신됩니다.');
+      setShowSettingsModal(false);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to save meeting rules:', err);
+      alert('설정 저장 중 오류가 발생했습니다: ' + err.message);
+    } finally {
+      setSavingRules(false);
+    }
+  };
 
   useEffect(() => {
     if (showMonthlyTableModal && selectedMonth !== 'ALL') {
@@ -440,37 +497,171 @@ export default function VotesPage() {
 
       </main>
 
-      {/* 클럽 모임 설정 모달 */}
-      {showSettingsModal && (
-        <div className="modal-overlay" onClick={() => setShowSettingsModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', width: '100%' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>클럽 모임 설정</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '16px' }}>정기 모임 일정 자동 생성 규칙 및 기본 설정을 변경합니다.</p>
-              
-              <div className="form-group">
-                <label>정기 모임 요일</label>
-                <input className="input" defaultValue="화요일, 목요일" disabled />
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>※ 현재 요일 변경은 시스템 관리자에게 문의하세요.</p>
-              </div>
-              
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                <button className="btn btn-secondary" onClick={() => setShowSettingsModal(false)}>닫기</button>
-                <button className="btn btn-primary" onClick={() => { alert('저장되었습니다.'); setShowSettingsModal(false); }}>저장</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 투표 및 일정 편집 모달 */}
-      {(selectedEvent || isEditing) && !showSettingsModal && (
-        <div className="modal-overlay" onClick={() => { setIsEditing(false); setSelectedEvent(null); }}>
+      {/* 투표 / 설정 / 수정 모달 */}
+      {(selectedEvent || isEditing || showSettingsModal) && (
+        <div className="modal-overlay" onClick={() => { setIsEditing(false); setShowSettingsModal(false); setSelectedEvent(null); }}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', width: '100%', maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden' }}>
             
-            {isEditing ? (
+            {showSettingsModal ? (
+              <div style={{ marginBottom: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>⚙️ 클럽 정기 모임 설정</h2>
+                  <button className="modal-close" onClick={() => setShowSettingsModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', marginBottom: '16px', lineHeight: '1.5' }}>
+                  정기 모임의 요일, 시간, 기본 장소를 추가하거나 삭제할 수 있습니다. 저장 시 설정된 규칙에 따라 <strong>향후 6주간의 투표 일정</strong>이 자동으로 생성·관리됩니다.
+                </p>
+                
+                {/* 현재 설정된 정기 모임 목록 */}
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13.5px', marginBottom: '8px', color: 'var(--txt)' }}>
+                    📅 현재 설정된 정기 모임 요일 ({meetingRules.length}개)
+                  </label>
+                  
+                  {meetingRules.length === 0 ? (
+                    <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      설정된 정기 모임이 없습니다. 아래에서 새 모임 요일을 추가해주세요.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {meetingRules.map((rule) => {
+                        const isWeekend = rule.day === 0 || rule.day === 6;
+                        return (
+                          <div 
+                            key={rule.id}
+                            style={{ 
+                              background: '#ffffff', 
+                              padding: '10px 14px', 
+                              borderRadius: '8px', 
+                              border: '1px solid var(--border)', 
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              gap: '8px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span className={isWeekend ? 'badge badge-green' : 'badge badge-blue'} style={{ fontSize: '11px', padding: '2px 7px' }}>
+                                  {rule.dayName || DAY_NAMES[rule.day]}
+                                </span>
+                                <strong style={{ fontSize: '14px', color: 'var(--txt)' }}>{rule.title}</strong>
+                              </div>
+                              <div style={{ fontSize: '12.5px', color: 'var(--txt2)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                <span>⏰ {rule.startTime} ~ {rule.endTime}</span>
+                                <span>📍 {rule.location}</span>
+                              </div>
+                            </div>
+                            <button 
+                              className="btn btn-danger btn-sm" 
+                              style={{ padding: '3px 8px', fontSize: '11.5px' }}
+                              onClick={() => handleRemoveMeetingRule(rule.id)}
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 새 정기 모임 추가 폼 */}
+                <div style={{ background: 'rgba(0, 122, 255, 0.04)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(0, 122, 255, 0.2)', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 10px 0', color: 'var(--ios-blue)' }}>
+                    ➕ 새 모임 요일/시간 추가
+                  </h3>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '8px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>요일</label>
+                      <select 
+                        className="input input-sm" 
+                        value={newRuleDay} 
+                        onChange={e => {
+                          const d = Number(e.target.value);
+                          setNewRuleDay(d);
+                          setNewRuleTitle(`정기 모임 (${DAY_SHORT[d]})`);
+                        }}
+                      >
+                        {DAY_NAMES.map((name, idx) => (
+                          <option key={idx} value={idx}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>모임 제목</label>
+                      <input 
+                        className="input input-sm" 
+                        value={newRuleTitle} 
+                        onChange={e => setNewRuleTitle(e.target.value)} 
+                        placeholder="예: 정기 모임 (토)" 
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '8px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>시작 시간</label>
+                      <input 
+                        type="time" 
+                        className="input input-sm" 
+                        value={newRuleStartTime} 
+                        onChange={e => setNewRuleStartTime(e.target.value)} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>종료 시간</label>
+                      <input 
+                        type="time" 
+                        className="input input-sm" 
+                        value={newRuleEndTime} 
+                        onChange={e => setNewRuleEndTime(e.target.value)} 
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '160px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>기본 장소</label>
+                      <input 
+                        className="input input-sm" 
+                        value={newRuleLocation} 
+                        onChange={e => setNewRuleLocation(e.target.value)} 
+                        placeholder="예: 그린테니스장" 
+                      />
+                    </div>
+                    <button 
+                      type="button"
+                      className="btn btn-primary btn-sm" 
+                      style={{ padding: '6px 14px', fontSize: '12.5px' }}
+                      onClick={handleAddMeetingRule}
+                    >
+                      + 요일 추가
+                    </button>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button className="btn btn-secondary" onClick={() => setShowSettingsModal(false)}>닫기</button>
+                  <button 
+                    className="btn btn-primary" 
+                    disabled={savingRules}
+                    onClick={handleSaveMeetingRules}
+                  >
+                    {savingRules ? '저장 및 생성 중...' : '💾 설정 저장 & 일정 적용'}
+                  </button>
+                </div>
+              </div>
+            ) : isEditing ? (
               <div style={{ marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>일정 수정</h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>{selectedEvent ? '일정 수정' : '새 투표 만들기'}</h2>
+                  <button className="modal-close" onClick={() => setIsEditing(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
+                </div>
                 <div className="form-group">
                   <label>제목</label>
                   <input className="input" value={editTitle} onChange={e => setEditTitle(e.target.value)} />
@@ -498,7 +689,7 @@ export default function VotesPage() {
                   <button className="btn btn-primary" onClick={saveEdit}>저장</button>
                 </div>
               </div>
-            ) : (
+            ) : selectedEvent ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ flex: '1 1 auto', minWidth: 0 }}>
@@ -512,12 +703,15 @@ export default function VotesPage() {
                       ⏰ {selectedEvent.startTime} ~ {selectedEvent.endTime} <br/> 📍 {selectedEvent.location}
                     </p>
                   </div>
-                  {isAdmin && (
-                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                      <button className="btn btn-secondary btn-sm" onClick={() => setIsEditing(true)}>수정</button>
-                      <button className="btn btn-danger btn-sm" onClick={removeEvent}>삭제</button>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+                    {isAdmin && (
+                      <>
+                        <button className="btn btn-secondary btn-sm" onClick={() => setIsEditing(true)}>수정</button>
+                        <button className="btn btn-danger btn-sm" onClick={removeEvent}>삭제</button>
+                      </>
+                    )}
+                    <button className="modal-close" onClick={() => setSelectedEvent(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)', marginLeft: '4px' }}>&times;</button>
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--bg)', borderRadius: '8px', fontSize: '14px' }}>
@@ -594,7 +788,7 @@ export default function VotesPage() {
                   <button className="btn btn-primary" onClick={() => setSelectedEvent(null)}>닫기</button>
                 </div>
               </>
-            )}
+            ) : null}
 
           </div>
         </div>
