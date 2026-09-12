@@ -343,6 +343,23 @@
   opacity: 1;
 }
 
+/* ── 지난 투표 카드 연한 회색 스타일 ── */
+.pastVoteCard {
+  background: rgba(243, 244, 246, 0.92) !important;
+  border-color: rgba(209, 213, 219, 0.85) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+}
+
+.pastVoteCard::before {
+  background: linear-gradient(90deg, #9ca3af, #cbd5e1, #9ca3af) !important;
+  opacity: 0.65 !important;
+}
+
+.pastVoteCard:hover {
+  border-color: rgba(156, 163, 175, 0.5) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+}
+
 .voteTop {
   display: flex;
   gap: 10px;

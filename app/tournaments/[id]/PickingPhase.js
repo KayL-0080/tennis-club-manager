@@ -11,6 +11,208 @@ export const TEAM_COLORS = [
   { bg: 'rgba(99, 99, 102, 0.08)', border: 'rgba(99, 99, 102, 0.35)', text: '#3a3a3c', badgeBg: '#636366', tagBg: 'rgba(99, 99, 102, 0.15)', tagText: '#3a3a3c', glow: 'rgba(99, 99, 102, 0.25)' }, // 8조 (iOS Gray)
 ];
 
+export function generateTournamentSchedule(teams, courtDetails, gamesCount, requestedCourtSets) {
+  const teamList = teams || [];
+  const N = teamList.length;
+  const courts = courtDetails && courtDetails.length > 0 ? courtDetails : [
+    { id: 'c1', name: '1코트', games: 2 },
+    { id: 'c2', name: '2코트', games: 2 }
+  ];
+
+  const targetMatchesPerTeam = gamesCount || (N <= 3 ? Math.max(1, N - 1) : 3);
+  const numCourts = courts.length || 1;
+  const totalMatchesCount = Math.ceil((N * targetMatchesPerTeam) / 2);
+  const calculatedSetsPerCourt = Math.max(1, Math.ceil(totalMatchesCount / numCourts));
+
+  // Determine effective max sets per court respecting court.games strictly
+  const effectiveCourtSets = {};
+  courts.forEach((c, idx) => {
+    const cId = c.id || `c-${idx + 1}`;
+    const req = requestedCourtSets?.[cId];
+    effectiveCourtSets[cId] = req !== undefined ? req : (c.games !== undefined ? c.games : calculatedSetsPerCourt);
+  });
+
+  if (N < 2) {
+    const maxSets = Math.max(...courts.map(c => effectiveCourtSets[c.id || 'c-1'] || 2));
+    const emptyMatches = [];
+    for (let s = 1; s <= maxSets; s++) {
+      courts.forEach((court, cIdx) => {
+        const courtId = court.id || `c-${cIdx + 1}`;
+        const maxCourtGames = effectiveCourtSets[courtId] || 2;
+        if (s <= maxCourtGames) {
+          emptyMatches.push({
+            id: `court-${courtId}-set-${s}`,
+            court: court.name,
+            courtId,
+            setIndex: s,
+            teamAId: '',
+            teamBId: '',
+            playerA1: null,
+            playerA2: null,
+            playerB1: null,
+            playerB2: null,
+            scoreA: null,
+            scoreB: null
+          });
+        }
+      });
+    }
+    return emptyMatches;
+  }
+
+  // 1. Generate standard round-robin match pairings using Berger / Circle method
+  const isOdd = N % 2 !== 0;
+  const list = isOdd ? [...teamList, null] : [...teamList];
+  const totalSlots = list.length;
+  const singleCycleRounds = Math.max(1, totalSlots - 1);
+
+  const allRoundMatches = [];
+  const cyclesNeeded = Math.ceil(targetMatchesPerTeam / Math.max(1, N - 1));
+  const totalRounds = singleCycleRounds * cyclesNeeded;
+  const teamAppearanceCount = {};
+  teamList.forEach(t => teamAppearanceCount[t.id] = 0);
+
+  for (let r = 0; r < totalRounds; r++) {
+    const cycleRound = r % singleCycleRounds;
+    for (let i = 0; i < totalSlots / 2; i++) {
+      const idxA = (cycleRound + i) % (totalSlots - 1);
+      let idxB = (totalSlots - 1 - i + cycleRound) % (totalSlots - 1);
+      if (i === 0) {
+        idxB = totalSlots - 1;
+      }
+
+      const teamA = list[idxA];
+      const teamB = list[idxB];
+
+      if (teamA && teamB) {
+        if (teamAppearanceCount[teamA.id] >= targetMatchesPerTeam && teamAppearanceCount[teamB.id] >= targetMatchesPerTeam) {
+          continue;
+        }
+
+        const nextIdxA = (teamAppearanceCount[teamA.id] % targetMatchesPerTeam) + 1;
+        const nextIdxB = (teamAppearanceCount[teamB.id] % targetMatchesPerTeam) + 1;
+
+        teamAppearanceCount[teamA.id]++;
+        teamAppearanceCount[teamB.id]++;
+
+        const luA = teamA.lineups?.[nextIdxA] || {};
+        const luB = teamB.lineups?.[nextIdxB] || {};
+
+        allRoundMatches.push({
+          round: r + 1,
+          matchInRound: i + 1,
+          teamAId: teamA.id,
+          teamBId: teamB.id,
+          playerA1: null,
+          playerA2: null,
+          playerB1: null,
+          playerB2: null,
+          scoreA: null,
+          scoreB: null
+        });
+      }
+    }
+  }
+
+  // 2. Assign matches to (court, setIndex) slots strictly preventing player conflict
+  const courtOccupied = {}; // { [setIndex]: { [courtName]: true } }
+  const playerOccupied = {};// { [setIndex]: Set<playerId> }
+  const courtMatchCount = {};
+  courts.forEach(c => courtMatchCount[c.id || c.name] = 0);
+
+  const scheduledMatches = [];
+
+  allRoundMatches.forEach((m) => {
+    const matchPlayers = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
+
+    let targetSet = 1;
+    let assignedCourt = null;
+
+    while (!assignedCourt && targetSet < 100) {
+      const hasPlayerConflict = matchPlayers.length > 0 && matchPlayers.some(pId => playerOccupied[targetSet] && playerOccupied[targetSet].has(pId));
+
+      if (!hasPlayerConflict) {
+        // Sort courts by least total assigned matches to distribute load evenly across all courts
+        const sortedCourts = [...courts].sort((a, b) => {
+          const countA = courtMatchCount[a.id || a.name] || 0;
+          const countB = courtMatchCount[b.id || b.name] || 0;
+          return countA - countB;
+        });
+
+        for (const court of sortedCourts) {
+          const cName = court.name;
+          const cId = court.id || `c-1`;
+          const maxCourtGames = effectiveCourtSets[cId] || 2;
+          if (!courtOccupied[targetSet]?.[cName] && targetSet <= maxCourtGames) {
+            assignedCourt = court;
+            break;
+          }
+        }
+      }
+
+      if (!assignedCourt) {
+        targetSet++;
+      }
+    }
+
+    if (assignedCourt) {
+      const courtId = assignedCourt.id || `c-1`;
+      m.court = assignedCourt.name;
+      m.courtId = courtId;
+      m.setIndex = targetSet;
+      m.id = `court-${courtId}-set-${targetSet}`;
+
+      if (!courtOccupied[targetSet]) courtOccupied[targetSet] = {};
+      courtOccupied[targetSet][assignedCourt.name] = true;
+
+      courtMatchCount[courtId] = (courtMatchCount[courtId] || 0) + 1;
+
+      if (!playerOccupied[targetSet]) playerOccupied[targetSet] = new Set();
+      matchPlayers.forEach(pId => playerOccupied[targetSet].add(pId));
+
+      scheduledMatches.push(m);
+    }
+  });
+
+  // 3. Fill court table matches
+  const maxSets = Math.max(
+    ...courts.map(c => effectiveCourtSets[c.id || 'c-1'] || 2),
+    ...scheduledMatches.map(m => m.setIndex || 1),
+    1
+  );
+
+  const finalMatches = [];
+  for (let s = 1; s <= maxSets; s++) {
+    courts.forEach((court, cIdx) => {
+      const courtId = court.id || `c-${cIdx + 1}`;
+      const maxCourtGames = effectiveCourtSets[courtId] || 2;
+      if (s <= maxCourtGames) {
+        const existing = scheduledMatches.find(m => (m.courtId === courtId || m.court === court.name) && m.setIndex === s);
+        if (existing) {
+          finalMatches.push(existing);
+        } else {
+          finalMatches.push({
+            id: `court-${courtId}-set-${s}`,
+            court: court.name,
+            courtId,
+            setIndex: s,
+            teamAId: '',
+            teamBId: '',
+            playerA1: null,
+            playerA2: null,
+            playerB1: null,
+            playerB2: null,
+            scoreA: null,
+            scoreB: null
+          });
+        }
+      }
+    });
+  }
+
+  return finalMatches;
+}
+
 export default function PickingPhase({ tournament, members, onUpdate, isAdmin }) {
   const { type, attendees } = tournament;
   const byId = {};
@@ -169,265 +371,6 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
     }
   };
 
-  const generateTournamentSchedule = (teams, courtDetails, gamesCount) => {
-    const teamIds = teams.map(t => t.id);
-    const N = teamIds.length;
-    const maxSets = Math.max(...courtDetails.map(c => c.games || 2));
-    const numCourts = courtDetails.length;
-
-    if (N < 2 || numCourts === 0) {
-      const emptyMatches = [];
-      for (let s = 1; s <= maxSets; s++) {
-        courtDetails.forEach((court, cIdx) => {
-          if (s <= (court.games || 2)) {
-            const courtId = court.id || `c-${cIdx + 1}`;
-            emptyMatches.push({
-              id: `court-${courtId}-set-${s}`,
-              court: court.name,
-              courtId,
-              setIndex: s,
-              teamAId: '',
-              teamBId: '',
-              playerA1: null,
-              playerA2: null,
-              playerB1: null,
-              playerB2: null,
-              scoreA: null,
-              scoreB: null
-            });
-          }
-        });
-      }
-      return emptyMatches;
-    }
-
-    // 1. Generate all pairs among teams
-    const allPairs = [];
-    for (let i = 0; i < N; i++) {
-      for (let j = i + 1; j < N; j++) {
-        allPairs.push([teamIds[i], teamIds[j]]);
-      }
-    }
-
-    const teamPlayCount = {};
-    const teamAppearanceCount = {};
-    teamIds.forEach(id => {
-      teamPlayCount[id] = 0;
-      teamAppearanceCount[id] = 0;
-    });
-
-    const pairCount = {};
-    allPairs.forEach(([t1, t2]) => {
-      pairCount[`${t1}_${t2}`] = 0;
-    });
-
-    const slotMatches = {};
-
-    // 2. Assign matches set-by-set across all active courts
-    for (let s = 1; s <= maxSets; s++) {
-      const playersPlayingInThisSet = new Set();
-      const teamsPlayingInThisSet = new Set();
-      const activeCourtsInSet = courtDetails.filter(c => s <= (c.games || 2));
-
-      for (let cIdx = 0; cIdx < activeCourtsInSet.length; cIdx++) {
-        const court = activeCourtsInSet[cIdx];
-        const courtId = court.id || `c-${cIdx + 1}`;
-
-        // Check if all teams have finished their gamesCount
-        const allFinished = teamIds.every(id => teamPlayCount[id] >= gamesCount);
-        if (allFinished) break;
-
-        const validPairs = [];
-
-        for (const [tA, tB] of allPairs) {
-          if (teamPlayCount[tA] >= gamesCount && teamPlayCount[tB] >= gamesCount) continue;
-
-          const nextIdxA = (teamAppearanceCount[tA] % gamesCount) + 1;
-          const nextIdxB = (teamAppearanceCount[tB] % gamesCount) + 1;
-
-          const teamAObj = teams.find(t => t.id === tA);
-          const teamBObj = teams.find(t => t.id === tB);
-
-          const luA = teamAObj?.lineups?.[nextIdxA] || {};
-          const luB = teamBObj?.lineups?.[nextIdxB] || {};
-
-          const pA1 = luA.player1;
-          const pA2 = luA.player2;
-          const pB1 = luB.player1;
-          const pB2 = luB.player2;
-
-          // Check if any individual player is already scheduled in set s
-          let playerConflict = false;
-          if (pA1 && playersPlayingInThisSet.has(pA1)) playerConflict = true;
-          if (pA2 && playersPlayingInThisSet.has(pA2)) playerConflict = true;
-          if (pB1 && playersPlayingInThisSet.has(pB1)) playerConflict = true;
-          if (pB2 && playersPlayingInThisSet.has(pB2)) playerConflict = true;
-
-          // If no lineup players or not enough players, check team conflict
-          const rosterA = teamAObj?.players || [];
-          const rosterB = teamBObj?.players || [];
-          if ((!pA1 && !pA2) && rosterA.length < 4 && teamsPlayingInThisSet.has(tA)) playerConflict = true;
-          if ((!pB1 && !pB2) && rosterB.length < 4 && teamsPlayingInThisSet.has(tB)) playerConflict = true;
-
-          if (playerConflict) continue;
-
-          const pKey = `${tA}_${tB}`;
-          const pCount = pairCount[pKey] || 0;
-          const combinedPlays = (teamPlayCount[tA] || 0) + (teamPlayCount[tB] || 0);
-          const minTeamPlays = Math.min(teamPlayCount[tA] || 0, teamPlayCount[tB] || 0);
-
-          validPairs.push({
-            tA,
-            tB,
-            pKey,
-            pCount,
-            minTeamPlays,
-            combinedPlays,
-            pA1,
-            pA2,
-            pB1,
-            pB2,
-            luA,
-            luB
-          });
-        }
-
-        if (validPairs.length === 0) {
-          // If strict player overlap prevented matching, try any available pair not yet maxed out
-          const fallbackPairs = [];
-          for (const [tA, tB] of allPairs) {
-            if (teamPlayCount[tA] >= gamesCount && teamPlayCount[tB] >= gamesCount) continue;
-            const pKey = `${tA}_${tB}`;
-            fallbackPairs.push({
-              tA,
-              tB,
-              pKey,
-              pCount: pairCount[pKey] || 0,
-              minTeamPlays: Math.min(teamPlayCount[tA] || 0, teamPlayCount[tB] || 0),
-              combinedPlays: (teamPlayCount[tA] || 0) + (teamPlayCount[tB] || 0)
-            });
-          }
-          if (fallbackPairs.length > 0) {
-            fallbackPairs.sort((a, b) => {
-              if (a.pCount !== b.pCount) return a.pCount - b.pCount;
-              if (a.minTeamPlays !== b.minTeamPlays) return a.minTeamPlays - b.minTeamPlays;
-              return a.combinedPlays - b.combinedPlays;
-            });
-            const fallback = fallbackPairs[0];
-            const { tA, tB, pKey } = fallback;
-
-            teamPlayCount[tA]++;
-            teamPlayCount[tB]++;
-            pairCount[pKey] = (pairCount[pKey] || 0) + 1;
-
-            const idxA = teamAppearanceCount[tA]++;
-            const idxB = teamAppearanceCount[tB]++;
-
-            const teamAObj = teams.find(t => t.id === tA);
-            const teamBObj = teams.find(t => t.id === tB);
-
-            const luA = teamAObj?.lineups?.[(idxA % gamesCount) + 1] || {};
-            const luB = teamBObj?.lineups?.[(idxB % gamesCount) + 1] || {};
-
-            slotMatches[`${courtId}_${s}`] = {
-              id: `court-${courtId}-set-${s}`,
-              court: court.name,
-              courtId,
-              setIndex: s,
-              teamAId: tA,
-              teamBId: tB,
-              playerA1: luA.player1 || null,
-              playerA2: luA.player2 || null,
-              playerB1: luB.player1 || null,
-              playerB2: luB.player2 || null,
-              scoreA: null,
-              scoreB: null
-            };
-            continue;
-          }
-          break;
-        }
-
-        // Sort to prioritize least played pairs and teams with fewest matches
-        validPairs.sort((a, b) => {
-          if (a.pCount !== b.pCount) return a.pCount - b.pCount;
-          if (a.minTeamPlays !== b.minTeamPlays) return a.minTeamPlays - b.minTeamPlays;
-          if (a.combinedPlays !== b.combinedPlays) return a.combinedPlays - b.combinedPlays;
-          return 0;
-        });
-
-        const bestPair = validPairs[0];
-        const { tA, tB, pKey, pA1, pA2, pB1, pB2 } = bestPair;
-
-        if (pA1) playersPlayingInThisSet.add(pA1);
-        if (pA2) playersPlayingInThisSet.add(pA2);
-        if (pB1) playersPlayingInThisSet.add(pB1);
-        if (pB2) playersPlayingInThisSet.add(pB2);
-        teamsPlayingInThisSet.add(tA);
-        teamsPlayingInThisSet.add(tB);
-
-        teamPlayCount[tA]++;
-        teamPlayCount[tB]++;
-        pairCount[pKey] = (pairCount[pKey] || 0) + 1;
-
-        const idxA = teamAppearanceCount[tA]++;
-        const idxB = teamAppearanceCount[tB]++;
-
-        const teamAObj = teams.find(t => t.id === tA);
-        const teamBObj = teams.find(t => t.id === tB);
-
-        const luA = teamAObj?.lineups?.[(idxA % gamesCount) + 1] || {};
-        const luB = teamBObj?.lineups?.[(idxB % gamesCount) + 1] || {};
-
-        slotMatches[`${courtId}_${s}`] = {
-          id: `court-${courtId}-set-${s}`,
-          court: court.name,
-          courtId,
-          setIndex: s,
-          teamAId: tA,
-          teamBId: tB,
-          playerA1: luA.player1 || null,
-          playerA2: luA.player2 || null,
-          playerB1: luB.player1 || null,
-          playerB2: luB.player2 || null,
-          scoreA: null,
-          scoreB: null
-        };
-      }
-    }
-
-    // 3. Build final match list for all court sets
-    const finalMatches = [];
-    for (let s = 1; s <= maxSets; s++) {
-      courtDetails.forEach((court, cIdx) => {
-        if (s <= (court.games || 2)) {
-          const courtId = court.id || `c-${cIdx + 1}`;
-          const existing = slotMatches[`${courtId}_${s}`];
-          if (existing) {
-            finalMatches.push(existing);
-          } else {
-            finalMatches.push({
-              id: `court-${courtId}-set-${s}`,
-              court: court.name,
-              courtId,
-              setIndex: s,
-              teamAId: '',
-              teamBId: '',
-              playerA1: null,
-              playerA2: null,
-              playerB1: null,
-              playerB2: null,
-              scoreA: null,
-              scoreB: null
-            });
-          }
-        }
-      });
-    }
-
-    return finalMatches;
-  };
-
   const finalizeTeamDraft = async () => {
     if (!isAdmin) return;
     const assignedCount = teams.reduce((acc, t) => acc + t.players.length, 0);
@@ -437,18 +380,24 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
     
     const gamesCount = tournament.gamesPerTeam || 3;
     
-    // Exactly respect the court settings configured in Step 1
     const courtDetails = tournament.courtDetails || [
       { id: 'c1', name: '1코트', games: 2 },
       { id: 'c2', name: '2코트', games: 2 }
     ];
-    
+
+    const N = teams.length;
+    const numCourts = courtDetails.length || 1;
+    const targetMatchesPerTeam = gamesCount || (N <= 3 ? Math.max(1, N - 1) : 3);
+    const totalMatchesCount = Math.ceil((N * targetMatchesPerTeam) / 2);
+    const calculatedSetsPerCourt = Math.max(1, Math.ceil(totalMatchesCount / numCourts));
+
     const newCourtSets = {};
     courtDetails.forEach((court, cIdx) => {
-      newCourtSets[court.id || `c-${cIdx+1}`] = court.games || 2;
+      const cId = court.id || `c-${cIdx+1}`;
+      newCourtSets[cId] = court.games !== undefined ? court.games : calculatedSetsPerCourt;
     });
 
-    const matches = generateTournamentSchedule(teams, courtDetails, gamesCount);
+    const matches = generateTournamentSchedule(teams, courtDetails, gamesCount, newCourtSets);
 
     await onUpdate({ 
       teams, 
@@ -872,35 +821,53 @@ export default function PickingPhase({ tournament, members, onUpdate, isAdmin })
                           팀원 명단 {isAdmin && <span style={{ fontSize: '9px' }}>(클릭 시 제거)</span>}
                         </p>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                          {t.players.map(pid => (
-                             <div key={pid} 
-                                  onClick={() => {
-                                     if(isAdmin) {
-                                        if (t.captain === pid) {
-                                           alert('조장은 팀에서 제외할 수 없습니다. 조장 해제는 1단계에서 가능합니다.');
-                                           return;
-                                        }
-                                        if (confirm(`${byId[pid]?.name} 선수를 제외하시겠습니까?`)) {
-                                           assignPlayerToTeam(pid, -1);
-                                        }
-                                     }
-                                  }}
-                                  style={{ 
-                                    display: 'inline-flex', 
-                                    alignItems: 'center',
-                                    background: t.captain === pid ? colorTheme.tagBg : colorTheme.badgeBg, 
-                                    color: t.captain === pid ? colorTheme.tagText : '#fff', 
-                                    border: t.captain === pid ? `1px solid ${colorTheme.border}` : 'none',
-                                    padding: '3px 8px', 
-                                    borderRadius: '12px', 
-                                    fontSize: '12px', 
-                                    cursor: (isAdmin && t.captain !== pid) ? 'pointer' : 'default',
-                                    fontWeight: 'bold'
-                                  }}>
-                               {byId[pid]?.name}
-                               {t.captain === pid && ' 👑'}
-                             </div>
-                          ))}
+                          {t.players.map(pid => {
+                             let assignedLineupCount = 0;
+                             if (t.lineups) {
+                               Object.values(t.lineups).forEach(lu => {
+                                 if (lu && (lu.player1 === pid || lu.player2 === pid)) assignedLineupCount++;
+                               });
+                             }
+                             return (
+                               <div key={pid} 
+                                    onClick={() => {
+                                       if(isAdmin) {
+                                          if (t.captain === pid) {
+                                             alert('조장은 팀에서 제외할 수 없습니다. 조장 해제는 1단계에서 가능합니다.');
+                                             return;
+                                          }
+                                          if (confirm(`${byId[pid]?.name} 선수를 제외하시겠습니까?`)) {
+                                             assignPlayerToTeam(pid, -1);
+                                          }
+                                       }
+                                    }}
+                                    style={{ 
+                                      display: 'inline-flex', 
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: t.captain === pid ? colorTheme.tagBg : colorTheme.badgeBg, 
+                                      color: t.captain === pid ? colorTheme.tagText : '#fff', 
+                                      border: t.captain === pid ? `1px solid ${colorTheme.border}` : 'none',
+                                      padding: '3px 8px', 
+                                      borderRadius: '12px', 
+                                      fontSize: '12px', 
+                                      cursor: (isAdmin && t.captain !== pid) ? 'pointer' : 'default',
+                                      fontWeight: 'bold'
+                                    }}>
+                                 <span>{byId[pid]?.name}</span>
+                                 {t.captain === pid && <span>👑</span>}
+                                 <span style={{ 
+                                   fontSize: '10px', 
+                                   fontWeight: 700, 
+                                   backgroundColor: t.captain === pid ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.25)', 
+                                   padding: '0 4px', 
+                                   borderRadius: '4px' 
+                                 }}>
+                                   {assignedLineupCount}경기
+                                 </span>
+                               </div>
+                             );
+                          })}
                         </div>
                       </div>
                     </div>

@@ -173,6 +173,20 @@ export default function VotesPage() {
     const currentStatus = selectedEvent.attendees?.[memberId];
     if (currentStatus === status) return; // No change
 
+    // Check deadline (일반 사용자는 마감 이후 변경 불가, 운영진은 마감 이후에도 언제든 수정 가능)
+    if (selectedEvent.date) {
+      const [y, m, d] = selectedEvent.date.split('-');
+      const deadline = new Date(y, m - 1, d);
+      deadline.setDate(deadline.getDate() - 1);
+      deadline.setHours(18, 0, 0, 0);
+      const isClosed = new Date() > deadline;
+
+      if (!isAdmin && isClosed) {
+        alert('투표가 마감되었습니다. (운영진만 마감 후 수정이 가능합니다)');
+        return;
+      }
+    }
+
     const isInitialVote = currentStatus === undefined;
     const prevChanges = selectedEvent.voteChanges?.[memberId] || 0;
 
@@ -460,16 +474,29 @@ export default function VotesPage() {
               const [y, m, d] = e.date.split('-').map(Number);
               const dl = new Date(y, m - 1, d);
               dl.setDate(dl.getDate() - 1);
+              dl.setHours(18, 0, 0, 0);
+              const isClosed = new Date() > dl;
               const dlStr = `${dl.getMonth() + 1}/${dl.getDate()} 18:00`;
               const eventDayName = dayNames[new Date(y, m - 1, d).getDay()];
               
+              const isPast = e.date < todayStr;
+              
               return (
-                <div key={e.id} className={`card ${styles.voteCard}`} onClick={() => openModal(e)}>
+                <div 
+                  key={e.id} 
+                  className={`card ${styles.voteCard} ${isPast ? styles.pastVoteCard : ''}`} 
+                  onClick={() => openModal(e)}
+                >
                   <div className={styles.voteTop}>
-                    <div className={styles.voteIcon}>🗓️</div>
+                    <div 
+                      className={styles.voteIcon}
+                      style={isPast ? { background: 'rgba(156, 163, 175, 0.12)', borderColor: 'rgba(156, 163, 175, 0.3)' } : {}}
+                    >
+                      {isPast ? '🏁' : '🗓️'}
+                    </div>
                     <div className={styles.voteInfo}>
-                      <h2 className={styles.voteTitle}>{e.title}</h2>
-                      <span className={styles.voteDate}>
+                      <h2 className={styles.voteTitle} style={isPast ? { color: '#374151' } : {}}>{e.title}</h2>
+                      <span className={styles.voteDate} style={isPast ? { color: '#64748b' } : {}}>
                         {e.date} ({eventDayName})
                       </span>
                     </div>
@@ -480,12 +507,12 @@ export default function VotesPage() {
                   </div>
                   <div style={{ paddingTop: '6px', borderTop: '1px solid rgba(0,0,0,0.05)', fontSize: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <span style={{ fontWeight: '700', color: 'var(--ios-blue)' }}>참석: {attCount}명</span>
-                      <span style={{ fontWeight: '600', color: 'var(--ios-red)' }}>불참: {absCount}명</span>
+                      <span style={{ fontWeight: '700', color: isPast ? '#475569' : 'var(--ios-blue)' }}>참석: {attCount}명</span>
+                      <span style={{ fontWeight: '600', color: isPast ? '#94a3b8' : 'var(--ios-red)' }}>불참: {absCount}명</span>
                       <span style={{ color: 'var(--txt3)' }}>미정: {unkCount}명</span>
                     </div>
-                    <div style={{ color: 'var(--ios-orange)', fontSize: '11px', fontWeight: '700' }}>
-                      마감 : {dlStr}
+                    <div style={{ color: isPast ? '#64748b' : (isClosed ? 'var(--ios-red)' : 'var(--ios-orange)'), fontSize: '11px', fontWeight: '700' }}>
+                      {isPast ? '종료됨' : (isClosed ? '마감됨' : `마감 : ${dlStr}`)}
                     </div>
                   </div>
                 </div>
@@ -735,15 +762,20 @@ export default function VotesPage() {
                   </div>
                 </div>
 
-                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
-                  투표 명단
+                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>투표 명단</span>
                   {(() => {
                     const [y, m, d] = selectedEvent.date.split('-');
                     const deadline = new Date(y, m - 1, d);
                     deadline.setDate(deadline.getDate() - 1);
                     deadline.setHours(18, 0, 0, 0);
                     const isClosed = new Date() > deadline;
-                    return isClosed ? <span style={{ color: 'var(--danger)', fontSize: '13px' }}>마감됨</span> : null;
+                    if (!isClosed) return null;
+                    return (
+                      <span style={{ color: isAdmin ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12.5px', fontWeight: 600 }}>
+                        {isAdmin ? '마감됨 (운영진 수정 가능)' : '투표 마감됨'}
+                      </span>
+                    );
                   })()}
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -754,6 +786,7 @@ export default function VotesPage() {
                     deadline.setDate(deadline.getDate() - 1);
                     deadline.setHours(18, 0, 0, 0);
                     const isClosed = new Date() > deadline;
+                    const isVoteDisabled = !isAdmin && isClosed;
                     
                     return (
                       <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', gap: '6px' }}>
@@ -762,19 +795,19 @@ export default function VotesPage() {
                           <button 
                             className={`btn btn-sm ${status === 'Y' ? 'btn-primary' : 'btn-secondary'}`}
                             style={{ opacity: status === 'Y' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
-                            disabled={isClosed}
+                            disabled={isVoteDisabled}
                             onClick={() => handleToggleAttendance(m.id, 'Y')}
                           >참석</button>
                           <button 
                             className={`btn btn-sm ${status === 'N' ? 'btn-danger' : 'btn-secondary'}`}
                             style={{ opacity: status === 'N' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
-                            disabled={isClosed}
+                            disabled={isVoteDisabled}
                             onClick={() => handleToggleAttendance(m.id, 'N')}
                           >불참</button>
                           <button 
                             className={`btn btn-sm ${status === '?' ? '' : 'btn-secondary'}`}
                             style={{ opacity: status === '?' ? 1 : 0.6, background: status === '?' ? '#e2e8f0' : undefined, color: status === '?' ? '#1e293b' : undefined, padding: '4px 10px', fontSize: '12px' }}
-                            disabled={isClosed}
+                            disabled={isVoteDisabled}
                             onClick={() => handleToggleAttendance(m.id, '?')}
                           >미정</button>
                         </div>

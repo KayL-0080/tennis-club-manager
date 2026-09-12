@@ -177,8 +177,14 @@ export function generateIndividualTournamentMatches(attendeeIds, byId, roundsCou
   }
 
   // Auto assign courts without player conflicts
+  const courts = courtDetails && courtDetails.length > 0 ? courtDetails : [
+    { id: 'c1', name: '1코트', games: 4 },
+    { id: 'c2', name: '2코트', games: 4 }
+  ];
   const courtOccupied = {};
   const playerOccupied = {};
+  const courtMatchCount = {};
+  courts.forEach(c => courtMatchCount[c.id || c.name] = 0);
 
   matches.forEach((m) => {
     const matchPlayers = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
@@ -188,8 +194,16 @@ export function generateIndividualTournamentMatches(attendeeIds, byId, roundsCou
     while (!assignedCourt && targetSlot < 100) {
       const hasPlayerConflict = matchPlayers.some(pId => playerOccupied[targetSlot] && playerOccupied[targetSlot].has(pId));
       if (!hasPlayerConflict) {
-        for (const court of courtDetails) {
-          if (!courtOccupied[targetSlot]?.[court.name]) {
+        const sortedCourts = [...courts].sort((a, b) => {
+          const countA = courtMatchCount[a.id || a.name] || 0;
+          const countB = courtMatchCount[b.id || b.name] || 0;
+          return countA - countB;
+        });
+
+        for (const court of sortedCourts) {
+          const cName = court.name;
+          const maxCourtGames = court.games || 4;
+          if (!courtOccupied[targetSlot]?.[cName] && targetSlot <= maxCourtGames) {
             assignedCourt = court;
             break;
           }
@@ -201,12 +215,15 @@ export function generateIndividualTournamentMatches(attendeeIds, byId, roundsCou
     }
 
     if (assignedCourt) {
+      const courtId = assignedCourt.id || `c-1`;
       m.court = assignedCourt.name;
-      m.courtId = assignedCourt.id;
+      m.courtId = courtId;
       m.setIndex = targetSlot;
 
       if (!courtOccupied[targetSlot]) courtOccupied[targetSlot] = {};
       courtOccupied[targetSlot][assignedCourt.name] = true;
+
+      courtMatchCount[courtId] = (courtMatchCount[courtId] || 0) + 1;
 
       if (!playerOccupied[targetSlot]) playerOccupied[targetSlot] = new Set();
       matchPlayers.forEach(pId => playerOccupied[targetSlot].add(pId));
@@ -284,8 +301,14 @@ export function generateFixedPairTournamentMatches(pairs, byId, roundsCount, cou
   }
 
   // Auto assign courts and time slots (setIndex)
+  const courts = courtDetails && courtDetails.length > 0 ? courtDetails : [
+    { id: 'c1', name: '1코트', games: 4 },
+    { id: 'c2', name: '2코트', games: 4 }
+  ];
   const courtOccupied = {};
   const playerOccupied = {};
+  const courtMatchCount = {};
+  courts.forEach(c => courtMatchCount[c.id || c.name] = 0);
 
   matches.forEach((m) => {
     const matchPlayers = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
@@ -295,8 +318,16 @@ export function generateFixedPairTournamentMatches(pairs, byId, roundsCount, cou
     while (!assignedCourt && targetSlot < 100) {
       const hasPlayerConflict = matchPlayers.some(pId => playerOccupied[targetSlot] && playerOccupied[targetSlot].has(pId));
       if (!hasPlayerConflict) {
-        for (const court of courtDetails) {
-          if (!courtOccupied[targetSlot]?.[court.name]) {
+        const sortedCourts = [...courts].sort((a, b) => {
+          const countA = courtMatchCount[a.id || a.name] || 0;
+          const countB = courtMatchCount[b.id || b.name] || 0;
+          return countA - countB;
+        });
+
+        for (const court of sortedCourts) {
+          const cName = court.name;
+          const maxCourtGames = court.games || 4;
+          if (!courtOccupied[targetSlot]?.[cName] && targetSlot <= maxCourtGames) {
             assignedCourt = court;
             break;
           }
@@ -308,12 +339,15 @@ export function generateFixedPairTournamentMatches(pairs, byId, roundsCount, cou
     }
 
     if (assignedCourt) {
+      const courtId = assignedCourt.id || `c-1`;
       m.court = assignedCourt.name;
-      m.courtId = assignedCourt.id;
+      m.courtId = courtId;
       m.setIndex = targetSlot;
 
       if (!courtOccupied[targetSlot]) courtOccupied[targetSlot] = {};
       courtOccupied[targetSlot][assignedCourt.name] = true;
+
+      courtMatchCount[courtId] = (courtMatchCount[courtId] || 0) + 1;
 
       if (!playerOccupied[targetSlot]) playerOccupied[targetSlot] = new Set();
       matchPlayers.forEach(pId => playerOccupied[targetSlot].add(pId));
@@ -817,6 +851,13 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
     if (isFixedPair) {
       // 고정 페어 개인전: 3단계 패스 -> 4단계로 직행
       const matches = generateFixedPairTournamentMatches(pairs, byId, gamesPerTeam, courtDetails);
+      const maxTargetSlot = Math.max(...matches.map(m => m.setIndex || 1), 1);
+      const newCourtSets = {};
+      courtDetails.forEach((court, cIdx) => {
+        const cId = court.id || `c-${cIdx+1}`;
+        newCourtSets[cId] = court.games !== undefined ? court.games : maxTargetSlot;
+      });
+
       await onUpdate({
         attendees,
         pairs,
@@ -831,6 +872,7 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
         matchRules,
         courts: courtDetails.length,
         courtDetails,
+        courtSets: newCourtSets,
         gamesPerTeam,
         matches,
         status: 'playing'
@@ -838,6 +880,13 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
     } else if (isIndividualRotation) {
       // 순환 개인전: 3단계 패스 -> 4단계로 직행
       const matches = generateIndividualTournamentMatches(attendees, byId, gamesPerTeam, courtDetails);
+      const maxTargetSlot = Math.max(...matches.map(m => m.setIndex || 1), 1);
+      const newCourtSets = {};
+      courtDetails.forEach((court, cIdx) => {
+        const cId = court.id || `c-${cIdx+1}`;
+        newCourtSets[cId] = court.games !== undefined ? court.games : maxTargetSlot;
+      });
+
       await onUpdate({
         attendees,
         maleCount: selectedMales.length,
@@ -851,6 +900,7 @@ ${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`)
         matchRules,
         courts: courtDetails.length,
         courtDetails,
+        courtSets: newCourtSets,
         gamesPerTeam,
         matches,
         status: 'playing'

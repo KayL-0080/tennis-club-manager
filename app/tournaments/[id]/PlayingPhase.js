@@ -1,7 +1,80 @@
 import { useState, useMemo, useEffect } from 'react';
-import { TEAM_COLORS } from './PickingPhase';
+import { createPortal } from 'react-dom';
+import { TEAM_COLORS, generateTournamentSchedule } from './PickingPhase';
+import { generateIndividualTournamentMatches, generateFixedPairTournamentMatches } from './DraftPhase';
+
+// Helper to normalize lineups from object or array format into structured list
+export const getNormalizedLineupList = (team) => {
+  if (!team || !team.lineups) return [];
+  if (Array.isArray(team.lineups)) {
+    return team.lineups.map((lu, idx) => {
+      const p1 = Array.isArray(lu) ? lu[0] : (lu?.player1 || lu?.p1 || null);
+      const p2 = Array.isArray(lu) ? lu[1] : (lu?.player2 || lu?.p2 || null);
+      return { gameNum: idx + 1, player1: p1, player2: p2 };
+    });
+  }
+  return Object.keys(team.lineups)
+    .sort((a, b) => Number(a) - Number(b))
+    .map(g => {
+      const lu = team.lineups[g];
+      const p1 = Array.isArray(lu) ? lu[0] : (lu?.player1 || lu?.p1 || null);
+      const p2 = Array.isArray(lu) ? lu[1] : (lu?.player2 || lu?.p2 || null);
+      return { gameNum: Number(g), player1: p1, player2: p2 };
+    });
+};
+
+// Helper to extract player1 and player2 for a given game number (1-based index)
+export const getLineupForTeamGame = (team, gameIndex) => {
+  if (!team || !team.lineups) return null;
+  const list = getNormalizedLineupList(team);
+  const found = list.find(item => item.gameNum === gameIndex);
+  if (found) return { player1: found.player1 || null, player2: found.player2 || null };
+  if (list.length > 0) {
+    const wrappedIdx = (gameIndex - 1) % list.length;
+    return { player1: list[wrappedIdx].player1 || null, player2: list[wrappedIdx].player2 || null };
+  }
+  return null;
+};
+
+// Helper to ensure team has valid lineups generated
+export const ensureTeamLineups = (team, targetGamesCount = 4) => {
+  const existingList = getNormalizedLineupList(team);
+  if (existingList.length >= targetGamesCount) {
+    return team;
+  }
+  const roster = team.players || [];
+  if (roster.length < 2) return team;
+  const playCounts = {};
+  roster.forEach(pid => playCounts[pid] = 0);
+  existingList.forEach(item => {
+    if (item.player1) playCounts[item.player1] = (playCounts[item.player1] || 0) + 1;
+    if (item.player2) playCounts[item.player2] = (playCounts[item.player2] || 0) + 1;
+  });
+
+  const generatedLineups = { ...(typeof team.lineups === 'object' && !Array.isArray(team.lineups) ? team.lineups : {}) };
+  for (let g = 1; g <= targetGamesCount; g++) {
+    if (generatedLineups[g] && (generatedLineups[g].player1 || generatedLineups[g].player2)) {
+      continue;
+    }
+    const sorted = [...roster].sort((a, b) => {
+      if (playCounts[a] !== playCounts[b]) return playCounts[a] - playCounts[b];
+      return Math.random() - 0.5;
+    });
+    const p1 = sorted[0];
+    const p2 = sorted[1] || sorted[0];
+    generatedLineups[g] = { player1: p1, player2: p2 !== p1 ? p2 : (sorted.find(p => p !== p1) || p1) };
+    if (generatedLineups[g]?.player1) playCounts[generatedLineups[g].player1] = (playCounts[generatedLineups[g].player1] || 0) + 1;
+    if (generatedLineups[g]?.player2) playCounts[generatedLineups[g].player2] = (playCounts[generatedLineups[g].player2] || 0) + 1;
+  }
+  return { ...team, lineups: generatedLineups };
+};
 
 export default function PlayingPhase({ tournament, members, onUpdate, isAdmin }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { type, matches, teams } = tournament;
   const byId = {};
   members.forEach(m => byId[m.id] = m);
@@ -18,8 +91,18 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   const [localMatches, setLocalMatches] = useState(matches || []);
   const [maxGames, setMaxGames] = useState(tournament.maxGames || 6);
   const [showRules, setShowRules] = useState(false);
+  const [showRostersSummary, setShowRostersSummary] = useState(false);
   const [activeOnlyMode, setActiveOnlyMode] = useState(false);
   const [collapsedCourts, setCollapsedCourts] = useState({});
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false);
+  const [playerStatsFilterTeam, setPlayerStatsFilterTeam] = useState('ALL');
+  const [playerStatsFilterGames, setPlayerStatsFilterGames] = useState('ALL');
+  const [playerStatsSort, setPlayerStatsSort] = useState('games_desc');
+  const [playerStatsSearch, setPlayerStatsSearch] = useState('');
+  const [assignModalData, setAssignModalData] = useState(null);
+  const [modalP1, setModalP1] = useState(null);
+  const [modalP2, setModalP2] = useState(null);
 
   const isCourtCollapsed = (courtId) => {
     if (collapsedCourts[courtId] !== undefined) {
@@ -40,7 +123,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     setCollapsedCourts({});
   };
 
-  // 실시간 Firestore 변경사항 동기화 (다른 기기에서 점수 입력 시 자동 반영)
+  // 실시간 Firestore 변경사항 동기화 (다른 기기에서 점수/대진/세트 변경 시 자동 반영)
   useEffect(() => {
     if (tournament.matches) {
       setLocalMatches(tournament.matches);
@@ -48,7 +131,10 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
     if (tournament.maxGames !== undefined) {
       setMaxGames(tournament.maxGames);
     }
-  }, [tournament.matches, tournament.maxGames]);
+    if (tournament.courtSets) {
+      setCourtSets(tournament.courtSets);
+    }
+  }, [tournament.matches, tournament.maxGames, tournament.courtSets]);
   const [courtSets, setCourtSets] = useState(() => {
     const init = {};
     const courtDetails = tournament.courtDetails || [
@@ -65,24 +151,29 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   const maxAllowedSets = useMemo(() => {
     const start = tournament.startTime || tournament.time || '19:00';
     const end = tournament.endTime || '22:00';
-    if (!start || !end) return 10;
+    if (!start || !end) return 12;
     const [sH, sM] = start.split(':').map(Number);
     const [eH, eM] = end.split(':').map(Number);
     let diff = (eH * 60 + eM) - (sH * 60 + sM);
     if (diff <= 0) diff += 24 * 60;
-    return Math.max(1, Math.floor(diff / 30));
+    return Math.max(12, Math.floor(diff / 30));
   }, [tournament.startTime, tournament.time, tournament.endTime]);
 
   const handleAddSet = (courtId, courtName, courtMaxGames) => {
     const current = courtSets[courtId] || 2;
-    if (current >= courtMaxGames) {
-      alert(`${courtName || '해당 코트'}는 1단계 환경설정에서 지정한 최대 경기수(${courtMaxGames}경기)를 초과하여 세트를 추가할 수 없습니다.`);
+    const limit = Math.max(courtMaxGames || 2, maxAllowedSets || 12, current + 1);
+    if (current >= limit) {
+      alert(`${courtName || '해당 코트'}는 최대 세트 수(${limit}세트)를 초과하여 세트를 추가할 수 없습니다.`);
       return;
     }
-    setCourtSets(prev => ({
-      ...prev,
-      [courtId]: current + 1
-    }));
+    const nextVal = current + 1;
+    setCourtSets(prev => {
+      const next = { ...prev, [courtId]: nextVal };
+      if (isAdmin && onUpdate) {
+        onUpdate({ courtSets: next });
+      }
+      return next;
+    });
   };
 
   const handleRemoveSet = (courtId) => {
@@ -91,25 +182,37 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
       alert('최소 1개 이상의 세트가 필요합니다.');
       return;
     }
-    setCourtSets(prev => ({
-      ...prev,
-      [courtId]: current - 1
-    }));
+    const nextVal = current - 1;
+    setCourtSets(prev => {
+      const next = { ...prev, [courtId]: nextVal };
+      if (isAdmin && onUpdate) {
+        onUpdate({ courtSets: next });
+      }
+      return next;
+    });
   };
 
   const handleCourtSetsChange = (courtId, val, courtName, courtMaxGames) => {
-    if (val > courtMaxGames) {
-      alert(`${courtName || '해당 코트'}는 1단계 환경설정에서 지정한 최대 경기수(${courtMaxGames}경기)를 초과할 수 없습니다.`);
-      setCourtSets(prev => ({
-        ...prev,
-        [courtId]: courtMaxGames
-      }));
+    const limit = Math.max(courtMaxGames || 2, maxAllowedSets || 12, val);
+    if (val > limit) {
+      alert(`${courtName || '해당 코트'}는 최대 세트 수(${limit}세트)를 초과할 수 없습니다.`);
+      setCourtSets(prev => {
+        const next = { ...prev, [courtId]: limit };
+        if (isAdmin && onUpdate) {
+          onUpdate({ courtSets: next });
+        }
+        return next;
+      });
       return;
     }
-    setCourtSets(prev => ({
-      ...prev,
-      [courtId]: Math.max(1, val)
-    }));
+    const nextVal = Math.max(1, val);
+    setCourtSets(prev => {
+      const next = { ...prev, [courtId]: nextVal };
+      if (isAdmin && onUpdate) {
+        onUpdate({ courtSets: next });
+      }
+      return next;
+    });
   };
 
   const handleMaxGamesChange = (newMax) => {
@@ -201,7 +304,88 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
       let newMatches;
       if (idx !== -1) {
         newMatches = [...prev];
-        newMatches[idx] = { ...newMatches[idx], [field]: parsedVal };
+        const updatedSlot = { ...newMatches[idx], [field]: parsedVal };
+        if (field === 'teamAId') {
+          const newTeam = teamMap[parsedVal];
+          const preset = newTeam?.lineups?.[setIdx - 1];
+          updatedSlot.playerA1 = preset?.[0] || null;
+          updatedSlot.playerA2 = preset?.[1] || null;
+        } else if (field === 'teamBId') {
+          const newTeam = teamMap[parsedVal];
+          const preset = newTeam?.lineups?.[setIdx - 1];
+          updatedSlot.playerB1 = preset?.[0] || null;
+          updatedSlot.playerB2 = preset?.[1] || null;
+        }
+        newMatches[idx] = updatedSlot;
+      } else {
+        let pA1 = null, pA2 = null, pB1 = null, pB2 = null;
+        if (field === 'teamAId' && parsedVal) {
+          const newTeam = teamMap[parsedVal];
+          const preset = newTeam?.lineups?.[setIdx - 1];
+          pA1 = preset?.[0] || null;
+          pA2 = preset?.[1] || null;
+        } else if (field === 'teamBId' && parsedVal) {
+          const newTeam = teamMap[parsedVal];
+          const preset = newTeam?.lineups?.[setIdx - 1];
+          pB1 = preset?.[0] || null;
+          pB2 = preset?.[1] || null;
+        }
+        const newSlot = {
+          id: `court-${courtId}-set-${setIdx}`,
+          court: courtName,
+          courtId: courtId,
+          setIndex: setIdx,
+          teamAId: field === 'teamAId' ? parsedVal : '',
+          teamBId: field === 'teamBId' ? parsedVal : '',
+          playerA1: pA1,
+          playerA2: pA2,
+          playerB1: pB1,
+          playerB2: pB2,
+          scoreA: null,
+          scoreB: null,
+          [field]: parsedVal
+        };
+        newMatches = [...prev, newSlot];
+      }
+      if (isAdmin && onUpdate) {
+        onUpdate({ matches: newMatches, maxGames, courtSets });
+      }
+      return newMatches;
+    });
+  };
+
+  const openPlayerAssignModal = (courtId, courtNum, setIdx, teamSide, teamId, p1, p2) => {
+    if (!teamId) {
+      alert('먼저 조(팀)을 선택해 주세요.');
+      return;
+    }
+    setAssignModalData({
+      courtId,
+      courtNum,
+      setIdx,
+      teamSide,
+      teamId,
+      player1: p1 || null,
+      player2: p2 || null
+    });
+    setModalP1(p1 || null);
+    setModalP2(p2 || null);
+  };
+
+  const handleUpdateTeamPlayers = (courtId, courtName, setIdx, teamSide, p1, p2) => {
+    const p1Field = teamSide === 'A' ? 'playerA1' : 'playerB1';
+    const p2Field = teamSide === 'A' ? 'playerA2' : 'playerB2';
+
+    setLocalMatches(prev => {
+      const idx = prev.findIndex(m => (m.courtId === courtId || m.court === courtName) && m.setIndex === setIdx);
+      let newMatches;
+      if (idx !== -1) {
+        newMatches = [...prev];
+        newMatches[idx] = { 
+          ...newMatches[idx], 
+          [p1Field]: p1 || null, 
+          [p2Field]: p2 || null 
+        };
       } else {
         const newSlot = {
           id: `court-${courtId}-set-${setIdx}`,
@@ -216,7 +400,8 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
           playerB2: null,
           scoreA: null,
           scoreB: null,
-          [field]: parsedVal
+          [p1Field]: p1 || null,
+          [p2Field]: p2 || null
         };
         newMatches = [...prev, newSlot];
       }
@@ -479,6 +664,8 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
     const courtOccupied = {};
     const playerOccupied = {};
+    const courtMatchCount = {};
+    courtsList.forEach(c => courtMatchCount[c.id || c.name] = 0);
 
     newMatches.forEach((m) => {
       const matchPlayers = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
@@ -488,8 +675,16 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
       while (!assignedCourt && targetSlot < 100) {
         const hasPlayerConflict = matchPlayers.some(pId => playerOccupied[targetSlot] && playerOccupied[targetSlot].has(pId));
         if (!hasPlayerConflict) {
-          for (const court of courtsList) {
-            if (!courtOccupied[targetSlot]?.[court.name]) {
+          const sortedCourts = [...courtsList].sort((a, b) => {
+            const countA = courtMatchCount[a.id || a.name] || 0;
+            const countB = courtMatchCount[b.id || b.name] || 0;
+            return countA - countB;
+          });
+
+          for (const court of sortedCourts) {
+            const courtId = court.id || 'c-1';
+            const maxCourtGames = courtSets?.[courtId] !== undefined ? courtSets[courtId] : (court.games || 4);
+            if (!courtOccupied[targetSlot]?.[court.name] && targetSlot <= maxCourtGames) {
               assignedCourt = court;
               break;
             }
@@ -508,6 +703,8 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
         if (!courtOccupied[targetSlot]) courtOccupied[targetSlot] = {};
         courtOccupied[targetSlot][assignedCourt.name] = true;
 
+        courtMatchCount[assignedCourt.id || assignedCourt.name] = (courtMatchCount[assignedCourt.id || assignedCourt.name] || 0) + 1;
+
         if (!playerOccupied[targetSlot]) playerOccupied[targetSlot] = new Set();
         matchPlayers.forEach(pId => playerOccupied[targetSlot].add(pId));
       }
@@ -520,31 +717,65 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   };
 
   const conflictMap = useMemo(() => {
-    if (type === 'team') return { hasConflict: false, matchConflicts: {}, conflictDetails: [] };
-
     const slotMap = {};
-
-    localMatches.forEach((m, mIdx) => {
-      if (!m.court) return;
-      const slot = m.setIndex || m.round || 1;
-      if (!slotMap[slot]) slotMap[slot] = {};
-
-      const players = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
-
-      players.forEach(pId => {
-        if (!slotMap[slot][pId]) slotMap[slot][pId] = [];
-        slotMap[slot][pId].push({
-          matchId: m.id,
-          matchIdx: mIdx,
-          court: m.court,
-          round: m.round || 1
-        });
-      });
-    });
-
     const matchConflicts = {};
     const conflictDetails = [];
 
+    const courtsList = tournament.courtDetails || [
+      { id: 'c1', name: '1코트', games: 2 },
+      { id: 'c2', name: '2코트', games: 2 }
+    ];
+
+    localMatches.forEach((m, mIdx) => {
+      const courtName = m.court || (m.courtId ? courtsList.find(c => c.id === m.courtId)?.name : '') || '';
+      const slot = m.setIndex || m.round || 1;
+
+      const players = [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean);
+
+      // 1. Check duplicate within the same single match
+      const countInMatch = {};
+      players.forEach(pId => {
+        countInMatch[pId] = (countInMatch[pId] || 0) + 1;
+      });
+      Object.keys(countInMatch).forEach(pId => {
+        if (countInMatch[pId] > 1) {
+          const pName = byId[pId]?.name || '선수';
+          const timeStr = formatMatchTimeSlot(tournament.startTime, parseInt(slot));
+          conflictDetails.push({
+            type: 'same_match',
+            playerId: pId,
+            playerName: pName,
+            slot,
+            timeStr,
+            courts: [courtName || '미정 코트'],
+            description: `[${pName}] 선수가 동일 경기(${courtName || '미정 코트'} ${slot}세트/경기) 내 2개 이상의 출전 자리에 중복 배정되었습니다.`
+          });
+          if (!matchConflicts[m.id]) matchConflicts[m.id] = {};
+          matchConflicts[m.id][pId] = [courtName || '미정 코트'];
+        }
+      });
+
+      // 2. Map for cross-court duplicates at the same time slot
+      if (courtName) {
+        if (!slotMap[slot]) slotMap[slot] = {};
+        players.forEach(pId => {
+          if (!slotMap[slot][pId]) slotMap[slot][pId] = [];
+          slotMap[slot][pId].push({
+            matchId: m.id,
+            matchIdx: mIdx,
+            court: courtName,
+            setIndex: m.setIndex,
+            round: m.round || 1,
+            teamAId: m.teamAId,
+            teamBId: m.teamBId,
+            pairAName: m.pairAName,
+            pairBName: m.pairBName
+          });
+        });
+      }
+    });
+
+    // Evaluate duplicates across different courts in the same time slot
     Object.keys(slotMap).forEach(slot => {
       const playersInSlot = slotMap[slot];
       Object.keys(playersInSlot).forEach(pId => {
@@ -555,12 +786,25 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
           const pName = byId[pId]?.name || '선수';
           const timeStr = formatMatchTimeSlot(tournament.startTime, parseInt(slot));
 
+          const matchDescriptions = occurrences.map(o => {
+            if (type === 'team') {
+              const tA = teamMap[o.teamAId]?.name || 'A조';
+              const tB = teamMap[o.teamBId]?.name || 'B조';
+              return `${o.court} (${tA} vs ${tB})`;
+            } else if (type === 'fixed_pair') {
+              return `${o.court} (${o.pairAName || 'A페어'} vs ${o.pairBName || 'B페어'})`;
+            }
+            return `${o.court}`;
+          }).join(' 및 ');
+
           conflictDetails.push({
+            type: 'cross_court',
             playerId: pId,
             playerName: pName,
             slot,
             timeStr,
-            courts: uniqueCourts
+            courts: uniqueCourts,
+            description: `[${pName}] 선수가 동일 시간대(${timeStr} / ${slot}경기)에 [${matchDescriptions}]에 중복 출전 중입니다.`
           });
 
           occurrences.forEach(occ => {
@@ -576,7 +820,465 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
       matchConflicts,
       conflictDetails
     };
-  }, [localMatches, type, tournament.startTime, byId]);
+  }, [localMatches, type, tournament.startTime, tournament.courtDetails, byId, teamMap]);
+
+  // 📊 각 선수별 현재 배정된 총 경기수 집계
+  const playerMatchCounts = useMemo(() => {
+    const counts = {};
+    localMatches.forEach(m => {
+      [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean).forEach(pid => {
+        counts[pid] = (counts[pid] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [localMatches]);
+
+  // 📊 각 선수별 게임수 및 출전 상세 집계
+  const playerGameStatsData = useMemo(() => {
+    const participantsMap = new Map();
+
+    if (type === 'team' && teams && teams.length > 0) {
+      teams.forEach((t, tIdx) => {
+        (t.players || []).forEach(pid => {
+          const mbr = byId[pid] || { name: '선수' };
+          participantsMap.set(pid, {
+            id: pid,
+            name: mbr.name || '선수',
+            ntrp: mbr.ntrp || '-',
+            gender: mbr.gender || '',
+            teamId: t.id,
+            teamName: t.name,
+            teamIdx: tIdx,
+            isLeader: t.leaderId === pid || t.captain === pid
+          });
+        });
+      });
+    } else if (type === 'fixed_pair' && tournament.pairs && tournament.pairs.length > 0) {
+      tournament.pairs.forEach(pair => {
+        [pair.player1, pair.player2].filter(Boolean).forEach(pid => {
+          const mbr = byId[pid] || { name: '선수' };
+          participantsMap.set(pid, {
+            id: pid,
+            name: mbr.name || '선수',
+            ntrp: mbr.ntrp || '-',
+            gender: mbr.gender || '',
+            pairId: pair.id,
+            pairName: pair.name || '페어'
+          });
+        });
+      });
+    } else if (tournament.attendees && tournament.attendees.length > 0) {
+      tournament.attendees.forEach(pid => {
+        const mbr = byId[pid] || { name: '선수' };
+        participantsMap.set(pid, {
+          id: pid,
+          name: mbr.name || '선수',
+          ntrp: mbr.ntrp || '-',
+          gender: mbr.gender || ''
+        });
+      });
+    }
+
+    localMatches.forEach(m => {
+      [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean).forEach(pid => {
+        if (!participantsMap.has(pid)) {
+          const mbr = byId[pid] || { name: '선수' };
+          participantsMap.set(pid, {
+            id: pid,
+            name: mbr.name || '선수',
+            ntrp: mbr.ntrp || '-',
+            gender: mbr.gender || ''
+          });
+        }
+      });
+    });
+
+    const courtsList = tournament.courtDetails || [
+      { id: 'c1', name: '1코트', games: 2 },
+      { id: 'c2', name: '2코트', games: 2 }
+    ];
+
+    const playerStatsList = Array.from(participantsMap.values()).map(p => {
+      const pid = p.id;
+      const assignedMatches = [];
+      let completedCount = 0;
+      let pendingCount = 0;
+      let wins = 0;
+      let draws = 0;
+      let losses = 0;
+      let pointsScored = 0;
+      let pointsAllowed = 0;
+
+      localMatches.forEach(m => {
+        const isA1 = m.playerA1 === pid;
+        const isA2 = m.playerA2 === pid;
+        const isB1 = m.playerB1 === pid;
+        const isB2 = m.playerB2 === pid;
+        const isPlaying = isA1 || isA2 || isB1 || isB2;
+
+        if (isPlaying) {
+          const courtName = m.court || (m.courtId ? courtsList.find(c => c.id === m.courtId)?.name : '') || '코트';
+          const setIndex = m.setIndex || m.round || 1;
+          const isSideA = isA1 || isA2;
+          const partnerId = isSideA ? (isA1 ? m.playerA2 : m.playerA1) : (isB1 ? m.playerB2 : m.playerB1);
+          const opp1Id = isSideA ? m.playerB1 : m.playerA1;
+          const opp2Id = isSideA ? m.playerB2 : m.playerA2;
+          const myTeamId = isSideA ? m.teamAId : m.teamBId;
+          const oppTeamId = isSideA ? m.teamBId : m.teamAId;
+
+          const isFinished = m.scoreA !== null && m.scoreB !== null;
+          const myScore = isFinished ? (isSideA ? m.scoreA : m.scoreB) : null;
+          const oppScore = isFinished ? (isSideA ? m.scoreB : m.scoreA) : null;
+
+          let result = null;
+          if (isFinished) {
+            completedCount++;
+            pointsScored += myScore;
+            pointsAllowed += oppScore;
+            if (myScore > oppScore) {
+              wins++;
+              result = 'win';
+            } else if (myScore < oppScore) {
+              losses++;
+              result = 'loss';
+            } else {
+              draws++;
+              result = 'draw';
+            }
+          } else {
+            pendingCount++;
+          }
+
+          assignedMatches.push({
+            id: m.id || `${courtName}-${setIndex}`,
+            courtName,
+            setIndex,
+            isFinished,
+            myScore,
+            oppScore,
+            result,
+            partnerName: byId[partnerId]?.name || (partnerId ? '파트너' : '미정'),
+            opp1Name: byId[opp1Id]?.name || (opp1Id ? '상대1' : '미정'),
+            opp2Name: byId[opp2Id]?.name || (opp2Id ? '상대2' : '미정'),
+            myTeamName: teamMap[myTeamId]?.name || '',
+            oppTeamName: teamMap[oppTeamId]?.name || ''
+          });
+        }
+      });
+
+      assignedMatches.sort((a, b) => a.setIndex - b.setIndex);
+
+      const totalGames = assignedMatches.length;
+      const winRate = completedCount > 0 ? Math.round((wins / completedCount) * 100) : 0;
+      const gameDiff = pointsScored - pointsAllowed;
+
+      return {
+        ...p,
+        totalGames,
+        completedCount,
+        pendingCount,
+        wins,
+        draws,
+        losses,
+        winRate,
+        pointsScored,
+        pointsAllowed,
+        gameDiff,
+        matches: assignedMatches
+      };
+    });
+
+    const totalPlayers = playerStatsList.length;
+    const totalMatchSlots = localMatches.reduce((acc, m) => {
+      return acc + [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean).length;
+    }, 0);
+    const avgGames = totalPlayers > 0 ? (totalMatchSlots / totalPlayers).toFixed(1) : '0';
+    const counts = playerStatsList.map(p => p.totalGames);
+    const minGames = counts.length > 0 ? Math.min(...counts) : 0;
+    const maxGames = counts.length > 0 ? Math.max(...counts) : 0;
+    const unassignedPlayers = playerStatsList.filter(p => p.totalGames === 0);
+
+    return {
+      playerStatsList,
+      totalPlayers,
+      totalMatchSlots,
+      avgGames,
+      minGames,
+      maxGames,
+      unassignedPlayers
+    };
+  }, [type, teams, tournament.pairs, tournament.attendees, localMatches, byId, teamMap, tournament.courtDetails]);
+
+  // 필터링 및 정렬된 선수별 통계
+  const filteredAndSortedPlayers = useMemo(() => {
+    let list = [...(playerGameStatsData?.playerStatsList || [])];
+
+    if (playerStatsFilterTeam !== 'ALL') {
+      list = list.filter(p => p.teamId === playerStatsFilterTeam);
+    }
+
+    if (playerStatsFilterGames === '0') {
+      list = list.filter(p => p.totalGames === 0);
+    } else if (playerStatsFilterGames === '1') {
+      list = list.filter(p => p.totalGames === 1);
+    } else if (playerStatsFilterGames === '2') {
+      list = list.filter(p => p.totalGames === 2);
+    } else if (playerStatsFilterGames === '3+') {
+      list = list.filter(p => p.totalGames >= 3);
+    }
+
+    if (playerStatsSearch.trim()) {
+      const q = playerStatsSearch.trim().toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(q));
+    }
+
+    list.sort((a, b) => {
+      if (playerStatsSort === 'games_desc') {
+        if (b.totalGames !== a.totalGames) return b.totalGames - a.totalGames;
+        return (a.name || '').localeCompare(b.name || '');
+      } else if (playerStatsSort === 'games_asc') {
+        if (a.totalGames !== b.totalGames) return a.totalGames - b.totalGames;
+        return (a.name || '').localeCompare(b.name || '');
+      } else if (playerStatsSort === 'name_asc') {
+        return (a.name || '').localeCompare(b.name || '');
+      } else if (playerStatsSort === 'ntrp_desc') {
+        const nA = parseFloat(a.ntrp) || 0;
+        const nB = parseFloat(b.ntrp) || 0;
+        if (nB !== nA) return nB - nA;
+        return (a.name || '').localeCompare(b.name || '');
+      } else if (playerStatsSort === 'winrate_desc') {
+        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      return 0;
+    });
+
+    return list;
+  }, [playerGameStatsData, playerStatsFilterTeam, playerStatsFilterGames, playerStatsSearch, playerStatsSort]);
+
+  const handleRegenerateSchedule = async () => {
+    if (!isAdmin) return;
+
+    const hasScores = localMatches.some(m => m.scoreA !== null || m.scoreB !== null);
+    if (hasScores) {
+      if (!confirm('⚠️ 이미 입력된 경기 점수가 있습니다.\n대진표를 새로 작성하면 기존에 입력된 점수가 초기화될 수 있습니다.\n\n동일 시간대 중복 없는 새 대진표로 다시 작성하시겠습니까?')) {
+        return;
+      }
+    } else {
+      if (!confirm('동일 시간대에 선수가 겹치지 않도록 대진표를 새로 작성하시겠습니까?')) {
+        return;
+      }
+    }
+
+    const courtsList = tournament.courtDetails || [
+      { id: 'c1', name: '1코트', games: 2 },
+      { id: 'c2', name: '2코트', games: 2 }
+    ];
+    const gamesCount = tournament.gamesPerTeam || (type === 'team' ? 3 : 4);
+
+    try {
+      if (type === 'team') {
+        const teamList = teams || [];
+        if (teamList.length < 2) {
+          alert('팀이 최소 2개 이상이어야 대진표를 생성할 수 있습니다.');
+          return;
+        }
+
+        // Clean and regenerate well-balanced lineups for all teams to strictly prevent duplicates
+        const updatedTeams = teamList.map(t => {
+          const roster = t.players || [];
+          if (roster.length < 2) return t;
+          const lineups = {};
+          const playCounts = {};
+          roster.forEach(pid => playCounts[pid] = 0);
+
+          for (let g = 1; g <= gamesCount; g++) {
+            const sorted = [...roster].sort((a, b) => {
+              if (playCounts[a] !== playCounts[b]) return playCounts[a] - playCounts[b];
+              return Math.random() - 0.5;
+            });
+            const p1 = sorted[0];
+            const p2 = sorted[1] || sorted[0];
+            lineups[g] = { player1: p1, player2: p2 !== p1 ? p2 : (sorted.find(p => p !== p1) || p1) };
+            if (lineups[g]?.player1) playCounts[lineups[g].player1] = (playCounts[lineups[g].player1] || 0) + 1;
+            if (lineups[g]?.player2) playCounts[lineups[g].player2] = (playCounts[lineups[g].player2] || 0) + 1;
+          }
+          return { ...t, lineups };
+        });
+
+        const N = updatedTeams.length;
+        const numCourts = courtsList.length || 1;
+        const targetMatchesPerTeam = gamesCount || (N <= 3 ? Math.max(1, N - 1) : 3);
+        const totalMatchesCount = Math.ceil((N * targetMatchesPerTeam) / 2);
+        const calculatedSetsPerCourt = Math.max(1, Math.ceil(totalMatchesCount / numCourts));
+
+        const newCourtSets = {};
+        courtsList.forEach((court, cIdx) => {
+          const cId = court.id || `c-${cIdx+1}`;
+          newCourtSets[cId] = court.games !== undefined ? court.games : calculatedSetsPerCourt;
+        });
+
+        const newMatches = generateTournamentSchedule(updatedTeams, courtsList, gamesCount, newCourtSets);
+        setCourtSets(newCourtSets);
+        setLocalMatches(newMatches);
+        if (onUpdate) {
+          await onUpdate({ teams: updatedTeams, matches: newMatches, maxGames, courtSets: newCourtSets });
+        }
+      } else if (type === 'fixed_pair') {
+        const pairsList = tournament.pairs || [];
+        if (pairsList.length < 2) {
+          alert('페어가 최소 2개 이상이어야 대진표를 생성할 수 있습니다.');
+          return;
+        }
+        const newMatches = generateFixedPairTournamentMatches(pairsList, byId, gamesCount, courtsList);
+        setLocalMatches(newMatches);
+        if (onUpdate) {
+          await onUpdate({ matches: newMatches, maxGames, courtSets });
+        }
+      } else {
+        // Individual rotation
+        const attMembers = tournament.attendees || [];
+        if (attMembers.length < 4) {
+          alert('참가자가 최소 4명 이상이어야 대진표를 생성할 수 있습니다.');
+          return;
+        }
+        const newMatches = generateIndividualTournamentMatches(attMembers, byId, gamesCount, courtsList);
+        setLocalMatches(newMatches);
+        if (onUpdate) {
+          await onUpdate({ matches: newMatches, maxGames, courtSets });
+        }
+      }
+
+      setShowDuplicateModal(false);
+      alert('✅ 대진표가 동일 시간대 중복 없이 새로 작성되었습니다.');
+    } catch (err) {
+      console.error('Error regenerating schedule:', err);
+      alert('대진표 재생성 중 오류가 발생했습니다: ' + err.message);
+    }
+  };
+
+  // 1. 단일 조(팀) 사전 라인업 대진 자동 작성
+  const handleApplyTeamPresetLineups = async (teamId) => {
+    if (!isAdmin) return;
+    const targetTeam = teamMap[teamId];
+    if (!targetTeam) {
+      alert('해당 조를 찾을 수 없습니다.');
+      return;
+    }
+
+    const gamesCount = tournament.gamesPerTeam || (tournament.maxGames || 4);
+    const readyTeam = ensureTeamLineups(targetTeam, gamesCount);
+    
+    // Find all matches in localMatches containing this team
+    const teamMatchesIndices = [];
+    localMatches.forEach((m, idx) => {
+      if (m.teamAId === teamId || m.teamBId === teamId) {
+        teamMatchesIndices.push({ idx, match: m, setIndex: m.setIndex || 1, courtId: m.courtId || m.court || '' });
+      }
+    });
+
+    if (teamMatchesIndices.length === 0) {
+      alert(`대진표에 [${targetTeam.name}]이(가) 배정된 코트/세트가 없습니다.\n먼저 코트 대진표에서 ${targetTeam.name}을(를) 조에 배정해 주세요.`);
+      return;
+    }
+
+    // Sort chronologically by setIndex ascending, then court
+    teamMatchesIndices.sort((a, b) => {
+      if (a.setIndex !== b.setIndex) return a.setIndex - b.setIndex;
+      return (a.courtId || '').localeCompare(b.courtId || '');
+    });
+
+    const newMatches = [...localMatches];
+    let appliedCount = 0;
+
+    teamMatchesIndices.forEach((item, matchIdx) => {
+      const gameNum = matchIdx + 1;
+      const lu = getLineupForTeamGame(readyTeam, gameNum);
+      if (lu && (lu.player1 || lu.player2)) {
+        const m = { ...newMatches[item.idx] };
+        if (m.teamAId === teamId) {
+          m.playerA1 = lu.player1 || null;
+          m.playerA2 = lu.player2 || null;
+        }
+        if (m.teamBId === teamId) {
+          m.playerB1 = lu.player1 || null;
+          m.playerB2 = lu.player2 || null;
+        }
+        newMatches[item.idx] = m;
+        appliedCount++;
+      }
+    });
+
+    const updatedTeams = (teams || []).map(t => t.id === teamId ? readyTeam : t);
+
+    setLocalMatches(newMatches);
+    if (onUpdate) {
+      await onUpdate({ matches: newMatches, teams: updatedTeams, maxGames, courtSets });
+    }
+
+    alert(`✅ [${targetTeam.name}]의 3단계 사전 배정 라인업(${appliedCount}경기)이 대진표에 자동으로 입력되었습니다.`);
+  };
+
+  // 2. 전체 조 사전 라인업 대진 일괄 자동 작성
+  const handleApplyAllTeamsPresetLineups = async () => {
+    if (!isAdmin) return;
+    if (!teams || teams.length === 0) {
+      alert('팀(조) 목록이 없습니다.');
+      return;
+    }
+
+    if (!confirm('모든 조의 3단계 사전 배정 라인업을 대진표 전체에 순서대로 자동 적용하시겠습니까?\n(기존에 수동 입력된 선수 배정은 사전 라인업으로 갱신됩니다.)')) {
+      return;
+    }
+
+    const gamesCount = tournament.gamesPerTeam || (tournament.maxGames || 4);
+    const updatedTeams = teams.map(t => ensureTeamLineups(t, gamesCount));
+    const readyTeamMap = {};
+    updatedTeams.forEach(t => readyTeamMap[t.id] = t);
+
+    let newMatches = [...localMatches];
+    let totalApplied = 0;
+
+    updatedTeams.forEach(t => {
+      const teamMatchesIndices = [];
+      newMatches.forEach((m, idx) => {
+        if (m.teamAId === t.id || m.teamBId === t.id) {
+          teamMatchesIndices.push({ idx, match: m, setIndex: m.setIndex || 1, courtId: m.courtId || m.court || '' });
+        }
+      });
+
+      teamMatchesIndices.sort((a, b) => {
+        if (a.setIndex !== b.setIndex) return a.setIndex - b.setIndex;
+        return (a.courtId || '').localeCompare(b.courtId || '');
+      });
+
+      teamMatchesIndices.forEach((item, matchIdx) => {
+        const gameNum = matchIdx + 1;
+        const lu = getLineupForTeamGame(t, gameNum);
+        if (lu && (lu.player1 || lu.player2)) {
+          const m = { ...newMatches[item.idx] };
+          if (m.teamAId === t.id) {
+            m.playerA1 = lu.player1 || null;
+            m.playerA2 = lu.player2 || null;
+          }
+          if (m.teamBId === t.id) {
+            m.playerB1 = lu.player1 || null;
+            m.playerB2 = lu.player2 || null;
+          }
+          newMatches[item.idx] = m;
+          totalApplied++;
+        }
+      });
+    });
+
+    setLocalMatches(newMatches);
+    if (onUpdate) {
+      await onUpdate({ matches: newMatches, teams: updatedTeams, maxGames, courtSets });
+    }
+
+    alert(`✅ 모든 조(${updatedTeams.length}개 조, 총 ${totalApplied}경기 슬롯)의 사전 배정 라인업이 대진표에 자동으로 입력되었습니다.`);
+  };
 
   const availableRounds = useMemo(() => {
     const rSet = new Set(localMatches.map(m => m.round || 1));
@@ -1218,24 +1920,60 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
             ⚡ 실시간 동기화 ON
           </span>
         </div>
-        {isAdmin && type !== 'team' && (
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button 
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button 
+            className="btn btn-secondary btn-sm"
+            style={{ 
+              background: conflictMap.hasConflict ? '#fef2f2' : '#f0fdf4', 
+              color: conflictMap.hasConflict ? '#b91c1c' : '#166534', 
+              borderColor: conflictMap.hasConflict ? '#fca5a5' : '#86efac', 
+              fontWeight: 'bold',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            onClick={() => setShowDuplicateModal(true)}
+            title="동일 시간대 중복 출전 선수를 점검합니다."
+          >
+            <span>{conflictMap.hasConflict ? '⚠️' : '🔍'}</span>
+            <span>중복 체크</span>
+            {conflictMap.hasConflict && (
+              <span style={{ backgroundColor: '#ef4444', color: '#fff', fontSize: '10px', padding: '1px 5px', borderRadius: '10px' }}>
+                {conflictMap.conflictDetails.length}건
+              </span>
+            )}
+          </button>
+
+          {isAdmin && (
+            <button
               className="btn btn-secondary btn-sm"
-              style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc', fontWeight: 'bold' }}
-              onClick={autoAssignIndividualCourts}
+              style={{ background: '#eef2ff', color: '#3730a3', borderColor: '#c7d2fe', fontWeight: 'bold' }}
+              onClick={handleRegenerateSchedule}
+              title="동일 시간대 중복 없는 새 대진표로 다시 작성합니다."
             >
-              🎲 코트 자동 배정
+              🔄 대진 새로 작성
             </button>
-            <button 
-              className="btn btn-secondary btn-sm"
-              style={{ background: '#fef2f2', color: '#b91c1c', borderColor: '#fca5a5', fontWeight: 'bold' }}
-              onClick={unassignIndividualCourts}
-            >
-              🧹 코트 배정 해제
-            </button>
-          </div>
-        )}
+          )}
+
+          {isAdmin && type !== 'team' && (
+            <>
+              <button 
+                className="btn btn-secondary btn-sm"
+                style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc', fontWeight: 'bold' }}
+                onClick={autoAssignIndividualCourts}
+              >
+                🎲 코트 자동 배정
+              </button>
+              <button 
+                className="btn btn-secondary btn-sm"
+                style={{ background: '#fef2f2', color: '#b91c1c', borderColor: '#fca5a5', fontWeight: 'bold' }}
+                onClick={unassignIndividualCourts}
+              >
+                🧹 코트 배정 해제
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {isAdmin && (
@@ -1310,7 +2048,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
         </div>
       )}
 
-      {/* 👁️ 대진표 보기 모드 컨트롤러 (모아보기 / 전체 펼치기) */}
+      {/* 👁️ 대진표 보기 모드 컨트롤러 & 📊 선수별 게임수 현황 버튼 */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -1364,16 +2102,235 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
               ⚡ 진행중 경기만 모아보기
             </button>
           </div>
+
+          {activeOnlyMode && (
+            <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold' }}>
+              ※ 완료된 세트와 아직 시작하지 않은 대기 세트는 숨겨집니다.
+            </span>
+          )}
         </div>
 
-        {activeOnlyMode && (
-          <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold' }}>
-            ※ 완료된 세트와 아직 시작하지 않은 대기 세트는 숨겨집니다.
-          </span>
-        )}
+        {/* 📊 선수별 게임수 현황 & ⚡ 전체 조 대진 자동 작성 버튼 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {type === 'team' && isAdmin && (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              style={{
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: 800,
+                backgroundColor: '#2563eb',
+                borderColor: '#1d4ed8',
+                color: '#fff',
+                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(37,99,235,0.25)'
+              }}
+              onClick={handleApplyAllTeamsPresetLineups}
+              title="모든 조의 사전 배정된 라인업을 대진표에 순서대로 자동 입력"
+            >
+              <span>⚡ 전체 조 대진 자동 작성</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            style={{
+              padding: '5px 12px',
+              fontSize: '12px',
+              fontWeight: 800,
+              backgroundColor: '#eff6ff',
+              borderColor: '#bfdbfe',
+              color: '#1e40af',
+              borderRadius: '8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(37,99,235,0.06)'
+            }}
+            onClick={() => setShowPlayerStatsModal(true)}
+            title="모든 선수의 배정 경기수, 진행 완료/대기 현황, 상세 출전 세트 및 전적 조회"
+          >
+            <span>📊 선수별 게임수 현황</span>
+            <span style={{ backgroundColor: '#2563eb', color: '#fff', fontSize: '11px', padding: '1px 6px', borderRadius: '10px', fontWeight: 800 }}>
+              {playerGameStatsData.totalPlayers}명
+            </span>
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* ⚠️ 동시간대 중복 선수 점검 알림 배너 (전체 대회 유형 공통) */}
+        {conflictMap.hasConflict && (
+          <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: '10px', boxShadow: '0 2px 8px rgba(239, 68, 68, 0.08)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', color: '#991b1b', fontSize: '13.5px' }}>
+                <span>⚠️ 동일 시간대 중복 출전 선수 감지 ({conflictMap.conflictDetails.length}건)</span>
+              </div>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  style={{ background: '#fff', color: '#b91c1c', borderColor: '#fca5a5', fontSize: '11.5px', padding: '3px 8px' }}
+                  onClick={() => setShowDuplicateModal(true)}
+                >
+                  🔍 상세 보기
+                </button>
+                {isAdmin && (
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    style={{ background: '#dc2626', borderColor: '#b91c1c', color: '#fff', fontSize: '11.5px', padding: '3px 10px', fontWeight: 'bold' }}
+                    onClick={handleRegenerateSchedule}
+                  >
+                    🔄 대진 새로 작성 (자동 재배정)
+                  </button>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#b91c1c' }}>
+              {conflictMap.conflictDetails.map((c, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                  • <strong>{c.playerName}</strong> 선수: <strong>{c.timeStr} ({c.slot}경기/세트)</strong>에 <strong>{c.courts.join(' & ')}</strong> 중복 출전
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 👥 조별 3단계 출전 명단 & 조원 현황 패널 (팀전 전용) */}
+        {type === 'team' && teams && teams.length > 0 && (
+          <div style={{ border: '1px solid #bfdbfe', borderRadius: '10px', backgroundColor: '#f0f9ff', overflow: 'hidden' }}>
+            <div 
+              style={{ 
+                padding: '10px 14px', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                cursor: 'pointer',
+                userSelect: 'none',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}
+              onClick={() => setShowRostersSummary(prev => !prev)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, fontSize: '13.5px', color: '#1e40af', flexWrap: 'wrap' }}>
+                <span>👥 3단계 배정 출전 명단 및 조원 현황 ({teams.length}개 조)</span>
+                <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#3b82f6' }}>
+                  (조장 사전 라인업 확인)
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    style={{
+                      padding: '3px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: 800,
+                      backgroundColor: '#2563eb',
+                      borderColor: '#1d4ed8',
+                      color: '#fff',
+                      borderRadius: '6px',
+                      boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleApplyAllTeamsPresetLineups();
+                    }}
+                    title="모든 조의 사전 배정된 라인업을 대진표 전체에 순서대로 자동 적용"
+                  >
+                    ⚡ 전체 조 대진 자동 작성
+                  </button>
+                )}
+                <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 700 }}>
+                  {showRostersSummary ? '접기 ▲' : '명단 보기 ▼'}
+                </span>
+              </div>
+            </div>
+
+            {showRostersSummary && (
+              <div style={{ padding: '12px 14px', borderTop: '1px solid #dbeafe', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '10px', backgroundColor: '#fff' }}>
+                {teams.map((t, idx) => {
+                  const theme = TEAM_COLORS[idx % TEAM_COLORS.length] || { bg: '#f8fafc', border: '#e2e8f0', text: 'var(--txt)', badgeBg: 'var(--blue)' };
+                  const roster = t.players || [];
+                  const captain = t.captain ? byId[t.captain]?.name : null;
+                  const normalizedList = getNormalizedLineupList(t);
+
+                  return (
+                    <div key={t.id} style={{ border: `1.5px solid ${theme.border}`, borderRadius: '8px', padding: '10px', backgroundColor: theme.bg, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ color: theme.text, fontSize: '13.5px' }}>{t.name}</strong>
+                        {captain && (
+                          <span style={{ fontSize: '11px', backgroundColor: '#fff', color: theme.text, padding: '1px 6px', borderRadius: '4px', border: `1px solid ${theme.border}`, fontWeight: 'bold' }}>
+                            👑 조장: {captain}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div style={{ fontSize: '11.5px', color: 'var(--txt)' }}>
+                        <strong>조원 ({roster.length}명):</strong> {roster.map(pid => byId[pid]?.name || '선수').join(', ')}
+                      </div>
+
+                      <div style={{ borderTop: `1px dashed ${theme.border}`, paddingTop: '4px', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: theme.text }}>📋 3단계 사전 라인업:</span>
+                        {normalizedList.length > 0 ? (
+                          normalizedList.map(lu => {
+                            const p1Name = byId[lu.player1]?.name || '미정';
+                            const p2Name = byId[lu.player2]?.name || '미정';
+                            return (
+                              <div key={lu.gameNum} style={{ fontSize: '11px', color: 'var(--txt2)', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>• {lu.gameNum}경기:</span>
+                                <span style={{ fontWeight: 600, color: 'var(--txt)' }}>{p1Name} / {p2Name}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>사전 라인업 없음 (조원 중 임의 출전)</span>
+                        )}
+                      </div>
+
+                      {/* 조별 대진 자동 작성 버튼 */}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          style={{
+                            marginTop: '6px',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            backgroundColor: theme.badgeBg || '#2563eb',
+                            borderColor: theme.border || '#1d4ed8',
+                            color: '#fff',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                            width: '100%'
+                          }}
+                          onClick={() => handleApplyTeamPresetLineups(t.id)}
+                          title={`${t.name}의 사전 배정된 라인업을 대진표의 모든 ${t.name} 경기에 순서대로 자동 입력`}
+                        >
+                          <span>⚡ {t.name} 대진 자동 작성</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Group by Court */}
         {type === 'team' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1381,6 +2338,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
               const courtId = court.id || `c-${cIdx+1}`;
               const courtNum = court.name;
               const courtMaxGames = court.games || 2;
+              const maxCourtCapacity = Math.max(courtMaxGames, courtSets[courtId] || 2, tournament.gamesPerTeam || 4, maxAllowedSets || 12, 12);
               const isCollapsed = isCourtCollapsed(courtId);
               const totalSets = courtSets[courtId] || courtMaxGames;
               const allSetIndices = Array.from({ length: totalSets }, (_, i) => i + 1);
@@ -1472,9 +2430,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                           className="input input-sm" 
                           style={{ width: '74px', padding: '2px 4px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', height: '26px' }} 
                           value={courtSets[courtId] || courtMaxGames} 
-                          onChange={e => handleCourtSetsChange(courtId, parseInt(e.target.value) || 2, courtNum, courtMaxGames)}
+                          onChange={e => handleCourtSetsChange(courtId, parseInt(e.target.value) || 2, courtNum, maxCourtCapacity)}
                         >
-                          {Array.from({ length: courtMaxGames }, (_, i) => i + 1).map(s => (
+                          {Array.from({ length: maxCourtCapacity }, (_, i) => i + 1).map(s => (
                             <option key={s} value={s}>{s}세트</option>
                           ))}
                         </select>
@@ -1487,12 +2445,12 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                             height: '26px',
                             color: '#0369a1',
                             borderColor: '#7dd3fc',
-                            backgroundColor: (courtSets[courtId] || courtMaxGames) >= courtMaxGames ? '#f1f5f9' : '#fff',
-                            cursor: (courtSets[courtId] || courtMaxGames) >= courtMaxGames ? 'not-allowed' : 'pointer'
+                            backgroundColor: (courtSets[courtId] || courtMaxGames) >= maxCourtCapacity ? '#f1f5f9' : '#fff',
+                            cursor: (courtSets[courtId] || courtMaxGames) >= maxCourtCapacity ? 'not-allowed' : 'pointer'
                           }}
-                          onClick={() => handleAddSet(courtId, courtNum, courtMaxGames)}
-                          disabled={(courtSets[courtId] || courtMaxGames) >= courtMaxGames}
-                          title={`세트 추가 (1단계 설정 최대: ${courtMaxGames}세트)`}
+                          onClick={() => handleAddSet(courtId, courtNum, maxCourtCapacity)}
+                          disabled={(courtSets[courtId] || courtMaxGames) >= maxCourtCapacity}
+                          title={`세트 추가 (최대: ${maxCourtCapacity}세트)`}
                         >
                           ➕ 세트 추가
                         </button>
@@ -1539,6 +2497,12 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
 
                           const teamBIdx = m.teamBId ? teamIndexMap[m.teamBId] : undefined;
                           const teamBTheme = (teamBIdx !== undefined && teamBIdx >= 0) ? TEAM_COLORS[teamBIdx % TEAM_COLORS.length] : { bg: '#f8fafc', border: '#e2e8f0', text: 'var(--txt)', badgeBg: 'var(--red)' };
+
+                          const matchConflictInfo = conflictMap.matchConflicts[m.id] || null;
+                          const isPlayerA1Conflicting = matchConflictInfo && m.playerA1 && matchConflictInfo[m.playerA1];
+                          const isPlayerA2Conflicting = matchConflictInfo && m.playerA2 && matchConflictInfo[m.playerA2];
+                          const isPlayerB1Conflicting = matchConflictInfo && m.playerB1 && matchConflictInfo[m.playerB1];
+                          const isPlayerB2Conflicting = matchConflictInfo && m.playerB2 && matchConflictInfo[m.playerB2];
 
                           return (
                             <tr 
@@ -1595,68 +2559,106 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                 </div>
                               </td>
                               
-                              <td style={{ padding: '6px 2px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', width: '100%' }}>
+                              <td style={{ padding: '6px 4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%' }}>
                                   {/* Team A Block */}
                                   <div style={{ 
                                     flex: 1, 
-                                    minWidth: '70px', 
+                                    minWidth: '95px', 
                                     display: 'flex', 
                                     flexDirection: 'column', 
-                                    gap: '3px', 
+                                    gap: '4px', 
                                     border: `1.5px solid ${teamATheme.border}`, 
-                                    borderRadius: '6px', 
-                                    padding: '3px', 
+                                    borderRadius: '8px', 
+                                    padding: '5px 6px', 
                                     backgroundColor: teamATheme.bg 
                                   }}>
-                                    <select
-                                      className="input input-sm"
-                                      style={{ 
-                                        width: '100%', 
-                                        fontWeight: 'bold', 
-                                        fontSize: '12px', 
-                                        padding: '2px 4px', 
-                                        height: '26px', 
-                                        lineHeight: 'normal',
-                                        textAlign: 'center',
-                                        textAlignLast: 'center',
-                                        backgroundColor: '#fff',
-                                        borderColor: teamATheme.border,
-                                        color: teamATheme.text,
-                                        opacity: 1,
-                                        cursor: isAdmin ? 'pointer' : 'default',
-                                        pointerEvents: isAdmin ? 'auto' : 'none',
-                                        appearance: isAdmin ? 'auto' : 'none'
+                                    {isAdmin ? (
+                                      <select
+                                        className="input input-sm"
+                                        style={{ 
+                                          width: '100%', 
+                                          fontWeight: 'bold', 
+                                          fontSize: '12px', 
+                                          padding: '2px 4px', 
+                                          height: '26px', 
+                                          lineHeight: 'normal',
+                                          textAlign: 'center',
+                                          textAlignLast: 'center',
+                                          backgroundColor: '#fff',
+                                          borderColor: teamATheme.border,
+                                          color: teamATheme.text,
+                                          borderRadius: '5px'
+                                        }}
+                                        value={m.teamAId || ''}
+                                        onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamAId', e.target.value)}
+                                      >
+                                        <option value="">A조(팀)</option>
+                                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                      </select>
+                                    ) : (
+                                      <div style={{ fontWeight: 'bold', fontSize: '12px', color: teamATheme.text, textAlign: 'center' }}>
+                                        {teamMap[m.teamAId]?.name || 'A조'}
+</div>
+                                    )}
+                                    
+                                    {/* Players Container & Modal Trigger */}
+                                    <div 
+                                      onClick={() => {
+                                        if (m.teamAId) {
+                                          openPlayerAssignModal(courtId, courtNum, setIdx, 'A', m.teamAId, m.playerA1, m.playerA2);
+                                        }
                                       }}
-                                      value={m.teamAId || ''}
-                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamAId', e.target.value)}
-                                      disabled={!isAdmin}
+                                      style={{ 
+                                        display: 'flex', 
+                                        flexDirection: 'column', 
+                                        alignItems: 'center', 
+                                        gap: '2px', 
+                                        backgroundColor: '#fff', 
+                                        border: (isPlayerA1Conflicting || isPlayerA2Conflicting) ? '1.5px solid #ef4444' : '1px solid #e2e8f0', 
+                                        borderRadius: '6px', 
+                                        padding: '4px 6px', 
+                                        cursor: m.teamAId ? 'pointer' : 'default',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                                        minHeight: '44px',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={m.teamAId ? "클릭하여 출전 선수 지정 또는 변경" : ""}
                                     >
-                                      <option value="">A팀</option>
-                                      {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                    </select>
-                                    
-                                    <select
-                                      className="input input-sm"
-                                      style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamATheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
-                                      value={m.playerA1 || ''}
-                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerA1', e.target.value)}
-                                      disabled={!isAdmin || !m.teamAId}
-                                    >
-                                      <option value="">선수1</option>
-                                      {teamAPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
-                                    </select>
-                                    
-                                    <select
-                                      className="input input-sm"
-                                      style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamATheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
-                                      value={m.playerA2 || ''}
-                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerA2', e.target.value)}
-                                      disabled={!isAdmin || !m.teamAId}
-                                    >
-                                      <option value="">선수2</option>
-                                      {teamAPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
-                                    </select>
+                                      {(m.playerA1 || m.playerA2) ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', flexWrap: 'wrap', width: '100%' }}>
+                                          <span style={{ 
+                                            fontSize: '11.5px', 
+                                            fontWeight: 700, 
+                                            color: isPlayerA1Conflicting ? '#b91c1c' : 'var(--txt)',
+                                            backgroundColor: isPlayerA1Conflicting ? '#fee2e2' : '#f1f5f9',
+                                            padding: '1px 4px',
+                                            borderRadius: '4px'
+                                          }}>
+                                            {byId[m.playerA1]?.name || '선수1'} {isPlayerA1Conflicting && '⚠️'}
+                                          </span>
+                                          <span style={{ fontSize: '10px', color: '#94a3b8' }}>/</span>
+                                          <span style={{ 
+                                            fontSize: '11.5px', 
+                                            fontWeight: 700, 
+                                            color: isPlayerA2Conflicting ? '#b91c1c' : 'var(--txt)',
+                                            backgroundColor: isPlayerA2Conflicting ? '#fee2e2' : '#f1f5f9',
+                                            padding: '1px 4px',
+                                            borderRadius: '4px'
+                                          }}>
+                                            {byId[m.playerA2]?.name || '선수2'} {isPlayerA2Conflicting && '⚠️'}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>👥 선수 미지정</span>
+                                      )}
+
+                                      {m.teamAId && (
+                                        <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                          ✏️ {(m.playerA1 || m.playerA2) ? '선수 변경' : '선수 지정'}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   {/* Score A */}
@@ -1664,20 +2666,21 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                     className="input input-sm"
                                     style={{ 
                                       width: '38px', 
-                                      height: '54px', 
+                                      height: '52px', 
                                       textAlign: 'center', 
                                       textAlignLast: 'center', 
-                                      fontSize: '14px', 
+                                      fontSize: '15px', 
                                       fontWeight: 'bold', 
                                       padding: 0, 
                                       borderRadius: '6px', 
-                                      flexShrink: 0,
-                                      opacity: 1,
-                                      cursor: isAdmin ? 'pointer' : 'default',
-                                      pointerEvents: isAdmin ? 'auto' : 'none',
-                                      appearance: isAdmin ? 'auto' : 'none',
-                                      backgroundColor: m.scoreA !== null ? '#f8fafc' : '#ffffff',
-                                      color: m.scoreA !== null ? 'var(--blue)' : 'var(--txt3)'
+                                      flexShrink: 0, 
+                                      opacity: 1, 
+                                      cursor: isAdmin ? 'pointer' : 'default', 
+                                      pointerEvents: isAdmin ? 'auto' : 'none', 
+                                      appearance: isAdmin ? 'auto' : 'none', 
+                                      backgroundColor: m.scoreA !== null ? '#f8fafc' : '#ffffff', 
+                                      color: m.scoreA !== null ? 'var(--blue)' : 'var(--txt3)',
+                                      border: '1px solid #cbd5e1'
                                     }}
                                     value={m.scoreA !== null ? m.scoreA : ''}
                                     onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreA', e.target.value)}
@@ -1689,27 +2692,28 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                     ))}
                                   </select>
 
-                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--txt3)', flexShrink: 0, padding: '0 1px' }}>vs</span>
+                                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--txt3)', flexShrink: 0, padding: '0 1px' }}>vs</span>
 
                                   {/* Score B */}
                                   <select
                                     className="input input-sm"
                                     style={{ 
                                       width: '38px', 
-                                      height: '54px', 
+                                      height: '52px', 
                                       textAlign: 'center', 
                                       textAlignLast: 'center', 
-                                      fontSize: '14px', 
+                                      fontSize: '15px', 
                                       fontWeight: 'bold', 
                                       padding: 0, 
                                       borderRadius: '6px', 
-                                      flexShrink: 0,
-                                      opacity: 1,
-                                      cursor: isAdmin ? 'pointer' : 'default',
-                                      pointerEvents: isAdmin ? 'auto' : 'none',
-                                      appearance: isAdmin ? 'auto' : 'none',
-                                      backgroundColor: m.scoreB !== null ? '#f8fafc' : '#ffffff',
-                                      color: m.scoreB !== null ? 'var(--red)' : 'var(--txt3)'
+                                      flexShrink: 0, 
+                                      opacity: 1, 
+                                      cursor: isAdmin ? 'pointer' : 'default', 
+                                      pointerEvents: isAdmin ? 'auto' : 'none', 
+                                      appearance: isAdmin ? 'auto' : 'none', 
+                                      backgroundColor: m.scoreB !== null ? '#f8fafc' : '#ffffff', 
+                                      color: m.scoreB !== null ? 'var(--red)' : 'var(--txt3)',
+                                      border: '1px solid #cbd5e1'
                                     }}
                                     value={m.scoreB !== null ? m.scoreB : ''}
                                     onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreB', e.target.value)}
@@ -1724,63 +2728,101 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                   {/* Team B Block */}
                                   <div style={{ 
                                     flex: 1, 
-                                    minWidth: '70px', 
+                                    minWidth: '95px', 
                                     display: 'flex', 
                                     flexDirection: 'column', 
-                                    gap: '3px', 
+                                    gap: '4px', 
                                     border: `1.5px solid ${teamBTheme.border}`, 
-                                    borderRadius: '6px', 
-                                    padding: '3px', 
+                                    borderRadius: '8px', 
+                                    padding: '5px 6px', 
                                     backgroundColor: teamBTheme.bg 
                                   }}>
-                                    <select
-                                      className="input input-sm"
-                                      style={{ 
-                                        width: '100%', 
-                                        fontWeight: 'bold', 
-                                        fontSize: '12px', 
-                                        padding: '2px 4px', 
-                                        height: '26px', 
-                                        lineHeight: 'normal',
-                                        textAlign: 'center',
-                                        textAlignLast: 'center',
-                                        backgroundColor: '#fff',
-                                        borderColor: teamBTheme.border,
-                                        color: teamBTheme.text,
-                                        opacity: 1,
-                                        cursor: isAdmin ? 'pointer' : 'default',
-                                        pointerEvents: isAdmin ? 'auto' : 'none',
-                                        appearance: isAdmin ? 'auto' : 'none'
+                                    {isAdmin ? (
+                                      <select
+                                        className="input input-sm"
+                                        style={{ 
+                                          width: '100%', 
+                                          fontWeight: 'bold', 
+                                          fontSize: '12px', 
+                                          padding: '2px 4px', 
+                                          height: '26px', 
+                                          lineHeight: 'normal',
+                                          textAlign: 'center',
+                                          textAlignLast: 'center',
+                                          backgroundColor: '#fff',
+                                          borderColor: teamBTheme.border,
+                                          color: teamBTheme.text,
+                                          borderRadius: '5px'
+                                        }}
+                                        value={m.teamBId || ''}
+                                        onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamBId', e.target.value)}
+                                      >
+                                        <option value="">B조(팀)</option>
+                                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                      </select>
+                                    ) : (
+                                      <div style={{ fontWeight: 'bold', fontSize: '12px', color: teamBTheme.text, textAlign: 'center' }}>
+                                        {teamMap[m.teamBId]?.name || 'B조'}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Players Container & Modal Trigger */}
+                                    <div 
+                                      onClick={() => {
+                                        if (m.teamBId) {
+                                          openPlayerAssignModal(courtId, courtNum, setIdx, 'B', m.teamBId, m.playerB1, m.playerB2);
+                                        }
                                       }}
-                                      value={m.teamBId || ''}
-                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamBId', e.target.value)}
-                                      disabled={!isAdmin}
+                                      style={{ 
+                                        display: 'flex', 
+                                        flexDirection: 'column', 
+                                        alignItems: 'center', 
+                                        gap: '2px', 
+                                        backgroundColor: '#fff', 
+                                        border: (isPlayerB1Conflicting || isPlayerB2Conflicting) ? '1.5px solid #ef4444' : '1px solid #e2e8f0', 
+                                        borderRadius: '6px', 
+                                        padding: '4px 6px', 
+                                        cursor: m.teamBId ? 'pointer' : 'default',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                                        minHeight: '44px',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={m.teamBId ? "클릭하여 출전 선수 지정 또는 변경" : ""}
                                     >
-                                      <option value="">B팀</option>
-                                      {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                    </select>
-                                    
-                                    <select
-                                      className="input input-sm"
-                                      style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamBTheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
-                                      value={m.playerB1 || ''}
-                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerB1', e.target.value)}
-                                      disabled={!isAdmin || !m.teamBId}
-                                    >
-                                      <option value="">선수1</option>
-                                      {teamBPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
-                                    </select>
-                                    
-                                    <select
-                                      className="input input-sm"
-                                      style={{ width: '100%', fontSize: '12px', padding: '2px 4px', height: '25px', lineHeight: 'normal', textAlign: 'center', textAlignLast: 'center', backgroundColor: '#fff', borderColor: teamBTheme.border, opacity: 1, cursor: isAdmin ? 'pointer' : 'default', pointerEvents: isAdmin ? 'auto' : 'none', appearance: isAdmin ? 'auto' : 'none' }}
-                                      value={m.playerB2 || ''}
-                                      onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'playerB2', e.target.value)}
-                                      disabled={!isAdmin || !m.teamBId}
-                                    >
-                                      <option value="">선수2</option>
-                                      {teamBPlayers.map(pid => <option key={pid} value={pid}>{byId[pid]?.name}</option>)}
-                                    </select>
+                                      {(m.playerB1 || m.playerB2) ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', flexWrap: 'wrap', width: '100%' }}>
+                                          <span style={{ 
+                                            fontSize: '11.5px', 
+                                            fontWeight: 700, 
+                                            color: isPlayerB1Conflicting ? '#b91c1c' : 'var(--txt)',
+                                            backgroundColor: isPlayerB1Conflicting ? '#fee2e2' : '#f1f5f9',
+                                            padding: '1px 4px',
+                                            borderRadius: '4px'
+                                          }}>
+                                            {byId[m.playerB1]?.name || '선수1'} {isPlayerB1Conflicting && '⚠️'}
+                                          </span>
+                                          <span style={{ fontSize: '10px', color: '#94a3b8' }}>/</span>
+                                          <span style={{ 
+                                            fontSize: '11.5px', 
+                                            fontWeight: 700, 
+                                            color: isPlayerB2Conflicting ? '#b91c1c' : 'var(--txt)',
+                                            backgroundColor: isPlayerB2Conflicting ? '#fee2e2' : '#f1f5f9',
+                                            padding: '1px 4px',
+                                            borderRadius: '4px'
+                                          }}>
+                                            {byId[m.playerB2]?.name || '선수2'} {isPlayerB2Conflicting && '⚠️'}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>👥 선수 미지정</span>
+                                      )}
+
+                                      {m.teamBId && (
+                                        <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                          ✏️ {(m.playerB1 || m.playerB2) ? '선수 변경' : '선수 지정'}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </td>
@@ -2309,6 +3351,739 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
           )}
         </div>
       </div>
+
+      {/* 🔍 중복 체크 및 대진 새로 작성 모달 */}
+      {showDuplicateModal && (() => {
+        const modalEl = (
+          <div className="modal-overlay" onClick={() => setShowDuplicateModal(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px', width: '100%', maxHeight: '88dvh', overflowY: 'auto' }}>
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '20px' }}>{conflictMap.hasConflict ? '⚠️' : '🔍'}</span>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: 'var(--navy)' }}>
+                    선수 중복 출전 점검
+                  </h2>
+                </div>
+                <button 
+                  className="modal-close" 
+                  onClick={() => setShowDuplicateModal(false)} 
+                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {conflictMap.hasConflict ? (
+                  <>
+                    <div style={{ padding: '12px 14px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#991b1b', fontSize: '13px', lineHeight: '1.5' }}>
+                      <strong>⚠️ 동일 시간대에 중복 배정된 선수({conflictMap.conflictDetails.length}건)가 발견되었습니다.</strong>
+                      <div style={{ fontSize: '12px', marginTop: '4px', color: '#b91c1c' }}>
+                        선수가 같은 시간대에 여러 코트에 동시 출전할 수 없습니다. 아래 중복 목록을 확인하고 대진을 새로 작성하거나 수동으로 수정해 주세요.
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
+                      {conflictMap.conflictDetails.map((c, idx) => (
+                        <div key={idx} style={{ padding: '10px 12px', backgroundColor: '#fff', border: '1px solid #fca5a5', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '4px', boxShadow: '0 1px 3px rgba(239, 68, 68, 0.05)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                            <span style={{ fontWeight: 800, fontSize: '14px', color: '#b91c1c' }}>
+                              👤 {c.playerName} {byId[c.playerId]?.ntrp ? `(${byId[c.playerId].ntrp}/${byId[c.playerId].gender === 'F' ? '여' : '남'})` : ''}
+                            </span>
+                            <span style={{ fontSize: '12px', fontWeight: 700, backgroundColor: '#fee2e2', color: '#991b1b', padding: '2px 8px', borderRadius: '12px' }}>
+                              ⏰ {c.timeStr} ({c.slot}경기/세트)
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#4b5563' }}>
+                            🎾 <strong>중복 코트:</strong> <span style={{ color: '#dc2626', fontWeight: 700 }}>{c.courts.join(' & ')}</span>
+                          </div>
+                          <div style={{ fontSize: '11.5px', color: '#6b7280', backgroundColor: '#f9fafb', padding: '4px 8px', borderRadius: '4px' }}>
+                            {c.description}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {isAdmin && (
+                      <div style={{ padding: '12px 14px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', fontSize: '12.5px', color: '#1e40af', lineHeight: '1.5' }}>
+                        💡 <strong>대진 새로 작성(자동 재배정):</strong><br/>
+                        버튼 클릭 시 모든 선수의 출전 횟수, 실력(NTRP), 성별 균형을 고려하여 <strong>동일 시간대 중복이 없는 새로운 대진표</strong>를 자동 편성합니다.
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ fontSize: '3rem' }}>✅</div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#166534' }}>
+                      동일 시간대 선수 중복이 없습니다!
+                    </h3>
+                    <p style={{ color: 'var(--txt2)', fontSize: '13px', margin: 0, maxWidth: '380px', lineHeight: 1.5 }}>
+                      현재 편성된 모든 코트와 시간대에 선수가 겹치지 않고 정상적으로 배정되어 있습니다. 안심하고 경기를 진행하실 수 있습니다.
+                    </p>
+                    <div style={{ marginTop: '8px', padding: '8px 16px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontSize: '12px', color: '#15803d', fontWeight: 600 }}>
+                      총 {localMatches.length}경기 ({localMatches.filter(m => m.court).length}경기 코트 배정 완료)
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '18px', borderTop: '1px solid var(--border)', paddingTop: '14px', flexWrap: 'wrap' }}>
+                <button className="btn btn-secondary" onClick={() => setShowDuplicateModal(false)}>
+                  {conflictMap.hasConflict ? '수동으로 수정' : '확인'}
+                </button>
+                {isAdmin && (
+                  <button 
+                    className="btn btn-primary" 
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onClick={handleRegenerateSchedule}
+                  >
+                    🔄 대진 새로 작성
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+        return mounted && typeof document !== 'undefined' ? createPortal(modalEl, document.body) : modalEl;
+      })()}
+
+      {/* 👥 조(팀) 출전 선수 지정 모달 */}
+      {assignModalData && (() => {
+        const selectedTeam = teamMap[assignModalData.teamId] || {};
+        const teamPlayers = selectedTeam.players || [];
+        const normalizedLineups = getNormalizedLineupList(selectedTeam);
+        const teamIdx = teamIndexMap[assignModalData.teamId];
+        const teamTheme = (teamIdx !== undefined && teamIdx >= 0) ? TEAM_COLORS[teamIdx % TEAM_COLORS.length] : { bg: '#f8fafc', border: '#e2e8f0', text: 'var(--navy)', badgeBg: '#3b82f6' };
+
+        const handleSelectLineup = (lu) => {
+          setModalP1(lu.player1 || null);
+          setModalP2(lu.player2 || null);
+        };
+
+        const handleTogglePlayer = (pid) => {
+          if (modalP1 === pid) {
+            setModalP1(null);
+          } else if (modalP2 === pid) {
+            setModalP2(null);
+          } else {
+            if (!modalP1) {
+              setModalP1(pid);
+            } else if (!modalP2) {
+              setModalP2(pid);
+            } else {
+              setModalP2(pid); // replace second player
+            }
+          }
+        };
+
+        const handleApply = () => {
+          if (modalP1 && modalP2 && modalP1 === modalP2) {
+            alert('동일한 선수를 중복으로 선택할 수 없습니다.');
+            return;
+          }
+          handleUpdateTeamPlayers(
+            assignModalData.courtId,
+            assignModalData.courtNum,
+            assignModalData.setIdx,
+            assignModalData.teamSide,
+            modalP1,
+            modalP2
+          );
+          setAssignModalData(null);
+        };
+
+        const selectedCount = [modalP1, modalP2].filter(Boolean).length;
+
+        const modalEl = (
+          <div className="modal-overlay" onClick={() => setAssignModalData(null)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px', width: '100%', maxHeight: '88dvh', overflowY: 'auto' }}>
+              {/* Modal Header */}
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ 
+                      backgroundColor: teamTheme.badgeBg || '#3b82f6', 
+                      color: '#fff', 
+                      padding: '2px 8px', 
+                      borderRadius: '12px', 
+                      fontSize: '12px', 
+                      fontWeight: 800 
+                    }}>
+                      {selectedTeam.name || '조'}
+                    </span>
+                    <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--navy)' }}>
+                      {assignModalData.courtNum} {assignModalData.setIdx}세트 출전 선수 지정
+                    </h2>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--txt2)', marginTop: '4px' }}>
+                    조장: <strong>{byId[selectedTeam.captain]?.name || byId[selectedTeam.leaderId]?.name || '미정'}</strong> | 전체 조원: {teamPlayers.length}명
+                  </div>
+                </div>
+                <button 
+                  className="modal-close" 
+                  onClick={() => setAssignModalData(null)} 
+                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: '1' }}
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* 1. 3단계 사전 배정 라인업 원클릭 선택 */}
+                {normalizedLineups.length > 0 && (
+                  <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                      <span>📋 3단계 사전 출전 명단 불러오기</span>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>터치 시 자동 선택</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                      {normalizedLineups.map((lu) => {
+                        const p1Name = byId[lu.player1]?.name || '미정';
+                        const p2Name = byId[lu.player2]?.name || '미정';
+                        const p1Count = playerMatchCounts[lu.player1] || 0;
+                        const p2Count = playerMatchCounts[lu.player2] || 0;
+                        const isCurrentSet = lu.gameNum === assignModalData.setIdx;
+                        const isSelected = (modalP1 === lu.player1 && modalP2 === lu.player2) || (modalP1 === lu.player2 && modalP2 === lu.player1);
+
+                        return (
+                          <button
+                            key={lu.gameNum}
+                            type="button"
+                            onClick={() => handleSelectLineup(lu)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              border: isSelected ? '2px solid #2563eb' : isCurrentSet ? '1.5px solid #86efac' : '1px solid #cbd5e1',
+                              backgroundColor: isSelected ? '#eff6ff' : isCurrentSet ? '#f0fdf4' : '#fff',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: '11px', color: isSelected ? '#2563eb' : isCurrentSet ? '#16a34a' : '#64748b', fontWeight: 700 }}>
+                                {lu.gameNum}경기 명단 {isCurrentSet && '🌟 (추천)'}
+                              </div>
+                              <div style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b', marginTop: '2px' }}>
+                                👤 {p1Name} <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold' }}>({p1Count}경기)</span> / 👤 {p2Name} <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold' }}>({p2Count}경기)</span>
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <span style={{ fontSize: '14px', color: '#2563eb', fontWeight: 'bold' }}>✓</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. 조원 직접 선택 (임의 지정) */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>
+                      👤 조원 직접 선택 ({selectedCount}/2명 선택됨)
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                      조원 2명을 터치하여 선택/해제
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px' }}>
+                    {teamPlayers.map(pid => {
+                      const player = byId[pid] || { name: '선수' };
+                      const isSelected1 = modalP1 === pid;
+                      const isSelected2 = modalP2 === pid;
+                      const isSelected = isSelected1 || isSelected2;
+                      const isLeader = selectedTeam.captain === pid || selectedTeam.leaderId === pid;
+                      const gameCount = playerMatchCounts[pid] || 0;
+
+                      // 동일 시간대(setIdx) 타 코트 출전 여부 체크
+                      const conflictingMatch = localMatches.find(m => 
+                        (m.courtId !== assignModalData.courtId && m.court !== assignModalData.courtNum) &&
+                        m.setIndex === assignModalData.setIdx &&
+                        [m.playerA1, m.playerA2, m.playerB1, m.playerB2].includes(pid)
+                      );
+
+                      return (
+                        <div
+                          key={pid}
+                          onClick={() => handleTogglePlayer(pid)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: isSelected ? '2px solid #2563eb' : conflictingMatch ? '1.5px solid #fca5a5' : '1px solid #e2e8f0',
+                            backgroundColor: isSelected ? '#eff6ff' : conflictingMatch ? '#fef2f2' : '#fff',
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            backgroundColor: isSelected ? '#2563eb' : '#f1f5f9',
+                            color: isSelected ? '#fff' : '#64748b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            flexShrink: 0
+                          }}>
+                            {isSelected1 ? '1' : isSelected2 ? '2' : ''}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 800, fontSize: '13px', color: conflictingMatch ? '#b91c1c' : '#1e293b' }}>
+                                  {player.name}
+                                </span>
+                                {isLeader && <span style={{ fontSize: '9.5px', backgroundColor: '#fef3c7', color: '#b45309', padding: '1px 3px', borderRadius: '3px', fontWeight: 'bold' }}>👑조장</span>}
+                                {player.gender && <span style={{ fontSize: '10px', color: player.gender === 'F' ? '#e11d48' : '#2563eb' }}>({player.gender === 'F' ? '여' : '남'})</span>}
+                              </div>
+                              <span style={{ 
+                                fontSize: '11px', 
+                                fontWeight: 800, 
+                                color: gameCount > 0 ? '#1d4ed8' : '#64748b',
+                                backgroundColor: gameCount > 0 ? '#dbeafe' : '#f1f5f9',
+                                padding: '1px 6px',
+                                borderRadius: '10px',
+                                flexShrink: 0
+                              }}>
+                                🎾 {gameCount}경기
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                              NTRP: {player.ntrp || '-'}
+                            </div>
+                            {conflictingMatch && (
+                              <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, marginTop: '2px' }}>
+                                ⚠️ {conflictingMatch.court || conflictingMatch.courtId} 출전중
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. 현재 선택 요약 박스 */}
+                <div style={{ padding: '10px 14px', backgroundColor: '#f1f5f9', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', color: '#475569', fontWeight: 700 }}>선택된 출전 선수:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontWeight: 800, fontSize: '13.5px', color: modalP1 ? '#2563eb' : '#94a3b8' }}>
+                      {modalP1 ? `👤 ${byId[modalP1]?.name}` : '(선수1 미지정)'}
+                    </span>
+                    <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>+</span>
+                    <span style={{ fontWeight: 800, fontSize: '13.5px', color: modalP2 ? '#2563eb' : '#94a3b8' }}>
+                      {modalP2 ? `👤 ${byId[modalP2]?.name}` : '(선수2 미지정)'}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm" 
+                  style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fff' }}
+                  onClick={() => {
+                    setModalP1(null);
+                    setModalP2(null);
+                  }}
+                >
+                  선수 비우기
+                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAssignModalData(null)}>
+                    취소
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary btn-sm" 
+                    onClick={handleApply}
+                    style={{ fontWeight: 800, padding: '6px 16px' }}
+                  >
+                    선택 완료 및 적용
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+        return mounted && typeof document !== 'undefined' ? createPortal(modalEl, document.body) : modalEl;
+      })()}
+
+      {/* 📊 각 선수별 게임수 및 출전 현황 모달 */}
+      {showPlayerStatsModal && (() => {
+        const modalEl = (
+          <div className="modal-overlay" onClick={() => setShowPlayerStatsModal(false)}>
+            <div 
+              className="modal-content" 
+              onClick={e => e.stopPropagation()} 
+              style={{ 
+                maxWidth: '740px', 
+                width: '100%', 
+                maxHeight: '88dvh', 
+                overflowY: 'auto',
+                borderRadius: '16px',
+                padding: '20px'
+              }}
+            >
+            {/* Modal Header */}
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '22px' }}>📊</span>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--navy)' }}>
+                    각 선수별 게임수 및 출전 현황
+                  </h2>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--txt2)', marginTop: '4px' }}>
+                  선수별 총 출전 경기수, 완료/대기 현황, 상세 출전 세트 및 전적을 한눈에 확인합니다.
+                </div>
+              </div>
+              <button 
+                className="modal-close" 
+                onClick={() => setShowPlayerStatsModal(false)} 
+                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 1 }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              {/* 1. KPI Metric Summary Cards (4 Cards) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                <div style={{ padding: '10px 12px', backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: 700 }}>👥 총 출전 선수</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#0c4a6e', marginTop: '2px' }}>
+                    {playerGameStatsData.totalPlayers}명
+                  </div>
+                </div>
+
+                <div style={{ padding: '10px 12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>🎾 총 배정 슬롯</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#14532d', marginTop: '2px' }}>
+                    {playerGameStatsData.totalMatchSlots}회
+                  </div>
+                </div>
+
+                <div style={{ padding: '10px 12px', backgroundColor: '#fdf4ff', border: '1px solid #f5d0fe', borderRadius: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#a21caf', fontWeight: 700 }}>⚖️ 1인 평균 경기수</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#701a75', marginTop: '2px' }}>
+                    {playerGameStatsData.avgGames}경기
+                  </div>
+                </div>
+
+                <div style={{ padding: '10px 12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 700 }}>🎯 출전 편차</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#78350f', marginTop: '2px' }}>
+                    {playerGameStatsData.minGames}~{playerGameStatsData.maxGames}경기
+                  </div>
+                </div>
+              </div>
+
+              {/* ⚠️ 미배정 선수 경고 알림 */}
+              {playerGameStatsData.unassignedPlayers.length > 0 && (
+                <div style={{ padding: '10px 14px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#991b1b', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '16px' }}>⚠️</span>
+                  <div>
+                    <strong>아직 출전이 배정되지 않은 선수({playerGameStatsData.unassignedPlayers.length}명): </strong>
+                    <span>{playerGameStatsData.unassignedPlayers.map(p => p.name).join(', ')}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. 필터 & 검색 툴바 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                {/* 조(팀) 탭 필터 (팀전 전용) */}
+                {type === 'team' && teams && teams.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', minWidth: '42px' }}>조 구분:</span>
+                    <button
+                      type="button"
+                      onClick={() => setPlayerStatsFilterTeam('ALL')}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '11.5px',
+                        fontWeight: playerStatsFilterTeam === 'ALL' ? 800 : 500,
+                        backgroundColor: playerStatsFilterTeam === 'ALL' ? '#2563eb' : '#fff',
+                        color: playerStatsFilterTeam === 'ALL' ? '#fff' : '#64748b',
+                        border: '1px solid',
+                        borderColor: playerStatsFilterTeam === 'ALL' ? '#2563eb' : '#cbd5e1',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      전체 ({playerGameStatsData.totalPlayers})
+                    </button>
+                    {teams.map((t, idx) => {
+                      const countInTeam = (t.players || []).length;
+                      const isSelected = playerStatsFilterTeam === t.id;
+                      const theme = TEAM_COLORS[idx % TEAM_COLORS.length] || { badgeBg: '#2563eb', border: '#cbd5e1', text: '#2563eb' };
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setPlayerStatsFilterTeam(t.id)}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '11.5px',
+                            fontWeight: isSelected ? 800 : 500,
+                            backgroundColor: isSelected ? theme.badgeBg : '#fff',
+                            color: isSelected ? '#fff' : theme.text,
+                            border: '1px solid',
+                            borderColor: isSelected ? theme.badgeBg : theme.border,
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {t.name} ({countInTeam})
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 경기수 필터 칩 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', minWidth: '42px' }}>경기수:</span>
+                  {[
+                    { key: 'ALL', label: '전체' },
+                    { key: '0', label: '0경기(미출전)' },
+                    { key: '1', label: '1경기' },
+                    { key: '2', label: '2경기' },
+                    { key: '3+', label: '3경기 이상' }
+                  ].map(f => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setPlayerStatsFilterGames(f.key)}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        fontWeight: playerStatsFilterGames === f.key ? 800 : 500,
+                        backgroundColor: playerStatsFilterGames === f.key ? '#0f172a' : '#fff',
+                        color: playerStatsFilterGames === f.key ? '#fff' : '#64748b',
+                        border: '1px solid',
+                        borderColor: playerStatsFilterGames === f.key ? '#0f172a' : '#cbd5e1',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 검색 및 정렬 드롭다운 */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 180px', position: 'relative' }}>
+                    <input
+                      type="text"
+                      className="input input-sm"
+                      placeholder="🔍 선수명 검색..."
+                      value={playerStatsSearch}
+                      onChange={e => setPlayerStatsSearch(e.target.value)}
+                      style={{ width: '100%', height: '32px', fontSize: '12px', paddingLeft: '8px' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>정렬:</span>
+                    <select
+                      className="input input-sm"
+                      value={playerStatsSort}
+                      onChange={e => setPlayerStatsSort(e.target.value)}
+                      style={{ height: '32px', fontSize: '12px', padding: '2px 8px', fontWeight: 700 }}
+                    >
+                      <option value="games_desc">경기수 많은 순 ↓</option>
+                      <option value="games_asc">경기수 적은 순 ↑</option>
+                      <option value="name_asc">이름 가나다순</option>
+                      <option value="ntrp_desc">NTRP 실력순 ↓</option>
+                      <option value="winrate_desc">승률 높은 순 ↓</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. 선수별 목록 카드 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+                {filteredAndSortedPlayers.length === 0 ? (
+                  <div style={{ padding: '30px', textAlign: 'center', color: 'var(--txt3)', fontSize: '13px' }}>
+                    선택한 조건에 해당하는 선수가 없습니다.
+                  </div>
+                ) : (
+                  filteredAndSortedPlayers.map((p) => {
+                    const teamTheme = (p.teamIdx !== undefined && p.teamIdx >= 0) ? TEAM_COLORS[p.teamIdx % TEAM_COLORS.length] : null;
+
+                    return (
+                      <div
+                        key={p.id}
+                        style={{
+                          border: '1px solid var(--border)',
+                          borderRadius: '10px',
+                          padding: '12px 14px',
+                          backgroundColor: '#fff',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px'
+                        }}
+                      >
+                        {/* Player Header Row */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--txt)' }}>
+                              👤 {p.name}
+                            </span>
+                            {p.isLeader && (
+                              <span style={{ fontSize: '10px', backgroundColor: '#fef3c7', color: '#b45309', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                                👑 조장
+                              </span>
+                            )}
+                            {p.gender && (
+                              <span style={{ fontSize: '11px', color: p.gender === 'F' ? '#e11d48' : '#2563eb' }}>
+                                ({p.gender === 'F' ? '여' : '남'})
+                              </span>
+                            )}
+                            <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
+                              NTRP {p.ntrp}
+                            </span>
+                            {p.teamName && (
+                              <span style={{ 
+                                fontSize: '11px', 
+                                fontWeight: 700, 
+                                backgroundColor: teamTheme ? teamTheme.bg : '#f1f5f9', 
+                                color: teamTheme ? teamTheme.text : 'var(--navy)',
+                                border: teamTheme ? `1px solid ${teamTheme.border}` : '1px solid #cbd5e1',
+                                padding: '1px 6px',
+                                borderRadius: '4px'
+                              }}>
+                                {p.teamName}
+                              </span>
+                            )}
+                            {p.pairName && (
+                              <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px' }}>
+                                👫 {p.pairName}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Game Count & Record Badges */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '12px',
+                              fontWeight: 800,
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              backgroundColor: p.totalGames > 0 ? '#eff6ff' : '#fef2f2',
+                              color: p.totalGames > 0 ? '#1d4ed8' : '#dc2626',
+                              border: p.totalGames > 0 ? '1px solid #bfdbfe' : '1px solid #fca5a5'
+                            }}>
+                              🔥 총 {p.totalGames}경기 출전
+                              <span style={{ fontSize: '10.5px', fontWeight: 600, marginLeft: '4px', color: p.totalGames > 0 ? '#3b82f6' : '#ef4444' }}>
+                                (완료 {p.completedCount} / 대기 {p.pendingCount})
+                              </span>
+                            </span>
+
+                            {p.completedCount > 0 && (
+                              <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '8px' }}>
+                                {p.wins}승 {p.draws > 0 ? `${p.draws}무 ` : ''}{p.losses}패 ({p.gameDiff > 0 ? `+${p.gameDiff}` : p.gameDiff})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Matches List */}
+                        {p.matches.length > 0 ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '6px', borderTop: '1px dashed #e2e8f0', paddingTop: '6px' }}>
+                            {p.matches.map((m, mIdx) => (
+                              <div
+                                key={mIdx}
+                                style={{
+                                  padding: '6px 8px',
+                                  borderRadius: '6px',
+                                  backgroundColor: m.isFinished ? (m.result === 'win' ? '#f0fdf4' : m.result === 'loss' ? '#fef2f2' : '#f8fafc') : '#f8fafc',
+                                  border: m.isFinished ? (m.result === 'win' ? '1px solid #bbf7d0' : m.result === 'loss' ? '1px solid #fecaca' : '1px solid #e2e8f0') : '1px solid #e2e8f0',
+                                  fontSize: '11.5px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '2px'
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 800, color: 'var(--navy)' }}>
+                                    🎾 {m.courtName} {m.setIndex}세트
+                                  </span>
+                                  {m.isFinished ? (
+                                    <span style={{ 
+                                      fontWeight: 800, 
+                                      fontSize: '11px',
+                                      color: m.result === 'win' ? '#16a34a' : m.result === 'loss' ? '#dc2626' : '#64748b' 
+                                    }}>
+                                      {m.myScore} : {m.oppScore} ({m.result === 'win' ? '승' : m.result === 'loss' ? '패' : '무'})
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: '10.5px', color: '#2563eb', fontWeight: 700, backgroundColor: '#dbeafe', padding: '1px 5px', borderRadius: '4px' }}>
+                                      ⏳ 대기중
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ color: 'var(--txt2)', fontSize: '11px' }}>
+                                  파트너: <strong>{m.partnerName}</strong>
+                                  <span style={{ margin: '0 4px', color: '#cbd5e1' }}>|</span>
+                                  상대: <strong>{m.opp1Name}{m.opp2Name && ` / ${m.opp2Name}`}</strong>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '11.5px', color: '#dc2626', backgroundColor: '#fef2f2', padding: '6px 10px', borderRadius: '6px', border: '1px solid #fee2e2' }}>
+                            ⚠️ 현재 배정된 경기가 없습니다.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => setShowPlayerStatsModal(false)}
+                style={{ fontWeight: 700, padding: '6px 18px' }}
+              >
+                닫기
+              </button>
+            </div>
+
+          </div>
+        </div>
+      );
+      return mounted && typeof document !== 'undefined' ? createPortal(modalEl, document.body) : modalEl;
+    })()}
     </div>
   );
 }
