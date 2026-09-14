@@ -52,43 +52,6 @@ export default function ScheduleResult({ result, players, rounds, courts }) {
         </div>
       </section>
 
-      {/* 검증 요약 */}
-      <section className={`card ${styles.section}`}>
-        <h2 className={styles.title}>검증 요약</h2>
-        <div className={styles.stats}>
-          <div className={`${styles.statBox} ${result.dupCount === 0 ? styles.statGreen : styles.statRed}`}>
-            <span className={styles.statLabel}>중복 페어 수</span>
-            <span className={styles.statVal}>{result.dupCount}</span>
-          </div>
-          <div className={styles.statBox}>
-            <span className={styles.statLabel}>NTRP 합계 편차 총합</span>
-            <span className={styles.statVal}>{result.ntrpDiffSum?.toFixed(1)}</span>
-          </div>
-        </div>
-        <div className="table-wrap" style={{ marginTop: 16 }}>
-          <table>
-            <thead>
-              <tr><th>이름</th><th>성별</th><th>NTRP</th><th>목표</th><th>실제</th><th>일치</th></tr>
-            </thead>
-            <tbody>
-              {players.map((p) => {
-                const actual = counts[p.id] || 0;
-                const ok = actual === p.target;
-                return (
-                  <tr key={p.id}>
-                    <td>{p.name}</td>
-                    <td><span className={`badge ${p.gender === 'F' ? 'badge-purple' : 'badge-blue'}`}>{p.gender === 'F' ? '여' : '남'}</span></td>
-                    <td>{p.ntrp.toFixed(1)}</td>
-                    <td>{p.target}</td>
-                    <td>{actual}</td>
-                    <td className={ok ? 'text-green' : 'text-red'}>{ok ? '✓' : '✗'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </>
   );
 }

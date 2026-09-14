@@ -702,43 +702,6 @@ export default function BracketTab({
         )}
       </div>
 
-      {/* 검증 요약 */}
-      {isAdmin && (
-        <div className={`card ${styles.section}`}>
-          <h2 className={styles.sectionTitle}>검증 요약</h2>
-          {lastGenStats && (
-            <div className={styles.statsRow}>
-              <div className={`${styles.statBox} ${lastGenStats.dupCount === 0 ? styles.statGreen : styles.statRed}`}>
-                <span className={styles.statLabel}>중복 페어 수</span>
-                <span className={styles.statNum2}>{lastGenStats.dupCount}</span>
-              </div>
-              <div className={styles.statBox}>
-                <span className={styles.statLabel}>NTRP 편차 총합</span>
-                <span className={styles.statNum2}>{lastGenStats.ntrpDiffSum?.toFixed(1)}</span>
-              </div>
-            </div>
-          )}
-          <div className="table-wrap" style={{ marginTop: 12 }}>
-            <table>
-              <thead><tr><th>이름</th><th>목표</th><th>실제</th><th>일치</th></tr></thead>
-              <tbody>
-                {entries.map(p => {
-                  const actual = counts[p.id] || 0;
-                  const ok = actual === p.target;
-                  return (
-                    <tr key={p.id}>
-                      <td>{p.name}</td>
-                      <td>{p.target}</td>
-                      <td>{actual}</td>
-                      <td className={ok ? 'text-green' : 'text-red'}>{ok ? '✓' : '✗'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* 💸 1. 최종 경기 벌칙금(진팀 벌금) 정산소 */}
       <div className={`card ${styles.section}`} style={{ marginTop: '24px', border: '1px solid rgba(225, 29, 72, 0.25)', background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255, 241, 242, 0.4) 100%)' }}>
