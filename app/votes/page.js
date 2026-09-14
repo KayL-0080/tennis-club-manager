@@ -237,10 +237,10 @@ export default function VotesPage() {
     if (!confirm('이 일정을 삭제하시겠습니까?')) return;
     await deleteEvent('shared', selectedEvent.id);
     setEvents(prev => prev.filter(e => e.id !== selectedEvent.id));
-    setSelectedEvent(null);
+    closeModal();
   };
 
-  const openModal = (e) => {
+  const openModal = (e, updateUrl = true) => {
     setSelectedEvent(e);
     setIsEditing(false);
     setEditTitle(e.title);
@@ -248,7 +248,44 @@ export default function VotesPage() {
     setEditStartTime(e.startTime);
     setEditEndTime(e.endTime);
     setEditLocation(e.location);
+    if (updateUrl && typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `/votes?id=${e.id}`);
+    }
   };
+
+  const closeModal = () => {
+    setSelectedEvent(null);
+    setIsEditing(false);
+    setShowSettingsModal(false);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '/votes');
+    }
+  };
+
+  // URL 쿼리 파라미터(?id=... 또는 ?eventId=...)로 접속 시 해당 모임 투표 모달 자동 오픈
+  useEffect(() => {
+    if (typeof window === 'undefined' || events.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const targetId = params.get('id') || params.get('eventId');
+    const targetDate = params.get('date');
+
+    if (targetId) {
+      const target = events.find(e => e.id === targetId);
+      if (target) {
+        if (target.date) {
+          const monthStr = target.date.substring(0, 7);
+          setSelectedMonth(prev => (prev === 'ALL' ? prev : monthStr));
+        }
+        openModal(target, false);
+      }
+    } else if (targetDate) {
+      const target = events.find(e => e.date === targetDate);
+      if (target) {
+        setSelectedMonth(prev => (prev === 'ALL' ? prev : targetDate.substring(0, 7)));
+        openModal(target, false);
+      }
+    }
+  }, [events]);
 
   const exportToExcel = () => {
     const modalBody = document.querySelector('#printable-monthly-table .modal-body');
@@ -297,6 +334,9 @@ export default function VotesPage() {
     const absentees = members.filter(m => selectedEvent.attendees?.[m.id] === 'N').map(m => m.name);
     const unknowns = members.filter(m => !selectedEvent.attendees?.[m.id] || selectedEvent.attendees?.[m.id] === '?').map(m => m.name);
 
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
+    const shareUrl = `${origin}/votes?id=${selectedEvent.id}`;
+
     const text = `[투표 현황] ${selectedEvent.title}
 📅 ${selectedEvent.date}
 ⏰ ${selectedEvent.startTime} ~ ${selectedEvent.endTime}
@@ -306,7 +346,7 @@ export default function VotesPage() {
 ❌ 불참 (${absentees.length}명): ${absentees.length ? absentees.join(', ') : '없음'}
 ❓ 미정 (${unknowns.length}명): ${unknowns.length ? unknowns.join(', ') : '없음'}
 
-🔗 접속 링크: https://tcmngr.vercel.app`;
+🔗 투표 바로가기: ${shareUrl}`;
 
     setReminderText(text);
     setShowReminderModal(true);
@@ -526,14 +566,14 @@ export default function VotesPage() {
 
       {/* 투표 / 설정 / 수정 모달 */}
       {(selectedEvent || isEditing || showSettingsModal) && (
-        <div className="modal-overlay" onClick={() => { setIsEditing(false); setShowSettingsModal(false); setSelectedEvent(null); }}>
+        <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', width: '100%', maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden' }}>
             
             {showSettingsModal ? (
               <div style={{ marginBottom: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: 'var(--txt)' }}>⚙️ 클럽 정기 모임 설정</h2>
-                  <button className="modal-close" onClick={() => setShowSettingsModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
+                  <button className="modal-close" onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
                 </div>
                 <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', marginBottom: '16px', lineHeight: '1.5' }}>
                   정기 모임의 요일, 시간, 기본 장소를 추가하거나 삭제할 수 있습니다. 저장 시 설정된 규칙에 따라 <strong>향후 6주간의 투표 일정</strong>이 자동으로 생성·관리됩니다.
@@ -598,7 +638,7 @@ export default function VotesPage() {
                 {/* 새 정기 모임 추가 폼 */}
                 <div style={{ background: 'rgba(0, 122, 255, 0.04)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(0, 122, 255, 0.2)', marginBottom: '16px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 10px 0', color: 'var(--ios-blue)' }}>
-                    ➕ 새 모임 요일/시간 추가
+                    + 새 정기 모임 요일 추가
                   </h3>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '8px' }}>
@@ -620,22 +660,22 @@ export default function VotesPage() {
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>모임 제목</label>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>일정 제목</label>
                       <input 
                         className="input input-sm" 
                         value={newRuleTitle} 
                         onChange={e => setNewRuleTitle(e.target.value)} 
-                        placeholder="예: 정기 모임 (토)" 
+                        placeholder="예: 정기 모임 (화)" 
                       />
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>시작 시간</label>
                       <input 
-                        type="time" 
                         className="input input-sm" 
+                        type="time" 
                         value={newRuleStartTime} 
                         onChange={e => setNewRuleStartTime(e.target.value)} 
                       />
@@ -643,8 +683,8 @@ export default function VotesPage() {
                     <div>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>종료 시간</label>
                       <input 
-                        type="time" 
                         className="input input-sm" 
+                        type="time" 
                         value={newRuleEndTime} 
                         onChange={e => setNewRuleEndTime(e.target.value)} 
                       />
@@ -673,7 +713,7 @@ export default function VotesPage() {
                 </div>
                 
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                  <button className="btn btn-secondary" onClick={() => setShowSettingsModal(false)}>닫기</button>
+                  <button className="btn btn-secondary" onClick={closeModal}>닫기</button>
                   <button 
                     className="btn btn-primary" 
                     disabled={savingRules}
@@ -687,7 +727,7 @@ export default function VotesPage() {
               <div style={{ marginBottom: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>{selectedEvent ? '일정 수정' : '새 투표 만들기'}</h2>
-                  <button className="modal-close" onClick={() => setIsEditing(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
+                  <button className="modal-close" onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
                 </div>
                 <div className="form-group">
                   <label>제목</label>
@@ -712,7 +752,7 @@ export default function VotesPage() {
                   <input className="input" value={editLocation} onChange={e => setEditLocation(e.target.value)} />
                 </div>
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                  <button className="btn btn-secondary" onClick={() => setIsEditing(false)}>취소</button>
+                  <button className="btn btn-secondary" onClick={closeModal}>취소</button>
                   <button className="btn btn-primary" onClick={saveEdit}>저장</button>
                 </div>
               </div>
@@ -737,7 +777,7 @@ export default function VotesPage() {
                         <button className="btn btn-danger btn-sm" onClick={removeEvent}>삭제</button>
                       </>
                     )}
-                    <button className="modal-close" onClick={() => setSelectedEvent(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)', marginLeft: '4px' }}>&times;</button>
+                    <button className="modal-close" onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)', marginLeft: '4px' }}>&times;</button>
                   </div>
                 </div>
 
@@ -818,7 +858,7 @@ export default function VotesPage() {
                 
                 <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                   <button className="btn btn-secondary" onClick={handleShare}>📤 공유하기</button>
-                  <button className="btn btn-primary" onClick={() => setSelectedEvent(null)}>닫기</button>
+                  <button className="btn btn-primary" onClick={closeModal}>닫기</button>
                 </div>
               </>
             ) : null}
@@ -854,8 +894,10 @@ export default function VotesPage() {
                   .catch(() => alert('복사에 실패했습니다.'));
               }}>복사하기</button>
               {typeof navigator !== 'undefined' && navigator.share && (
-                <button className="btn btn-primary" style={{ background: '#fef01b', color: '#3a1d1d', borderColor: '#fef01b' }} onClick={() => {
-                  navigator.share({ title: '투표 참여 안내', text: reminderText }).catch(console.error);
+                <button className="btn btn-primary" style={{ background: '#fef01b', color: '#3a1d1d', borderColor: '#fef01b', fontWeight: 'bold' }} onClick={() => {
+                  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
+                  const shareUrl = selectedEvent ? `${origin}/votes?id=${selectedEvent.id}` : `${origin}/votes`;
+                  navigator.share({ title: '투표 참여 안내', text: reminderText, url: shareUrl }).catch(console.error);
                 }}>공유하기</button>
               )}
             </div>
