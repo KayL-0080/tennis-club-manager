@@ -48,10 +48,11 @@ function SortableRow({ id, children }) {
 
 const COURT_LABELS = 'ABCDEFGHIJ'.split('');
 
-const scoreOptions = () => {
+const scoreOptions = (max = 6) => {
   const opts = [];
   opts.push(<option key="empty" value="">-</option>);
-  for (let i = 0; i <= 10; i++) opts.push(<option key={i} value={i}>{i}</option>);
+  const limit = Math.max(1, Number(max) || 6);
+  for (let i = 0; i <= limit; i++) opts.push(<option key={i} value={i}>{i}</option>);
   return opts;
 };
 
@@ -61,6 +62,7 @@ export default function BracketTab({
   scheduleRounds, scheduleCourts, setScheduleRounds, setScheduleCourts,
   penaltyAmount = 1000, setPenaltyAmount,
   penaltyPaidMap = {}, setPenaltyPaidMap,
+  maxGames = 6, setMaxGames,
   clubSettings,
   matchDate,
   title,
@@ -239,10 +241,49 @@ export default function BracketTab({
     if (onSave) onSave({ schedule: next });
   };
 
+  const handleMaxGamesChange = (newMax) => {
+    if (isReadOnly || !isAdmin) return;
+    if (setMaxGames) setMaxGames(newMax);
+
+    let scoreChanged = false;
+    const nextScores = { ...scores };
+    Object.keys(nextScores).forEach(key => {
+      const sc = nextScores[key];
+      if (sc) {
+        let nextA = sc.a;
+        let nextB = sc.b;
+        if (nextA !== null && nextA !== undefined && nextA !== '' && Number(nextA) > newMax) {
+          nextA = newMax;
+          scoreChanged = true;
+        }
+        if (nextB !== null && nextB !== undefined && nextB !== '' && Number(nextB) > newMax) {
+          nextB = newMax;
+          scoreChanged = true;
+        }
+        if (scoreChanged) {
+          nextScores[key] = { ...sc, a: nextA, b: nextB };
+        }
+      }
+    });
+
+    if (scoreChanged) {
+      setScores(nextScores);
+    }
+    if (onSave) {
+      onSave({
+        maxGames: newMax,
+        ...(scoreChanged ? { scores: nextScores } : {})
+      });
+    }
+  };
+
   const onScore = (ri, ci, team, value) => {
     if (isReadOnly) return;
     const key = `${ri}-${ci}`;
-    const nextVal = value === '' ? null : Number(value);
+    let nextVal = value === '' ? null : Number(value);
+    if (nextVal !== null) {
+      nextVal = Math.max(0, Math.min(maxGames || 6, nextVal));
+    }
     const newScores = {
       ...scores,
       [key]: { ...(scores[key] || { a: null, b: null }), [team]: nextVal },
@@ -441,6 +482,7 @@ export default function BracketTab({
     let text = `🎾 [${titleStr}] 경기 벌칙금(진팀 벌금) 정산 안내 🎾\n`;
     text += `📅 경기 일자: ${dateStr}\n`;
     text += `⚡ 진행 상태: 총 ${matchStats.completedMatches}/${matchStats.totalMatches}경기 완료 (${matchStats.isAllCompleted ? '전체 경기 종료 ✅' : '경기 진행 중 🎾'})\n`;
+    text += `🎾 경기 방식: ${maxGames || 6}게임 선승\n`;
     text += `💰 진팀 벌칙: 1패당 1인 ${rateFormatted}원\n\n`;
     text += `💵 총 모인 벌칙금: ${totalFormatted}원 (총 ${penaltySummary.totalLosses}패)\n`;
     text += `📊 수납 현황: 완납 ${penaltySummary.paidCount}명 / 미납 ${penaltySummary.unpaidCount}명\n\n`;
@@ -586,6 +628,54 @@ export default function BracketTab({
           </div>
         )}
 
+        {/* 🎾 경기 방식(게임수) 설정 바 */}
+        <div 
+          style={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            gap: '12px', 
+            marginBottom: '16px', 
+            padding: '10px 14px', 
+            backgroundColor: '#f8fafc', 
+            borderRadius: '12px', 
+            border: '1px solid var(--border)' 
+          }} 
+          className="no-print"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--txt)' }}>
+              🎾 경기 방식(게임수):
+            </label>
+            {isAdmin && !isReadOnly ? (
+              <select
+                className="input input-sm"
+                style={{ width: '125px', fontWeight: 700, padding: '4px 8px', borderRadius: '8px' }}
+                value={maxGames}
+                onChange={e => handleMaxGamesChange(parseInt(e.target.value) || 6)}
+              >
+                {[4, 5, 6, 7, 8].map(g => (
+                  <option key={g} value={g}>{g}게임 선승</option>
+                ))}
+              </select>
+            ) : (
+              <span className="hero-chip" style={{ fontSize: '12.5px', padding: '3px 10px', color: '#0284c7', background: 'rgba(2, 132, 199, 0.1)', fontWeight: 700 }}>
+                {maxGames}게임 선승
+              </span>
+            )}
+            <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>
+              • 각 경기별 스코어 선택 범위가 0~{maxGames}점으로 자동 제한됩니다.
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span className="badge badge-blue" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 700 }}>
+              최대 {maxGames}점
+            </span>
+          </div>
+        </div>
+
         <div className="table-wrap">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <table>
@@ -650,7 +740,7 @@ export default function BracketTab({
                               className={styles.scoreInput}
                               value={sc.a === null || sc.a === undefined ? '' : sc.a}
                               onChange={e => onScore(ri, ci, 'a', e.target.value)}>
-                              {scoreOptions()}
+                              {scoreOptions(maxGames)}
                             </select>
                             <span className={styles.scoreSep}>:</span>
                             <select 
@@ -658,7 +748,7 @@ export default function BracketTab({
                               className={styles.scoreInput}
                               value={sc.b === null || sc.b === undefined ? '' : sc.b}
                               onChange={e => onScore(ri, ci, 'b', e.target.value)}>
-                              {scoreOptions()}
+                              {scoreOptions(maxGames)}
                             </select>
                           </div>
                           {/* 팀 B */}

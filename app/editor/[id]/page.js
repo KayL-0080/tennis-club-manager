@@ -43,6 +43,7 @@ export default function EditorPage({ params }) {
   const [history, setHistory] = useState([]);
   const [penaltyAmount, setPenaltyAmount] = useState(1000); // 1인당 패배 벌칙금 (기본 1,000원)
   const [penaltyPaidMap, setPenaltyPaidMap] = useState({}); // { [playerId]: boolean }
+  const [maxGames, setMaxGames] = useState(6); // 경기 방식(게임수, 기본 6게임 선승)
   const [clubSettings, setClubSettings] = useState(null);
 
   /* ── 초기 데이터 로드 및 실시간 동기화 구독 (onSnapshot) ── */
@@ -91,6 +92,9 @@ export default function EditorPage({ params }) {
         }
         if (data.penaltyPaidMap) {
           setPenaltyPaidMap(data.penaltyPaidMap);
+        }
+        if (data.maxGames !== undefined) {
+          setMaxGames(data.maxGames);
         }
         setFetching(false);
       });
@@ -146,6 +150,7 @@ export default function EditorPage({ params }) {
       lastGenStats, history: nextHistory,
       penaltyAmount: overrides.penaltyAmount !== undefined ? overrides.penaltyAmount : penaltyAmount,
       penaltyPaidMap: overrides.penaltyPaidMap !== undefined ? overrides.penaltyPaidMap : penaltyPaidMap,
+      maxGames: overrides.maxGames !== undefined ? overrides.maxGames : maxGames,
       ...overrides,
     };
     try {
@@ -157,7 +162,7 @@ export default function EditorPage({ params }) {
     } finally {
       setSaving(false);
     }
-  }, [id, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history, members, penaltyAmount, penaltyPaidMap]);
+  }, [id, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history, members, penaltyAmount, penaltyPaidMap, maxGames]);
 
   if (loading || fetching) {
     return (
@@ -217,6 +222,7 @@ export default function EditorPage({ params }) {
             setScheduleRounds={setScheduleRounds} setScheduleCourts={setScheduleCourts}
             penaltyAmount={penaltyAmount} setPenaltyAmount={setPenaltyAmount}
             penaltyPaidMap={penaltyPaidMap} setPenaltyPaidMap={setPenaltyPaidMap}
+            maxGames={maxGames} setMaxGames={setMaxGames}
             clubSettings={clubSettings}
             matchDate={matchDate}
             title={title}
