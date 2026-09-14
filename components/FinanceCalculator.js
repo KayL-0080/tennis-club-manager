@@ -50,6 +50,27 @@ export default function FinanceCalculator({
   const [ballCansPerMonth, setBallCansPerMonth] = useState(12);
   const [ballPricePerCan, setBallPricePerCan] = useState(4500);
 
+  // ── 시간당 코트비 및 52주(1~12월) 월별 코트비 산출기 상태 ──
+  const [hourlyCourtRate, setHourlyCourtRate] = useState(
+    currentClub?.hourlyCourtRate !== undefined ? String(currentClub.hourlyCourtRate) : '25000'
+  );
+  const [hoursPerSession, setHoursPerSession] = useState(
+    currentClub?.hoursPerSession !== undefined ? Number(currentClub.hoursPerSession) : 3
+  );
+  const [sessionsPerWeek, setSessionsPerWeek] = useState(
+    currentClub?.sessionsPerWeek !== undefined ? Number(currentClub.sessionsPerWeek) : 1
+  );
+  const [discountRate, setDiscountRate] = useState(
+    currentClub?.discountRate !== undefined ? String(currentClub.discountRate) : '0'
+  );
+
+  // 기본 52주 배분 (1~12월: 총 52주)
+  const defaultMonthWeeks = { 1: 4, 2: 4, 3: 5, 4: 4, 5: 4, 6: 4, 7: 5, 8: 4, 9: 4, 10: 5, 11: 4, 12: 5 };
+  const [monthWeeks, setMonthWeeks] = useState(
+    currentClub?.monthWeeks || defaultMonthWeeks
+  );
+  const [show52WeeksDetails, setShow52WeeksDetails] = useState(true);
+
   // 시뮬레이터 인원수
   const regularMembers = members.filter(m => m.role !== '준회원' && m.role !== '게스트');
   const [simulatedCount, setSimulatedCount] = useState(regularMembers.length || 15);
@@ -67,6 +88,11 @@ export default function FinanceCalculator({
       if (currentClub.ballCost !== undefined) setBallCost(String(currentClub.ballCost));
       if (currentClub.snackCost !== undefined) setSnackCost(String(currentClub.snackCost));
       if (currentClub.otherCost !== undefined) setOtherCost(String(currentClub.otherCost));
+      if (currentClub.hourlyCourtRate !== undefined) setHourlyCourtRate(String(currentClub.hourlyCourtRate));
+      if (currentClub.hoursPerSession !== undefined) setHoursPerSession(Number(currentClub.hoursPerSession));
+      if (currentClub.sessionsPerWeek !== undefined) setSessionsPerWeek(Number(currentClub.sessionsPerWeek));
+      if (currentClub.discountRate !== undefined) setDiscountRate(String(currentClub.discountRate));
+      if (currentClub.monthWeeks) setMonthWeeks(currentClub.monthWeeks);
     }
   }, [currentClub]);
 
@@ -83,6 +109,83 @@ export default function FinanceCalculator({
     const total = ballCansPerMonth * ballPricePerCan;
     setBallCost(String(total));
     setShowBallCalc(false);
+  };
+
+  // ── 시간당 코트비 기반 52주 계산 ──
+  const parsedHourlyRate = parseNum(hourlyCourtRate, 25000);
+  const parsedDiscountRate = Math.min(100, Math.max(0, parseNum(discountRate, 0)));
+  const parsedHours = Number(hoursPerSession) || 3;
+  const parsedSessions = Number(sessionsPerWeek) || 1;
+  const parsedCourts = Number(courtCount) || 2;
+
+  // 1회 모임 코트비: 단가 × 시간 × 면수
+  const costPerSessionBase = parsedHourlyRate * parsedHours * parsedCourts;
+  const costPerSessionDiscount = Math.round(costPerSessionBase * (parsedDiscountRate / 100));
+  const costPerSessionActual = costPerSessionBase - costPerSessionDiscount;
+
+  // 주당 코트비: 1회 비용 × 주당 모임 횟수
+  const weeklyBaseCost = costPerSessionBase * parsedSessions;
+  const weeklyDiscountAmount = Math.round(weeklyBaseCost * (parsedDiscountRate / 100));
+  const weeklyActualCost = weeklyBaseCost - weeklyDiscountAmount;
+
+  // 1월 ~ 12월 월별 코트비 계산
+  let totalWeeksSum = 0;
+  let totalAnnualCost = 0;
+  let totalAnnualBase = 0;
+  let totalAnnualDiscount = 0;
+
+  const monthlyBreakdown = [];
+  for (let m = 1; m <= 12; m++) {
+    const weeks = monthWeeks[m] !== undefined ? monthWeeks[m] : defaultMonthWeeks[m];
+    totalWeeksSum += weeks;
+    const baseCost = weeklyBaseCost * weeks;
+    const actualCost = weeklyActualCost * weeks;
+    const discountAmt = weeklyDiscountAmount * weeks;
+    totalAnnualBase += baseCost;
+    totalAnnualCost += actualCost;
+    totalAnnualDiscount += discountAmt;
+
+    monthlyBreakdown.push({
+      month: m,
+      weeks,
+      baseCost,
+      actualCost,
+      discountAmt
+    });
+  }
+
+  const averageMonthlyCost = Math.round(totalAnnualCost / 12);
+  const averageQuarterlyCost = Math.round(totalAnnualCost / 4);
+
+  // 분기별(Q1~Q4) 소계 계산
+  const quarterlyBreakdown = [
+    { name: '1분기 (1~3월)', months: [1, 2, 3], weeks: monthlyBreakdown.slice(0, 3).reduce((a, c) => a + c.weeks, 0), cost: monthlyBreakdown.slice(0, 3).reduce((a, c) => a + c.actualCost, 0) },
+    { name: '2분기 (4~6월)', months: [4, 5, 6], weeks: monthlyBreakdown.slice(3, 6).reduce((a, c) => a + c.weeks, 0), cost: monthlyBreakdown.slice(3, 6).reduce((a, c) => a + c.actualCost, 0) },
+    { name: '3분기 (7~9월)', months: [7, 8, 9], weeks: monthlyBreakdown.slice(6, 9).reduce((a, c) => a + c.weeks, 0), cost: monthlyBreakdown.slice(6, 9).reduce((a, c) => a + c.actualCost, 0) },
+    { name: '4분기 (10~12월)', months: [10, 11, 12], weeks: monthlyBreakdown.slice(9, 12).reduce((a, c) => a + c.weeks, 0), cost: monthlyBreakdown.slice(9, 12).reduce((a, c) => a + c.actualCost, 0) }
+  ];
+
+  const handleApplyCalculatedCourtFee = () => {
+    if (!isAdmin) return;
+    setMonthlyCourtFee(String(averageMonthlyCost));
+    if (autoSyncCourt) {
+      setQuarterlyCourtFee(String(averageQuarterlyCost));
+      setAnnualCourtFee(String(totalAnnualCost));
+    }
+  };
+
+  const handleUpdateMonthWeeks = (month, delta) => {
+    if (!isAdmin) return;
+    setMonthWeeks(prev => {
+      const current = prev[month] !== undefined ? prev[month] : defaultMonthWeeks[month];
+      const next = Math.max(0, Math.min(6, current + delta));
+      return { ...prev, [month]: next };
+    });
+  };
+
+  const handleResetWeeks = () => {
+    if (!isAdmin) return;
+    setMonthWeeks(defaultMonthWeeks);
   };
 
   // ── 수치 계산 ──
@@ -128,7 +231,12 @@ export default function FinanceCalculator({
         courtMemo,
         ballCost: parsedBallCost,
         snackCost: parsedSnackCost,
-        otherCost: parsedOtherCost
+        otherCost: parsedOtherCost,
+        hourlyCourtRate: parsedHourlyRate,
+        hoursPerSession: parsedHours,
+        sessionsPerWeek: parsedSessions,
+        discountRate: parsedDiscountRate,
+        monthWeeks
       });
       alert('코트비 및 재정 설정이 성공적으로 저장되었습니다.');
     } catch (e) {
@@ -180,6 +288,453 @@ export default function FinanceCalculator({
               월 코트비 입력 시 분기/연간 자동 연동
             </label>
           )}
+        </div>
+
+        {/* ── ⏱️ 시간당 코트비 & 52주(1~12월) 연간 코트비 정밀 산출기 ── */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.05) 0%, rgba(37, 99, 235, 0.05) 100%)',
+          border: '1.5px solid rgba(56, 189, 248, 0.25)',
+          borderRadius: '14px',
+          padding: '16px',
+          marginBottom: '20px'
+        }}>
+          {/* 타이틀 및 접기 토글 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '22px' }}>⏱️</span>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: '#0369a1' }}>
+                    시간당 코트비 & 52주(1~12월) 연간 코트비 정밀 산출기
+                  </h4>
+                  <span className="badge badge-blue" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 700 }}>
+                    연간 52주 풀캘린더
+                  </span>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--txt3)', margin: '2px 0 0 0' }}>
+                  시간당 코트비와 할인율을 설정하여 1년 52주 전체의 실제 월별/연간 코트비를 정밀 산출합니다.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setShow52WeeksDetails(!show52WeeksDetails)}
+              style={{ fontSize: '11.5px', height: '28px', padding: '3px 10px', borderRadius: '8px' }}
+            >
+              {show52WeeksDetails ? '상세 캘린더 접기 ▲' : '월별 52주 캘린더 펼치기 ▼'}
+            </button>
+          </div>
+
+          {/* 입력 폼 그리드 (시간당 코트비, 1회 이용시간, 코트면수, 주당 모임횟수, 할인율) */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '12px',
+            backgroundColor: '#ffffff',
+            padding: '14px',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+          }}>
+            {/* 1. 시간당 코트비 */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--txt2)', display: 'block', marginBottom: '4px' }}>
+                💰 시간당 코트비 (면당)
+              </label>
+              {isAdmin ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <input 
+                      className="input input-sm"
+                      type="text"
+                      value={Number(hourlyCourtRate).toLocaleString()}
+                      onChange={e => setHourlyCourtRate(e.target.value.replace(/[^0-9]/g, ''))}
+                      style={{ fontWeight: 800, fontSize: '15px' }}
+                    />
+                    <span style={{ fontSize: '12px', color: 'var(--txt2)', fontWeight: 600 }}>원</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    {[20000, 25000, 30000, 35000].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setHourlyCourtRate(String(val))}
+                        style={{
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '4px',
+                          padding: '1px 6px',
+                          fontSize: '10.5px',
+                          backgroundColor: Number(hourlyCourtRate) === val ? '#0284c7' : '#f8fafc',
+                          color: Number(hourlyCourtRate) === val ? '#fff' : 'var(--txt2)',
+                          cursor: 'pointer',
+                          fontWeight: Number(hourlyCourtRate) === val ? 700 : 500
+                        }}
+                      >
+                        {val.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--txt)' }}>
+                  {parsedHourlyRate.toLocaleString()} <span style={{ fontSize: '12px' }}>원/시간</span>
+                </div>
+              )}
+            </div>
+
+            {/* 2. 1회 모임 이용 시간 */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--txt2)', display: 'block', marginBottom: '4px' }}>
+                ⏰ 1회 모임 이용 시간
+              </label>
+              {isAdmin ? (
+                <select
+                  className="select input-sm"
+                  value={hoursPerSession}
+                  onChange={e => setHoursPerSession(Number(e.target.value))}
+                  style={{ width: '100%', fontWeight: 700 }}
+                >
+                  <option value={2}>2시간</option>
+                  <option value={2.5}>2시간 30분</option>
+                  <option value={3}>3시간 (표준)</option>
+                  <option value={3.5}>3시간 30분</option>
+                  <option value={4}>4시간</option>
+                  <option value={5}>5시간</option>
+                </select>
+              ) : (
+                <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--txt)' }}>
+                  {hoursPerSession}시간
+                </div>
+              )}
+              <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '4px' }}>정기 모임 1회당 대관 시간</div>
+            </div>
+
+            {/* 3. 코트 면수 */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--txt2)', display: 'block', marginBottom: '4px' }}>
+                🏟️ 코트 면수
+              </label>
+              {isAdmin ? (
+                <select
+                  className="select input-sm"
+                  value={courtCount}
+                  onChange={e => setCourtCount(Number(e.target.value))}
+                  style={{ width: '100%', fontWeight: 700 }}
+                >
+                  <option value={1}>1면</option>
+                  <option value={2}>2면 (표준)</option>
+                  <option value={3}>3면</option>
+                  <option value={4}>4면</option>
+                  <option value={5}>5면</option>
+                </select>
+              ) : (
+                <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--txt)' }}>
+                  {courtCount}면
+                </div>
+              )}
+              <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '4px' }}>동시 대관 코트 면수</div>
+            </div>
+
+            {/* 4. 주당 모임 횟수 */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--txt2)', display: 'block', marginBottom: '4px' }}>
+                🗓️ 주당 모임 횟수
+              </label>
+              {isAdmin ? (
+                <select
+                  className="select input-sm"
+                  value={sessionsPerWeek}
+                  onChange={e => setSessionsPerWeek(Number(e.target.value))}
+                  style={{ width: '100%', fontWeight: 700 }}
+                >
+                  <option value={1}>주 1회 (표준)</option>
+                  <option value={2}>주 2회</option>
+                  <option value={3}>주 3회</option>
+                </select>
+              ) : (
+                <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--txt)' }}>
+                  주 {sessionsPerWeek}회
+                </div>
+              )}
+              <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '4px' }}>매주 정기 모임 빈도</div>
+            </div>
+
+            {/* 5. 할인율 (%) */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#047857', display: 'block', marginBottom: '4px' }}>
+                🏷️ 할인율 / 감면율 (%)
+              </label>
+              {isAdmin ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <input 
+                      className="input input-sm"
+                      type="text"
+                      value={discountRate}
+                      onChange={e => setDiscountRate(e.target.value.replace(/[^0-9]/g, ''))}
+                      style={{ fontWeight: 800, fontSize: '15px', color: '#047857', borderColor: '#a7f3d0' }}
+                    />
+                    <span style={{ fontSize: '13px', color: '#047857', fontWeight: 700 }}>%</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    {[0, 10, 20, 30, 50].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setDiscountRate(String(val))}
+                        style={{
+                          border: '1px solid #a7f3d0',
+                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          fontSize: '10px',
+                          backgroundColor: Number(discountRate) === val ? '#059669' : '#f0fdf4',
+                          color: Number(discountRate) === val ? '#fff' : '#047857',
+                          cursor: 'pointer',
+                          fontWeight: Number(discountRate) === val ? 700 : 500
+                        }}
+                      >
+                        {val === 0 ? '0%(정상)' : `${val}%`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: '16px', fontWeight: 800, color: '#047857' }}>
+                  {parsedDiscountRate}% <span style={{ fontSize: '11px' }}>{parsedDiscountRate > 0 ? '감면 적용' : '정상가'}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 실시간 4대 KPI 산출 요약 바 */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '12px',
+            marginTop: '12px'
+          }}>
+            {/* 1회 모임비용 */}
+            <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#ffffff', border: '1px solid #e0f2fe' }}>
+              <span style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>1회 모임 비용 ({parsedHours}h × {parsedCourts}면)</span>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#0284c7', marginTop: '2px' }}>
+                {costPerSessionActual.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 600 }}>원</span>
+              </div>
+              {parsedDiscountRate > 0 && (
+                <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>
+                  정상 {costPerSessionBase.toLocaleString()}원 (-{costPerSessionDiscount.toLocaleString()}원)
+                </div>
+              )}
+            </div>
+
+            {/* 1주 코트비 */}
+            <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#ffffff', border: '1px solid #e0f2fe' }}>
+              <span style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>1주 코트비 (주 {parsedSessions}회)</span>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#0284c7', marginTop: '2px' }}>
+                {weeklyActualCost.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 600 }}>원</span>
+              </div>
+              {parsedDiscountRate > 0 && (
+                <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>
+                  주당 -{weeklyDiscountAmount.toLocaleString()}원 절감
+                </div>
+              )}
+            </div>
+
+            {/* 연간 52주 총 코트비 */}
+            <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#ffffff', border: '1px solid #e0f2fe' }}>
+              <span style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>🏆 연간 52주 총 코트비</span>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#7c3aed', marginTop: '2px' }}>
+                {totalAnnualCost.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 600 }}>원</span>
+              </div>
+              {totalAnnualDiscount > 0 ? (
+                <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>
+                  총 -{totalAnnualDiscount.toLocaleString()}원 절감 ({parsedDiscountRate}%)
+                </div>
+              ) : (
+                <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>연간 52주 총 대관료</div>
+              )}
+            </div>
+
+            {/* 월평균 코트비 & 적용 버튼 */}
+            <div style={{ 
+              padding: '12px', 
+              borderRadius: '10px', 
+              backgroundColor: '#eff6ff', 
+              border: '2px solid #38bdf8',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <span style={{ fontSize: '11.5px', color: '#0369a1', fontWeight: 800 }}>⚡ 12개월 월평균 코트비</span>
+                <div style={{ fontSize: '19px', fontWeight: 900, color: '#0284c7', marginTop: '2px' }}>
+                  {averageMonthlyCost.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 600 }}>원</span>
+                </div>
+              </div>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={handleApplyCalculatedCourtFee}
+                  style={{ width: '100%', marginTop: '6px', fontSize: '11px', padding: '4px', fontWeight: 700 }}
+                  title="이 산출 금액을 동호회 월 코트비에 즉시 반영합니다"
+                >
+                  ✨ 월 코트비로 일괄 적용
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ── 1월 ~ 12월 52주 월별 코트비 캘린더 그리드 ── */}
+          {show52WeeksDetails && (
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)' }}>
+                    📅 1월 ~ 12월 월별 코트비 상세 산출표 (총 {totalWeeksSum}주)
+                  </span>
+                  <span className={`badge ${totalWeeksSum === 52 ? 'badge-green' : 'badge-gold'}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
+                    {totalWeeksSum === 52 ? '정확히 52주 완비 ✅' : `${totalWeeksSum}주 / 52주`}
+                  </span>
+                </div>
+
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleResetWeeks}
+                    style={{ background: 'none', border: 'none', color: '#0284c7', fontSize: '11.5px', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+                  >
+                    기본 52주 주차배분 리셋
+                  </button>
+                )}
+              </div>
+
+              {/* 4분기 레이블 & 12개월 카드 그리드 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {quarterlyBreakdown.map((q, qIdx) => (
+                  <div 
+                    key={q.name}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '10px 12px'
+                    }}
+                  >
+                    {/* 분기 헤더 */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '12.5px', fontWeight: 800, color: ['#0284c7', '#059669', '#d97706', '#7c3aed'][qIdx] }}>
+                        {q.name} ({q.weeks}주)
+                      </span>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--txt2)' }}>
+                        분기 소계: <strong style={{ color: 'var(--txt)', fontSize: '13px' }}>{q.cost.toLocaleString()}원</strong>
+                      </span>
+                    </div>
+
+                    {/* 분기 내 3개 월 카드 */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                      gap: '8px'
+                    }}>
+                      {q.months.map(m => {
+                        const mData = monthlyBreakdown[m - 1];
+                        return (
+                          <div 
+                            key={m}
+                            style={{
+                              border: '1px solid #f1f5f9',
+                              backgroundColor: '#f8fafc',
+                              borderRadius: '8px',
+                              padding: '8px 10px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 800, fontSize: '13px', color: 'var(--txt)' }}>
+                                {m}월
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateMonthWeeks(m, -1)}
+                                    style={{
+                                      border: '1px solid #cbd5e1',
+                                      borderRadius: '3px',
+                                      width: '18px',
+                                      height: '18px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '11px',
+                                      cursor: 'pointer',
+                                      backgroundColor: '#fff'
+                                    }}
+                                    title="주 수 감소"
+                                  >-</button>
+                                )}
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  backgroundColor: mData.weeks === 5 ? '#e0f2fe' : '#f1f5f9',
+                                  color: mData.weeks === 5 ? '#0284c7' : 'var(--txt2)',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px'
+                                }}>
+                                  {mData.weeks}주
+                                </span>
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateMonthWeeks(m, 1)}
+                                    style={{
+                                      border: '1px solid #cbd5e1',
+                                      borderRadius: '3px',
+                                      width: '18px',
+                                      height: '18px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '11px',
+                                      cursor: 'pointer',
+                                      backgroundColor: '#fff'
+                                    }}
+                                    title="주 수 증가"
+                                  >+</button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 금액 */}
+                            <div style={{ marginTop: '6px' }}>
+                              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--txt)' }}>
+                                {mData.actualCost.toLocaleString()} <span style={{ fontSize: '11px', fontWeight: 500 }}>원</span>
+                              </div>
+                              {mData.discountAmt > 0 && (
+                                <div style={{ fontSize: '10px', color: '#16a34a', fontWeight: 600 }}>
+                                  -{mData.discountAmt.toLocaleString()}원 할인
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── 확정 코트비 요약 카드 (월/분기/연간) ── */}
+        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>📌</span>
+          <span>동호회 확정 코트비 및 면수 현황</span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
