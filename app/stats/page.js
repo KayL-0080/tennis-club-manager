@@ -2,19 +2,39 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getMembers, getSchedules, getTournaments, initDefaultMembers } from '@/lib/firestore';
+import { getMembers, getSchedules, getTournaments, initDefaultMembers, getRankingRules, updateRankingRules } from '@/lib/firestore';
 import { computeGlobalStandings } from '@/lib/scheduler';
 import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function StatsPage() {
-  const { loading } = useAuth();
+  const { isAdmin, loading } = useAuth();
   const router = useRouter();
   
   const [fetching, setFetching] = useState(true);
   const [members, setMembers] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [tournaments, setTournaments] = useState([]);
+
+  // Ranking calculation rules
+  const [rankingRules, setRankingRules] = useState({
+    winPoints: 3.0,
+    drawPoints: 2.0,
+    lossPoints: 1.0,
+    bonusPerDay: 1.0,
+    bonusPerMatch: 0.0,
+    calcType: 'avg' // 'avg' | 'sum'
+  });
+  const [showRuleModal, setShowRuleModal] = useState(false);
+  const [ruleForm, setRuleForm] = useState({
+    winPoints: 3.0,
+    drawPoints: 2.0,
+    lossPoints: 1.0,
+    bonusPerDay: 1.0,
+    bonusPerMatch: 0.0,
+    calcType: 'avg'
+  });
+  const [savingRules, setSavingRules] = useState(false);
 
   // Filter states
   const [startDate, setStartDate] = useState('');
@@ -39,14 +59,19 @@ export default function StatsPage() {
       try {
         setFetching(true);
         await initDefaultMembers('shared');
-        const [mbrs, scheds, tours] = await Promise.all([
+        const [mbrs, scheds, tours, rules] = await Promise.all([
           getMembers('shared'),
           getSchedules('shared'),
-          getTournaments('shared')
+          getTournaments('shared'),
+          getRankingRules()
         ]);
         setMembers(mbrs);
         setSchedules(scheds);
         setTournaments(tours);
+        if (rules) {
+          setRankingRules(rules);
+          setRuleForm(rules);
+        }
       } catch (err) {
         console.error('Failed to load stats data:', err);
         alert('데이터를 불러오지 못했습니다. Firestore 권한 설정을 확인해주세요.');
@@ -56,15 +81,54 @@ export default function StatsPage() {
     })();
   }, []);
 
+  const handleSaveRules = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) {
+      alert('운영진만 산정 기준을 변경할 수 있습니다.');
+      return;
+    }
+    try {
+      setSavingRules(true);
+      const cleaned = {
+        winPoints: Number(ruleForm.winPoints) || 0,
+        drawPoints: Number(ruleForm.drawPoints) || 0,
+        lossPoints: Number(ruleForm.lossPoints) || 0,
+        bonusPerDay: Number(ruleForm.bonusPerDay) || 0,
+        bonusPerMatch: Number(ruleForm.bonusPerMatch) || 0,
+        calcType: ruleForm.calcType || 'avg'
+      };
+      await updateRankingRules(cleaned);
+      setRankingRules(cleaned);
+      setShowRuleModal(false);
+      alert('승점 및 순위 산정 기준이 성공적으로 저장되었습니다.');
+    } catch (err) {
+      console.error('Failed to update ranking rules:', err);
+      alert('산정 기준 저장에 실패했습니다. 관리자 권한을 확인해주세요.');
+    } finally {
+      setSavingRules(false);
+    }
+  };
+
+  const handleResetDefaultRules = () => {
+    setRuleForm({
+      winPoints: 3.0,
+      drawPoints: 2.0,
+      lossPoints: 1.0,
+      bonusPerDay: 1.0,
+      bonusPerMatch: 0.0,
+      calcType: 'avg'
+    });
+  };
+
   const globalStandings = useMemo(() => {
     if (!members.length) return [];
-    const allStandings = computeGlobalStandings(schedules, members, startDate, endDate, tournaments, sourceFilter);
+    const allStandings = computeGlobalStandings(schedules, members, startDate, endDate, tournaments, sourceFilter, rankingRules);
     return allStandings.filter(s => {
       const m = members.find(member => member.id === s.id);
       if (!m) return false;
       return m.role !== '준회원' && m.role !== '게스트';
     });
-  }, [schedules, members, startDate, endDate, tournaments, sourceFilter]);
+  }, [schedules, members, startDate, endDate, tournaments, sourceFilter, rankingRules]);
 
   // 기간 내 포함된 정기모임 및 분기대회 수 & 총 경기수 요약 통계
   const statsSummary = useMemo(() => {
@@ -113,11 +177,33 @@ export default function StatsPage() {
     <div className={styles.page}>
       <Navbar />
       <main className={styles.main}>
-        <div className={styles.header} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        <div className={styles.header} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h1 className={styles.title}>📊 통계 대시보드</h1>
             <p className={styles.sub}>조회 기간 동안의 클럽 정기 모임 및 분기 대회 결과를 통합 집계합니다</p>
           </div>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setRuleForm({ ...rankingRules });
+                setShowRuleModal(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '13px',
+                fontWeight: 700,
+                padding: '7px 14px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 6px rgba(0, 122, 255, 0.2)'
+              }}
+            >
+              ⚙️ 승점/순위 산정 기준 설정 (운영진)
+            </button>
+          )}
         </div>
 
         {/* 필터 영역 (조회 기간 + 집계 대상 선택) */}
@@ -231,19 +317,42 @@ export default function StatsPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '20px' }}>📐</span>
               <div>
-                <strong style={{ fontSize: '14px', color: '#1e40af' }}>승점 및 종합 순위 산정 기준 안내</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong style={{ fontSize: '14px', color: '#1e40af' }}>승점 및 종합 순위 산정 기준 안내</strong>
+                  {isAdmin && (
+                    <span style={{ fontSize: '11px', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                      ⚙️ 기준 설정 가능
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: '12px', color: '#2563eb', marginTop: '2px', fontWeight: 700 }}>
-                  최종 승점 = 평균 경기 포인트(승3 / 무2 / 패1) + 출전 가산점(참여일수 × 1.0점)
+                  최종 승점 = {rankingRules.calcType === 'sum' ? '누적 경기 포인트' : '평균 경기 포인트'}(승{rankingRules.winPoints} / 무{rankingRules.drawPoints} / 패{rankingRules.lossPoints}) + 출전 가산점(참여일수 × {rankingRules.bonusPerDay}점{rankingRules.bonusPerMatch > 0 ? ` + 경기수 × ${rankingRules.bonusPerMatch}점` : ''})
                 </div>
               </div>
             </div>
-            <button 
-              type="button" 
-              className="btn btn-secondary btn-sm"
-              style={{ padding: '4px 12px', fontSize: '11.5px', fontWeight: 800, color: '#2563eb', borderColor: '#bfdbfe', backgroundColor: '#fff' }}
-            >
-              {showRulesDetail ? '산정 기준 접기 ▲' : '계산 공식 & 예시 자세히 보기 ▼'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRuleForm({ ...rankingRules });
+                    setShowRuleModal(true);
+                  }}
+                  style={{ padding: '4px 10px', fontSize: '11.5px', fontWeight: 700 }}
+                >
+                  ⚙️ 기준 변경
+                </button>
+              )}
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '4px 12px', fontSize: '11.5px', fontWeight: 800, color: '#2563eb', borderColor: '#bfdbfe', backgroundColor: '#fff' }}
+              >
+                {showRulesDetail ? '산정 기준 접기 ▲' : '계산 공식 & 예시 자세히 보기 ▼'}
+              </button>
+            </div>
           </div>
 
           {showRulesDetail && (
@@ -261,34 +370,38 @@ export default function StatsPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', fontWeight: 700 }}>
                       <span>🥇 승리 (Win)</span>
-                      <span>+3.0점</span>
+                      <span>+{rankingRules.winPoints}점</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontWeight: 700 }}>
                       <span>🤝 무승부 (Draw)</span>
-                      <span>+2.0점</span>
+                      <span>+{rankingRules.drawPoints}점</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626', fontWeight: 700 }}>
                       <span>🥉 패배 (Loss)</span>
-                      <span>+1.0점</span>
+                      <span>+{rankingRules.lossPoints}점</span>
                     </div>
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '8px', borderTop: '1px dashed #f1f5f9', paddingTop: '6px' }}>
-                    총 포인트 = (승리수×3) + (무승부수×2) + (패배수×1)
+                    총 경기포인트 = (승리수×{rankingRules.winPoints}) + (무승부수×{rankingRules.drawPoints}) + (패배수×{rankingRules.lossPoints})
                   </div>
                 </div>
 
-                {/* 2. 평균 경기 포인트 */}
+                {/* 2. 평균 / 누적 경기 포인트 */}
                 <div style={{ padding: '12px 14px', backgroundColor: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                     <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>2</span>
-                    <strong style={{ fontSize: '13px', color: 'var(--txt)' }}>평균 경기 포인트 (Average)</strong>
+                    <strong style={{ fontSize: '13px', color: 'var(--txt)' }}>
+                      {rankingRules.calcType === 'sum' ? '누적 경기 포인트 합산' : '평균 경기 포인트 (Average)'}
+                    </strong>
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--txt)', lineHeight: '1.5' }}>
                     <div style={{ fontWeight: 800, color: '#0369a1', backgroundColor: '#f0f9ff', padding: '6px 8px', borderRadius: '6px', textAlign: 'center', marginBottom: '6px' }}>
-                      총 경기 포인트 ÷ 총 출전 경기수
+                      {rankingRules.calcType === 'sum' ? '총 경기 포인트 합산' : '총 경기 포인트 ÷ 총 출전 경기수'}
                     </div>
                     <span style={{ fontSize: '11px', color: 'var(--txt2)' }}>
-                      회원별 경기수 편차로 인한 왜곡을 방지하기 위해 1경기당 평균 기여 점수로 환산합니다. (1.00점 ~ 3.00점)
+                      {rankingRules.calcType === 'sum'
+                        ? '치른 모든 경기의 포인트를 단순 합산하여 반영합니다.'
+                        : '회원별 경기수 편차로 인한 왜곡을 방지하기 위해 1경기당 평균 기여 점수로 환산합니다.'}
                     </span>
                   </div>
                 </div>
@@ -302,10 +415,13 @@ export default function StatsPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontWeight: 700 }}>
                       <span>🎟️ 출전 가산점</span>
-                      <span>참여일수 × 1.0점</span>
+                      <span>
+                        참여일수 × {rankingRules.bonusPerDay}점
+                        {rankingRules.bonusPerMatch > 0 ? ` + 경기수 × ${rankingRules.bonusPerMatch}점` : ''}
+                      </span>
                     </div>
                     <div style={{ padding: '6px 8px', backgroundColor: '#eff6ff', borderRadius: '6px', border: '1px solid #bfdbfe', fontWeight: 800, color: '#1d4ed8', textAlign: 'center' }}>
-                      최종 승점 = 평균 포인트 + 출전 가산점
+                      최종 승점 = {rankingRules.calcType === 'sum' ? '누적 경기포인트' : '평균 포인트'} + 출전 가산점
                     </div>
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '6px' }}>
@@ -319,18 +435,33 @@ export default function StatsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', fontSize: '12px' }}>
                 
                 {/* 계산 예시 */}
-                <div style={{ padding: '10px 14px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', color: '#14532d' }}>
-                  <strong style={{ color: '#15803d' }}>💡 승점 계산 상세 예시:</strong>
-                  <div style={{ marginTop: '4px', lineHeight: '1.5' }}>
-                    • <strong>4일 참여</strong>하여 <strong>총 8경기 (6승 2패)</strong>를 치른 경우:
-                    <div style={{ paddingLeft: '8px', color: '#166534', marginTop: '3px' }}>
-                      - 총 경기 포인트: (6승×3점) + (2패×1점) = <strong>20점</strong><br />
-                      - 1경기당 평균 포인트: 20점 ÷ 8경기 = <strong>2.50점</strong><br />
-                      - 출전 가산점: 4일 × 1점 = <strong>4.00점</strong><br />
-                      👉 <strong>최종 승점: 2.50 + 4.00 = 6.50점</strong>
+                {(() => {
+                  const exWins = 6;
+                  const exLoss = 2;
+                  const exDays = 4;
+                  const exGames = exWins + exLoss;
+                  const exTotalMatch = (exWins * rankingRules.winPoints) + (exLoss * rankingRules.lossPoints);
+                  const exBase = rankingRules.calcType === 'sum' ? exTotalMatch : (exTotalMatch / exGames);
+                  const exBonus = (exDays * rankingRules.bonusPerDay) + (exGames * rankingRules.bonusPerMatch);
+                  const exFinal = exBase + exBonus;
+
+                  return (
+                    <div style={{ padding: '10px 14px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', color: '#14532d' }}>
+                      <strong style={{ color: '#15803d' }}>💡 승점 계산 상세 예시 (현재 설정 기준):</strong>
+                      <div style={{ marginTop: '4px', lineHeight: '1.5' }}>
+                        • <strong>{exDays}일 참여</strong>하여 <strong>총 {exGames}경기 ({exWins}승 {exLoss}패)</strong>를 치른 경우:
+                        <div style={{ paddingLeft: '8px', color: '#166534', marginTop: '3px' }}>
+                          - 총 경기 포인트: ({exWins}승×{rankingRules.winPoints}점) + ({exLoss}패×{rankingRules.lossPoints}점) = <strong>{exTotalMatch.toFixed(1)}점</strong><br />
+                          {rankingRules.calcType === 'avg' && (
+                            <>- 1경기당 평균 포인트: {exTotalMatch.toFixed(1)}점 ÷ {exGames}경기 = <strong>{exBase.toFixed(2)}점</strong><br /></>
+                          )}
+                          - 출전 가산점: {exDays}일 × {rankingRules.bonusPerDay}점{rankingRules.bonusPerMatch > 0 ? ` + ${exGames}경기 × ${rankingRules.bonusPerMatch}점` : ''} = <strong>{exBonus.toFixed(2)}점</strong><br />
+                          👉 <strong>최종 승점: {exBase.toFixed(2)} + {exBonus.toFixed(2)} = {exFinal.toFixed(2)}점</strong>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* 동점자 처리 기준 */}
                 <div style={{ padding: '10px 14px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', color: '#78350f' }}>
@@ -485,7 +616,7 @@ export default function StatsPage() {
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
               <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>전체 순위 및 참여 현황</h2>
               <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>
-                (※ 승점 산정 기준: 평균포인트(승3, 무2, 패1) + 출전가산점(참여일수당 1점))
+                (※ 승점 산정 기준: {rankingRules.calcType === 'sum' ? '누적포인트' : '평균포인트'}(승{rankingRules.winPoints}, 무{rankingRules.drawPoints}, 패{rankingRules.lossPoints}) + 출전가산점(참여일수당 {rankingRules.bonusPerDay}점{rankingRules.bonusPerMatch > 0 ? `, 경기당 ${rankingRules.bonusPerMatch}점` : ''}))
               </span>
             </div>
             {sourceFilter === 'ALL' && (
@@ -561,6 +692,216 @@ export default function StatsPage() {
             </div>
           )}
         </div>
+
+        {/* ⚙️ 산정 기준 설정 모달 (운영진 전용) */}
+        {showRuleModal && (
+          <div 
+            className="modal-overlay" 
+            style={{ 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              backgroundColor: 'rgba(0,0,0,0.5)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              zIndex: 1000,
+              padding: '16px'
+            }}
+            onClick={() => setShowRuleModal(false)}
+          >
+            <div 
+              className="card" 
+              style={{ 
+                maxWidth: '520px', 
+                width: '100%', 
+                maxHeight: '90vh', 
+                overflowY: 'auto', 
+                padding: '24px',
+                borderRadius: '16px',
+                backgroundColor: '#fff',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
+                  ⚙️ 승점 및 순위 산정 기준 설정
+                </h3>
+                <button 
+                  type="button" 
+                  onClick={() => setShowRuleModal(false)}
+                  style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--txt3)' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveRules} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* 1. 경기별 승/무/패 포인트 */}
+                <div style={{ backgroundColor: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)', display: 'block', marginBottom: '8px' }}>
+                    1️⃣ 경기별 포인트 (Match Points)
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: 700, display: 'block', marginBottom: '4px' }}>🥇 승리 포인트</span>
+                      <input 
+                        className="input" 
+                        type="number" 
+                        step="0.1" 
+                        min="0"
+                        value={ruleForm.winPoints} 
+                        onChange={e => setRuleForm({ ...ruleForm, winPoints: e.target.value })} 
+                        required 
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '4px' }}>🤝 무승부 포인트</span>
+                      <input 
+                        className="input" 
+                        type="number" 
+                        step="0.1" 
+                        min="0"
+                        value={ruleForm.drawPoints} 
+                        onChange={e => setRuleForm({ ...ruleForm, drawPoints: e.target.value })} 
+                        required 
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#dc2626', fontWeight: 700, display: 'block', marginBottom: '4px' }}>🥉 패배 포인트</span>
+                      <input 
+                        className="input" 
+                        type="number" 
+                        step="0.1" 
+                        min="0"
+                        value={ruleForm.lossPoints} 
+                        onChange={e => setRuleForm({ ...ruleForm, lossPoints: e.target.value })} 
+                        required 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. 포인트 산정 방식 */}
+                <div style={{ backgroundColor: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)', display: 'block', marginBottom: '8px' }}>
+                    2️⃣ 경기 포인트 산정 방식
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input 
+                        type="radio" 
+                        name="calcType" 
+                        value="avg" 
+                        checked={ruleForm.calcType === 'avg'} 
+                        onChange={() => setRuleForm({ ...ruleForm, calcType: 'avg' })} 
+                      />
+                      <div>
+                        <strong>1경기당 평균 기여도 방식 (권장)</strong>
+                        <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>
+                          총 경기 포인트 ÷ 총 경기수 (회원별 출전 경기수 차이 왜곡 방지)
+                        </div>
+                      </div>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input 
+                        type="radio" 
+                        name="calcType" 
+                        value="sum" 
+                        checked={ruleForm.calcType === 'sum'} 
+                        onChange={() => setRuleForm({ ...ruleForm, calcType: 'sum' })} 
+                      />
+                      <div>
+                        <strong>누적 포인트 합산 방식</strong>
+                        <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>
+                          치른 모든 경기의 포인트를 단순 합산하여 반영
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 3. 출전 가산점 */}
+                <div style={{ backgroundColor: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)', display: 'block', marginBottom: '8px' }}>
+                    3️⃣ 출전 가산점 (Attendance Bonus)
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#15803d', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                        📅 참여일수당 가산점
+                      </span>
+                      <input 
+                        className="input" 
+                        type="number" 
+                        step="0.1" 
+                        min="0"
+                        value={ruleForm.bonusPerDay} 
+                        onChange={e => setRuleForm({ ...ruleForm, bonusPerDay: e.target.value })} 
+                        required 
+                      />
+                      <span style={{ fontSize: '10.5px', color: 'var(--txt3)', display: 'block', marginTop: '2px' }}>
+                        (기본값: 1.0점)
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#15803d', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                        🎾 경기당 가산점 (선택)
+                      </span>
+                      <input 
+                        className="input" 
+                        type="number" 
+                        step="0.1" 
+                        min="0"
+                        value={ruleForm.bonusPerMatch} 
+                        onChange={e => setRuleForm({ ...ruleForm, bonusPerMatch: e.target.value })} 
+                        required 
+                      />
+                      <span style={{ fontSize: '10.5px', color: 'var(--txt3)', display: 'block', marginTop: '2px' }}>
+                        (기본값: 0.0점)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 하단 버튼 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', gap: '8px' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleResetDefaultRules}
+                    style={{ fontSize: '12px' }}
+                  >
+                    기본값 복원
+                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setShowRuleModal(false)}
+                      disabled={savingRules}
+                    >
+                      취소
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="btn btn-primary btn-sm"
+                      disabled={savingRules}
+                      style={{ fontWeight: 800 }}
+                    >
+                      {savingRules ? '저장 중...' : '설정 저장'}
+                    </button>
+                  </div>
+                </div>
+
+              </form>
+            </div>
+          </div>
+        )}
 
       </main>
     </div>
