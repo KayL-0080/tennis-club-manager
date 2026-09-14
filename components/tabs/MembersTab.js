@@ -25,7 +25,15 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
   const [showAddModal, setShowAddModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderText, setReminderText] = useState('');
-  const [newMember, setNewMember] = useState({ name: '', role: '정회원', gender: 'M', ntrp: 2.0, feePaid: false });
+  const [newMember, setNewMember] = useState({
+    name: '',
+    role: '정회원',
+    gender: 'M',
+    birthYear: '',
+    tennisStartedAt: '',
+    ntrp: 2.0,
+    feePaid: false
+  });
 
   const handleGenerateReminder = () => {
     const unpaidMembers = sortedMembers.filter(m => !m.feePaid);
@@ -50,9 +58,22 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
       alert('이름을 입력해주세요.');
       return;
     }
-    onAdd({ ...newMember, name: newMember.name.trim() });
+    onAdd({
+      ...newMember,
+      name: newMember.name.trim(),
+      birthYear: (newMember.birthYear || '').trim(),
+      tennisStartedAt: (newMember.tennisStartedAt || '').trim()
+    });
     setShowAddModal(false);
-    setNewMember({ name: '', role: '정회원', gender: 'M', ntrp: 2.0 }); // reset
+    setNewMember({
+      name: '',
+      role: '정회원',
+      gender: 'M',
+      birthYear: '',
+      tennisStartedAt: '',
+      ntrp: 2.0,
+      feePaid: false
+    });
   };
 
   return (
@@ -64,13 +85,22 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>이름</th><th>직책/구분</th><th>성별</th>{isAdmin && <th>NTRP</th>}<th>회비 납부</th><th></th></tr>
+              <tr>
+                <th>이름</th>
+                <th>직책/구분</th>
+                <th>성별</th>
+                <th>생년</th>
+                <th>테니스 시작</th>
+                {isAdmin && <th>NTRP</th>}
+                <th>회비 납부</th>
+                <th></th>
+              </tr>
             </thead>
             <tbody>
               {sortedMembers.map(p => (
                 <tr key={p.id}>
                   <td>
-                    <input className="input input-sm" type="text" value={p.name} style={{ width: 110 }}
+                    <input className="input input-sm" type="text" value={p.name} style={{ width: 100 }}
                       disabled={!isAdmin}
                       onChange={e => onUpdateLocal(p.id, { name: e.target.value })}
                       onBlur={e => onSave(p.id, { name: e.target.value })} />
@@ -89,6 +119,30 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
                       <option value="M">남</option>
                       <option value="F">여</option>
                     </select>
+                  </td>
+                  <td>
+                    <input 
+                      className="input input-sm" 
+                      type="text" 
+                      value={p.birthYear || ''} 
+                      placeholder="예: 1988"
+                      style={{ width: 80, textAlign: 'center' }}
+                      disabled={!isAdmin}
+                      onChange={e => onUpdateLocal(p.id, { birthYear: e.target.value })}
+                      onBlur={e => onSave(p.id, { birthYear: e.target.value })} 
+                    />
+                  </td>
+                  <td>
+                    <input 
+                      className="input input-sm" 
+                      type="text" 
+                      value={p.tennisStartedAt || ''} 
+                      placeholder="예: 2021.05"
+                      style={{ width: 95, textAlign: 'center' }}
+                      disabled={!isAdmin}
+                      onChange={e => onUpdateLocal(p.id, { tennisStartedAt: e.target.value })}
+                      onBlur={e => onSave(p.id, { tennisStartedAt: e.target.value })} 
+                    />
                   </td>
                   {isAdmin && (
                     <td>
@@ -133,11 +187,11 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
 
       {showAddModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ width: '320px' }}>
+          <div className="modal-content" style={{ maxWidth: '380px', width: '100%' }}>
             <h3 style={{ marginTop: 0, marginBottom: '16px', color: 'var(--navy)', fontSize: '18px' }}>새 회원 추가</h3>
             
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px', color: 'var(--text-muted)' }}>이름</label>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: 'var(--text-muted)' }}>이름</label>
               <input 
                 className="input" 
                 type="text" 
@@ -149,7 +203,7 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
             </div>
             
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px', color: 'var(--text-muted)' }}>직책/구분</label>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: 'var(--text-muted)' }}>직책/구분</label>
               <select 
                 className="select" 
                 value={newMember.role}
@@ -161,7 +215,7 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
             
             <div style={{ marginBottom: '12px', display: 'flex', gap: '12px' }}>
               <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px', color: 'var(--text-muted)' }}>성별</label>
+                <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: 'var(--text-muted)' }}>성별</label>
                 <select 
                   className="select" 
                   value={newMember.gender}
@@ -173,7 +227,7 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
               </div>
               
               <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px', color: 'var(--text-muted)' }}>NTRP</label>
+                <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: 'var(--text-muted)' }}>NTRP</label>
                 <select 
                   className="select" 
                   value={newMember.ntrp}
@@ -182,6 +236,28 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
                   {NTRP_OPTIONS.map(v => <option key={v} value={v}>{v.toFixed(1)}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: 'var(--text-muted)' }}>생년 (출생연도)</label>
+              <input 
+                className="input" 
+                type="text" 
+                value={newMember.birthYear || ''} 
+                onChange={e => setNewMember({...newMember, birthYear: e.target.value})}
+                placeholder="예: 1988 또는 88"
+              />
+            </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: 'var(--text-muted)' }}>테니스 시작년월 (구력)</label>
+              <input 
+                className="input" 
+                type="text" 
+                value={newMember.tennisStartedAt || ''} 
+                onChange={e => setNewMember({...newMember, tennisStartedAt: e.target.value})}
+                placeholder="예: 2021.05 또는 2021년 5월"
+              />
             </div>
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '24px' }}>
