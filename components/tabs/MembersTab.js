@@ -79,8 +79,14 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
   return (
     <div>
       <div className={`card ${styles.section}`}>
-        <h2 className={styles.sectionTitle}>
-          회원 명단 <span className={styles.sectionNote}>(전체 회원 관리 — 오늘 참가자와 별개)</span>
+        <h2 className={styles.sectionTitle} style={{ flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            회원 명단
+            <span style={{ fontSize: '0.88rem', color: '#1d4ed8', fontWeight: 700, marginLeft: '8px', background: 'rgba(37,99,235,0.08)', padding: '3px 8px', borderRadius: '6px' }}>
+              총 {members.length}명 (남자 {members.filter(m => m.gender === 'M').length}명, 여자 {members.filter(m => m.gender === 'F').length}명)
+            </span>
+          </div>
+          <span className={styles.sectionNote}>(전체 회원 관리 — 오늘 참가자와 별개)</span>
         </h2>
         <div className="table-wrap">
           <table>
