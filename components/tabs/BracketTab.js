@@ -567,13 +567,6 @@ export default function BracketTab({
     setShowPenaltyShareModal(true);
   };
 
-  const copyUrl = () => {
-    if (typeof window === 'undefined') return;
-    navigator.clipboard.writeText(window.location.href)
-      .then(() => alert('URL이 클립보드에 복사되었습니다.'))
-      .catch(() => alert('URL 복사에 실패했습니다.'));
-  };
-
   const shareNative = () => {
     if (typeof window === 'undefined') return;
     if (navigator.share) {
@@ -583,7 +576,9 @@ export default function BracketTab({
         url: window.location.href,
       }).catch(err => console.log('공유 취소 또는 실패', err));
     } else {
-      alert('이 브라우저에서는 기본 공유 기능을 지원하지 않습니다. URL 복사를 이용해주세요.');
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => alert('대진표 링크가 클립보드에 복사되었습니다.'))
+        .catch(() => alert('링크 복사에 실패했습니다.'));
     }
   };
 
@@ -629,13 +624,11 @@ export default function BracketTab({
                 )}
               </div>
             </div>
-            <div className={styles.toolbarGroup} style={{ flex: 1, minWidth: 260 }}>
-              <span className={styles.toolbarLabel}>내보내기 / 공유</span>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                <button className="btn btn-secondary btn-sm" onClick={copyUrl}>🔗 URL 복사</button>
-                <button className="btn btn-secondary btn-sm" onClick={shareNative}>📤 공유하기</button>
-                <button className="btn btn-secondary btn-sm" onClick={onPrint}>🖨️ 인쇄</button>
-              </div>
+            <div className={styles.toolbarGroup} style={{ flex: 1, minWidth: 160 }}>
+              <span className={styles.toolbarLabel}>공유</span>
+              <button className="btn btn-secondary btn-sm" onClick={shareNative} style={{ width: '100%' }}>
+                📤 대진표 공유하기
+              </button>
             </div>
           </div>
         </div>
