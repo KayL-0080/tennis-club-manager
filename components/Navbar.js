@@ -23,6 +23,7 @@ export default function Navbar() {
     { name: '🗓️ 참석 투표', path: '/votes' },
     { name: '🏆 정기 대회', path: '/tournaments' },
     { name: '👥 회원 관리', path: '/members' },
+    { name: '🎨 이미지 제작', path: '/posters' },
     { name: '📖 이용 매뉴얼', path: '/manual' },
   ];
 

@@ -237,6 +237,15 @@ export default function Dashboard() {
                   + 대진표 만들기
                 </button>
               )}
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => router.push('/posters')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                title="회원모집/게스트/코트양도 카드 이미지 제작"
+              >
+                <span>🎨</span>
+                <span>이미지 제작</span>
+              </button>
             </div>
           </div>
         </section>

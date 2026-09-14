@@ -1,0 +1,360 @@
+/* app/posters/posters.module.css — 테니스 홍보 이미지 제작소 스타일 */
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 1.7rem;
+  font-weight: 900;
+  color: var(--txt);
+  margin: 0 0 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--txt2);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* 상단 3개 모드 전환 탭 */
+.modeTabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  background: rgba(241, 245, 249, 0.7);
+  backdrop-filter: blur(12px);
+  padding: 6px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tabBtn {
+  flex: 1;
+  min-width: 140px;
+  padding: 12px 18px;
+  border: none;
+  background: transparent;
+  color: var(--txt2);
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.tabBtn:hover {
+  color: var(--txt);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.tabActive {
+  background: #ffffff !important;
+  color: var(--navy) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+/* 2열 메인 레이아웃 (좌측 입력 폼 + 우측 실시간 미리보기) */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 입력 폼 패널 */
+.formCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sectionHeader {
+  display: flex;
+  justifyContent: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--navy);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--txt);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.labelSub {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--txt3);
+}
+
+/* 칩 그룹 (빠른 입력 프리셋) */
+.chipGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.presetChip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: var(--txt2);
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.presetChip:hover {
+  background: #e2e8f0;
+  color: var(--txt);
+  border-color: #cbd5e1;
+}
+
+/* 코트 배경 선택 그리드 */
+.bgOptionGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 540px) {
+  .bgOptionGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.bgOptionCard {
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bgOptionCard:hover {
+  border-color: #93c5fd;
+  transform: translateY(-2px);
+}
+
+.bgOptionActive {
+  border-color: #2563eb !important;
+  background: #eff6ff !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.bgPreviewSphere {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  border: 2px solid #fff;
+}
+
+.bgOptionLabel {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--txt);
+}
+
+/* 우측 실시간 미리보기 패널 (Sticky) */
+.previewPanel {
+  position: sticky;
+  top: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.previewCard {
+  background: #1e293b;
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.previewCanvasWrapper {
+  width: 100%;
+  max-width: 440px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #0f172a;
+  display: flex;
+  justify-content: center;
+}
+
+.previewCanvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* 비율 선택기 바 */
+.ratioBar {
+  display: flex;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.ratioBtn {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ratioBtn:hover {
+  color: #fff;
+}
+
+.ratioActive {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* 액션 버튼군 */
+.actionGroup {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.actionBtnPrimary {
+  grid-column: span 2;
+  padding: 13px 20px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  transition: all 0.2s ease;
+}
+
+.actionBtnPrimary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+}
+
+.actionBtnSecondary {
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.actionBtnSecondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* 텍스트 공지문 복사 모달 */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modalBox {
+  background: #fff;
+  border-radius: 20px;
+  max-width: 500px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2);
+}
