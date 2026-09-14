@@ -79,7 +79,6 @@ html {
   font-size: 16px; 
   scroll-behavior: smooth; 
   -webkit-text-size-adjust: 100%;
-  overflow-x: hidden;
   width: 100%;
 }
 body {
@@ -92,8 +91,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   width: 100%;
-  position: relative;
 }
 
 @media (min-width: 769px) {

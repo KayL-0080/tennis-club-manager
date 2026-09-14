@@ -404,107 +404,44 @@ export default function VotesPage() {
               ※ 일반 사용자는 최초 투표 이후 1회 추가 변경만 가능합니다.
             </p>
           </div>
-          {isAdmin && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn btn-secondary" onClick={() => setShowSettingsModal(true)}>⚙️ 클럽 모임 설정</button>
-              <button className="btn btn-primary" onClick={() => {
-                setSelectedEvent(null);
-                setEditTitle('새 투표');
-                setEditDate(formatDateToYMD());
-                setEditStartTime('19:00');
-                setEditEndTime('22:00');
-                setEditLocation('그린테니스장');
-                setIsEditing(true);
-              }}>+ 새 투표 만들기</button>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              {selectedMonth !== 'ALL' && isAdmin && (
+                <button className="btn btn-secondary btn-sm" style={{ padding: '6px 10px', fontSize: '13px' }} onClick={() => setShowMonthlyTableModal(true)}>
+                  📅 월별 현황표
+                </button>
+              )}
+              <select 
+                className="input input-sm" 
+                style={{ width: 'auto', padding: '6px 10px', fontSize: '13px', fontWeight: 600 }} 
+                value={selectedMonth} 
+                onChange={e => setSelectedMonth(e.target.value)}
+              >
+                <option value="ALL">전체 보기</option>
+                {availableMonths.map(m => <option key={m} value={m}>{m.split('-')[0]}년 {m.split('-')[1]}월</option>)}
+              </select>
             </div>
-          )}
+            {isAdmin && (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn btn-secondary" onClick={() => setShowSettingsModal(true)}>⚙️ 클럽 모임 설정</button>
+                <button className="btn btn-primary" onClick={() => {
+                  setSelectedEvent(null);
+                  setEditTitle('새 투표');
+                  setEditDate(formatDateToYMD());
+                  setEditStartTime('19:00');
+                  setEditEndTime('22:00');
+                  setEditLocation('그린테니스장');
+                  setIsEditing(true);
+                }}>+ 새 투표 만들기</button>
+              </div>
+            )}
+          </div>
         </div>
 
         {fetching ? (
           <div className={styles.center}><span className="spinner" /></div>
         ) : (
           <>
-            {!fetching && displayEvents.length > 0 && (
-              <div className="card" style={{ marginBottom: '14px', padding: '12px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                  <h2 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--txt)', margin: 0, letterSpacing: '-0.02em' }}>
-                    📊 {selectedMonth === 'ALL' ? '전체' : `${selectedMonth.split('-')[1]}월`} 일정 투표 현황
-                  </h2>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    {selectedMonth !== 'ALL' && isAdmin && (
-                      <button className="btn btn-secondary btn-sm" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => setShowMonthlyTableModal(true)}>
-                        📅 월별 현황표
-                      </button>
-                    )}
-                    <select 
-                      className="input input-sm" 
-                      style={{ width: 'auto', padding: '4px 8px', fontSize: '12px' }} 
-                      value={selectedMonth} 
-                      onChange={e => setSelectedMonth(e.target.value)}
-                    >
-                      <option value="ALL">전체 보기</option>
-                      {availableMonths.map(m => <option key={m} value={m}>{m.split('-')[0]}년 {m.split('-')[1]}월</option>)}
-                    </select>
-                  </div>
-                </div>
-                {(() => {
-                  const voters = [];
-                  const nonVoters = [];
-                  members.forEach(m => {
-                    const hasVoted = displayEvents.some(e => e.attendees?.[m.id] === 'Y' || e.attendees?.[m.id] === 'N');
-                    if (hasVoted) voters.push(m);
-                    else nonVoters.push(m);
-                  });
-
-                  return (
-                    <>
-                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                        <div 
-                          style={{ flex: 1, padding: '8px 12px', background: 'rgba(255, 255, 255, 0.6)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: showVoters ? '2px solid var(--ios-blue)' : '1px solid rgba(0,0,0,0.06)', transition: 'all 0.2s' }}
-                          onClick={() => { setShowVoters(!showVoters); setShowNonVoters(false); }}
-                        >
-                          <div style={{ fontSize: '12px', color: 'var(--txt2)', fontWeight: 600, marginBottom: '2px' }}>투표참여자</div>
-                          <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ios-blue)' }}>{voters.length}명</div>
-                        </div>
-                        <div 
-                          style={{ flex: 1, padding: '8px 12px', background: 'rgba(255, 255, 255, 0.6)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: showNonVoters ? '2px solid var(--ios-red)' : '1px solid rgba(0,0,0,0.06)', transition: 'all 0.2s' }}
-                          onClick={() => { setShowNonVoters(!showNonVoters); setShowVoters(false); }}
-                        >
-                          <div style={{ fontSize: '12px', color: 'var(--txt2)', fontWeight: 600, marginBottom: '2px' }}>투표미참여자</div>
-                          <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ios-red)' }}>{nonVoters.length}명</div>
-                        </div>
-                      </div>
-                      
-                      {showVoters && (
-                        <div style={{ padding: '10px 12px', background: 'rgba(0, 122, 255, 0.06)', borderRadius: 'var(--radius-sm)', fontSize: '13px', marginBottom: '8px', border: '1px solid rgba(0, 122, 255, 0.15)' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--ios-blue)' }}>참여자 명단 ({voters.length}명)</strong>
-                          {voters.length > 0 ? voters.map(m => m.name).join(', ') : '없음'}
-                        </div>
-                      )}
-                      
-                      {showNonVoters && (
-                        <div style={{ padding: '10px 12px', background: 'rgba(255, 59, 48, 0.06)', borderRadius: 'var(--radius-sm)', fontSize: '13px', marginBottom: '8px', border: '1px solid rgba(255, 59, 48, 0.15)' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--ios-red)' }}>미참여자 명단 ({nonVoters.length}명)</strong>
-                          {nonVoters.length > 0 ? nonVoters.map(m => m.name).join(', ') : '없음'}
-                        </div>
-                      )}
-
-                      {isAdmin && (
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-                          <button className="btn btn-primary btn-sm" style={{ padding: '4px 10px', fontSize: '12px' }} onClick={() => {
-                            const text = `[투표 참여 안내]\n현재 게시된 모임 일정에 한 번도 투표하지 않으신 분들이 있습니다!\n\n미투표자: ${nonVoters.map(m=>m.name).join(', ')}\n\n테니스 앱에 접속하셔서 다가오는 일정들에 대한 참석 여부를 꼭 투표해 주세요!\n\n🔗 접속 링크: https://tcmngr.vercel.app`;
-                            setReminderText(text);
-                            setShowReminderModal(true);
-                          }}>
-                            💬 투표 독려 메시지 만들기
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            )}
             <div className={styles.voteGrid}>
             {displayEvents.map(e => {
               const attCount = Object.values(e.attendees || {}).filter(v => v === 'Y').length;
