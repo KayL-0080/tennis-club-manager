@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { TEAM_COLORS } from './PickingPhase';
+import { generateTournamentResultShareText } from '@/lib/tournamentUtils';
 
 export default function CompletedPhase({ tournament, members, onUpdate, isAdmin }) {
   const { type, matches, teams } = tournament;
@@ -18,6 +19,14 @@ export default function CompletedPhase({ tournament, members, onUpdate, isAdmin 
   const [playerStatsSearch, setPlayerStatsSearch] = useState('');
   const [playerStatsSort, setPlayerStatsSort] = useState('games_desc');
   const [playerStatsFilterTeam, setPlayerStatsFilterTeam] = useState('ALL');
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareText, setShareText] = useState('');
+
+  const handleOpenShare = () => {
+    const text = generateTournamentResultShareText(tournament, members);
+    setShareText(text);
+    setShowShareModal(true);
+  };
 
   const teamStats = useMemo(() => {
     if (type !== 'team') return [];
@@ -335,13 +344,22 @@ export default function CompletedPhase({ tournament, members, onUpdate, isAdmin 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* 🏆 최종 대회 순위 카드 */}
       <div className="card" style={{ padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '8px' }}>
           <h2 style={{ margin: 0, color: 'var(--navy)', fontSize: '18px' }}>🏆 최종 대회 결과</h2>
-          {isAdmin && (
-            <button className="btn btn-secondary btn-sm" onClick={() => {
-              if (confirm('대회 종료를 취소하시겠습니까?')) onUpdate({ status: 'playing' });
-            }}>👈 이전</button>
-          )}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, padding: '6px 12px' }}
+              onClick={handleOpenShare}
+            >
+              📤 최종 결과 공유하기
+            </button>
+            {isAdmin && (
+              <button className="btn btn-secondary btn-sm" onClick={() => {
+                if (confirm('대회 종료를 취소하시겠습니까?')) onUpdate({ status: 'playing' });
+              }}>👈 이전</button>
+            )}
+          </div>
         </div>
         
         {type === 'team' && (
@@ -448,85 +466,60 @@ export default function CompletedPhase({ tournament, members, onUpdate, isAdmin 
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <input
-              type="text"
               className="input input-sm"
-              placeholder="🔍 선수 검색..."
+              type="text"
+              placeholder="🔍 선수 이름 검색"
               value={playerStatsSearch}
-              onChange={e => setPlayerStatsSearch(e.target.value)}
-              style={{ width: '130px', height: '30px', fontSize: '12px' }}
+              onChange={(e) => setPlayerStatsSearch(e.target.value)}
+              style={{ width: '130px', fontSize: '12px', padding: '4px 8px' }}
             />
+
+            {type === 'team' && teams && teams.length > 0 && (
+              <select
+                className="input input-sm"
+                value={playerStatsFilterTeam}
+                onChange={(e) => setPlayerStatsFilterTeam(e.target.value)}
+                style={{ fontSize: '12px', padding: '4px 8px' }}
+              >
+                <option value="ALL">전체 팀</option>
+                {teams.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
+
             <select
               className="input input-sm"
               value={playerStatsSort}
-              onChange={e => setPlayerStatsSort(e.target.value)}
-              style={{ height: '30px', fontSize: '12px', padding: '2px 6px' }}
+              onChange={(e) => setPlayerStatsSort(e.target.value)}
+              style={{ fontSize: '12px', padding: '4px 8px' }}
             >
-              <option value="games_desc">경기수 많은 순 ↓</option>
-              <option value="winrate_desc">승률 높은 순 ↓</option>
-              <option value="name_asc">이름순</option>
+              <option value="games_desc">출전 경기수 많은순</option>
+              <option value="winrate_desc">승률 높은순</option>
+              <option value="name_asc">이름 가나다순</option>
             </select>
           </div>
         </div>
 
-        {type === 'team' && teams && teams.length > 0 && (
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setPlayerStatsFilterTeam('ALL')}
-              style={{
-                fontSize: '11px',
-                padding: '2px 8px',
-                backgroundColor: playerStatsFilterTeam === 'ALL' ? '#2563eb' : '#fff',
-                color: playerStatsFilterTeam === 'ALL' ? '#fff' : '#475569',
-                borderColor: playerStatsFilterTeam === 'ALL' ? '#2563eb' : '#cbd5e1'
-              }}
-            >
-              전체 ({allPlayerStats.length})
-            </button>
-            {teams.map((t, idx) => {
-              const isSelected = playerStatsFilterTeam === t.id;
-              const theme = TEAM_COLORS[idx % TEAM_COLORS.length] || { badgeBg: '#2563eb', border: '#cbd5e1', text: '#2563eb' };
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setPlayerStatsFilterTeam(t.id)}
-                  style={{
-                    fontSize: '11px',
-                    padding: '2px 8px',
-                    backgroundColor: isSelected ? theme.badgeBg : '#fff',
-                    color: isSelected ? '#fff' : theme.text,
-                    borderColor: isSelected ? theme.badgeBg : theme.border
-                  }}
-                >
-                  {t.name} ({(t.players || []).length})
-                </button>
-              );
-            })}
-          </div>
-        )}
-
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
-          {filteredPlayers.map((p) => {
-            const teamTheme = (p.teamIdx !== undefined && p.teamIdx >= 0) ? TEAM_COLORS[p.teamIdx % TEAM_COLORS.length] : null;
+          {filteredPlayers.map(p => {
+            const teamTheme = p.teamIdx !== undefined ? TEAM_COLORS[p.teamIdx % TEAM_COLORS.length] : null;
 
             return (
               <div
                 key={p.id}
                 style={{
-                  border: '1px solid var(--border)',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
                   borderRadius: '8px',
                   padding: '10px 12px',
-                  backgroundColor: '#f8fafc',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '6px'
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
                       👤 {p.name}
                     </span>
@@ -568,6 +561,82 @@ export default function CompletedPhase({ tournament, members, onUpdate, isAdmin 
           })}
         </div>
       </div>
+
+      {/* 📤 최종 대회 결과 공유 모달 */}
+      {showShareModal && (
+        <div className="modal-overlay" onClick={() => setShowShareModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+              <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--txt)' }}>
+                🏆 대회 최종 결과 공유
+              </h2>
+              <button 
+                className="modal-close" 
+                onClick={() => setShowShareModal(false)} 
+                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                아래 최종 순위 및 대회 결과 메시지를 복사하거나 카카오톡으로 공유할 수 있습니다.
+              </p>
+              <textarea
+                className="input"
+                style={{ 
+                  width: '100%', 
+                  height: '240px', 
+                  resize: 'vertical', 
+                  padding: '12px', 
+                  lineHeight: '1.6', 
+                  fontFamily: 'inherit',
+                  fontSize: '13px',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px'
+                }}
+                value={shareText}
+                onChange={(e) => setShareText(e.target.value)}
+              />
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+              <button className="btn btn-secondary" onClick={() => setShowShareModal(false)}>
+                닫기
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => {
+                  navigator.clipboard.writeText(shareText)
+                    .then(() => alert('대회 결과가 클립보드에 복사되었습니다.'))
+                    .catch(() => alert('복사에 실패했습니다.'));
+                }}
+              >
+                📋 복사하기
+              </button>
+              {typeof navigator !== 'undefined' && navigator.share && (
+                <button 
+                  className="btn btn-primary" 
+                  style={{ background: '#fef01b', color: '#3a1d1d', borderColor: '#fef01b', fontWeight: 'bold' }} 
+                  onClick={() => {
+                    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
+                    const shareUrl = `${origin}/tournaments/${tournament.id}`;
+                    navigator.share({
+                      title: `[대회 결과] ${tournament.title}`,
+                      text: shareText,
+                      url: shareUrl
+                    }).catch(console.error);
+                  }}
+                >
+                  💬 카카오톡 / 공유하기
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

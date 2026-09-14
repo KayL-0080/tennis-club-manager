@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTournaments, createTournament, deleteTournament, getEvents, getMembers } from '@/lib/firestore';
+import { generateTournamentResultShareText } from '@/lib/tournamentUtils';
 import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
 
@@ -19,6 +20,11 @@ export default function TournamentsPage() {
   const [newType, setNewType] = useState('team');
   const [events, setEvents] = useState([]);
   const [members, setMembers] = useState([]);
+
+  // Share modal state
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareText, setShareText] = useState('');
+  const [selectedTournament, setSelectedTournament] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -164,9 +170,26 @@ export default function TournamentsPage() {
                     </div>
                   </div>
                 </div>
-                {isAdmin && (
-                  <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleDelete(t.id, t.title); }}>삭제</button>
-                )}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {t.status === 'completed' && (
+                    <button 
+                      className="btn btn-primary btn-sm" 
+                      style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const text = generateTournamentResultShareText(t, members);
+                        setShareText(text);
+                        setSelectedTournament(t);
+                        setShowShareModal(true);
+                      }}
+                    >
+                      📤 결과 공유
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleDelete(t.id, t.title); }}>삭제</button>
+                  )}
+                </div>
               </div>
             ))
           )}
@@ -199,6 +222,82 @@ export default function TournamentsPage() {
                   <button type="submit" className="btn btn-primary">생성하기</button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* 📤 최종 대회 결과 공유 모달 */}
+        {showShareModal && (
+          <div className="modal-overlay" onClick={() => setShowShareModal(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--txt)' }}>
+                  🏆 대회 최종 결과 공유
+                </h2>
+                <button 
+                  className="modal-close" 
+                  onClick={() => setShowShareModal(false)} 
+                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  &times;
+                </button>
+              </div>
+              
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                  아래 최종 순위 및 대회 결과 메시지를 복사하거나 카카오톡으로 공유할 수 있습니다.
+                </p>
+                <textarea
+                  className="input"
+                  style={{ 
+                    width: '100%', 
+                    height: '240px', 
+                    resize: 'vertical', 
+                    padding: '12px', 
+                    lineHeight: '1.6', 
+                    fontFamily: 'inherit',
+                    fontSize: '13px',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px'
+                  }}
+                  value={shareText}
+                  onChange={(e) => setShareText(e.target.value)}
+                />
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+                <button className="btn btn-secondary" onClick={() => setShowShareModal(false)}>
+                  닫기
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareText)
+                      .then(() => alert('대회 결과가 클립보드에 복사되었습니다.'))
+                      .catch(() => alert('복사에 실패했습니다.'));
+                  }}
+                >
+                  📋 복사하기
+                </button>
+                {typeof navigator !== 'undefined' && navigator.share && (
+                  <button 
+                    className="btn btn-primary" 
+                    style={{ background: '#fef01b', color: '#3a1d1d', borderColor: '#fef01b', fontWeight: 'bold' }} 
+                    onClick={() => {
+                      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
+                      const shareUrl = selectedTournament ? `${origin}/tournaments/${selectedTournament.id}` : `${origin}/tournaments`;
+                      navigator.share({
+                        title: selectedTournament ? `[대회 결과] ${selectedTournament.title}` : '대회 최종 결과',
+                        text: shareText,
+                        url: shareUrl
+                      }).catch(console.error);
+                    }}
+                  >
+                    💬 카카오톡 / 공유하기
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
