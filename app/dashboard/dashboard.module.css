@@ -83,29 +83,75 @@
 .heroChips {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
 .heroChip {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-  padding: 5px 14px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  padding: 6px 14px;
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  color: var(--txt);
+  font-size: 0.82rem;
+  color: #334155;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  line-height: 1;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.heroChip:hover {
+  background: rgba(255, 255, 255, 0.98);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.heroChipIcon {
+  font-size: 0.95rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heroChipText {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  letter-spacing: -0.01em;
+}
+
+.heroChipText strong {
+  color: var(--ios-blue);
+  font-weight: 800;
 }
 
 .heroActions {
   display: flex;
+  align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.heroBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 18px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  border-radius: var(--radius-full);
+  line-height: 1.2;
 }
 
 /* ── HEADER ── */
@@ -418,6 +464,49 @@
 }
 
 @media (max-width: 768px) {
+  .hero {
+    padding: 22px 18px;
+    margin-bottom: 20px;
+  }
+
+  .heroInner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .heroContent {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .heroChips {
+    gap: 6px;
+    margin-bottom: 2px;
+  }
+
+  .heroChip {
+    font-size: 0.78rem;
+    padding: 5px 11px;
+    flex-grow: 1;
+    justify-content: center;
+  }
+
+  .heroActions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .heroBtn {
+    width: 100%;
+    padding: 10px 8px;
+    font-size: 0.8rem;
+    gap: 5px;
+    justify-content: center;
+  }
+
   .desktopView {
     display: none !important;
   }
@@ -425,6 +514,31 @@
     display: grid !important;
     grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
     gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .heroChips {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .heroChip {
+    font-size: 0.75rem;
+    padding: 5px 9px;
+  }
+
+  .heroActions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .heroActions > button:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .heroBtn {
+    font-size: 0.82rem;
+    padding: 9px 10px;
   }
 }
 

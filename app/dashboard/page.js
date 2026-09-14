@@ -223,24 +223,40 @@ export default function Dashboard() {
               <h1 className={styles.heroTitle}>테니스 매치 & 대진표 매니저</h1>
               <p className={styles.heroSub}>NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리</p>
               <div className={styles.heroChips}>
-                <span className={styles.heroChip}>👥 등록 회원 {members.length}명</span>
-                <span className={styles.heroChip}>🎾 등록 대진표 {schedules.length}개</span>
-                <span className={styles.heroChip}>🏆 정기 대회 진행중</span>
+                <span className={styles.heroChip}>
+                  <span className={styles.heroChipIcon}>👥</span>
+                  <span className={styles.heroChipText}>등록 회원 <strong>{members.length}</strong>명</span>
+                </span>
+                <span className={styles.heroChip}>
+                  <span className={styles.heroChipIcon}>🎾</span>
+                  <span className={styles.heroChipText}>등록 대진표 <strong>{schedules.length}</strong>개</span>
+                </span>
+                <span className={styles.heroChip}>
+                  <span className={styles.heroChipIcon}>🏆</span>
+                  <span className={styles.heroChipText}>정기 대회 <strong>진행중</strong></span>
+                </span>
               </div>
             </div>
             <div className={styles.heroActions}>
-              <button className={`btn ${activeTab === 'list' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('list')}>
-                📊 대진표 목록
+              <button 
+                className={`btn ${activeTab === 'list' ? 'btn-primary' : 'btn-secondary'} ${styles.heroBtn}`} 
+                onClick={() => setActiveTab('list')}
+              >
+                <span>📊</span>
+                <span>대진표 목록</span>
               </button>
               {isAdmin && (
-                <button className={`btn ${activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('settings')}>
-                  + 대진표 만들기
+                <button 
+                  className={`btn ${activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'} ${styles.heroBtn}`} 
+                  onClick={() => setActiveTab('settings')}
+                >
+                  <span>➕</span>
+                  <span>대진표 만들기</span>
                 </button>
               )}
               <button 
-                className="btn btn-secondary" 
+                className={`btn btn-secondary ${styles.heroBtn}`} 
                 onClick={() => router.push('/posters')}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 title="회원모집/게스트/코트양도 카드 이미지 제작"
               >
                 <span>🎨</span>
