@@ -87,6 +87,30 @@ export default function BracketTab({
     setCustomPenaltyInput(String(penaltyAmount ?? 1000));
   }, [penaltyAmount]);
 
+  /* ── 👁️ 대진표 보기 모드 & 진행중 필터 상태 ── */
+  const [viewMode, setViewMode] = useState('court'); // 'court' (코트별 선수 배치) | 'table' (라운드별 테이블)
+  const [activeOnlyMode, setActiveOnlyMode] = useState(false); // true: 현재 진행중인 경기만, false: 전체 펼쳐보기
+  const [collapsedCourts, setCollapsedCourts] = useState({}); // { [courtIdx]: boolean }
+
+  const isCourtCollapsed = (courtIdx) => {
+    if (collapsedCourts[courtIdx] !== undefined) {
+      return collapsedCourts[courtIdx];
+    }
+    return activeOnlyMode;
+  };
+
+  const toggleCourtCollapse = (courtIdx) => {
+    setCollapsedCourts(prev => ({
+      ...prev,
+      [courtIdx]: !isCourtCollapsed(courtIdx)
+    }));
+  };
+
+  const setGlobalMode = (activeOnly) => {
+    setActiveOnlyMode(activeOnly);
+    setCollapsedCourts({});
+  };
+
   const roundIdsRef = useRef([]);
   if (schedule && roundIdsRef.current.length !== schedule.length) {
     if (roundIdsRef.current.length < schedule.length) {
@@ -391,6 +415,34 @@ export default function BracketTab({
     };
   }, [schedule, scores]);
 
+  /* ── 코트별 경기 목록 구조화 ── */
+  const courtMatchesList = useMemo(() => {
+    if (!schedule || schedule.length === 0) return [];
+    const list = [];
+    const cCount = courts;
+    for (let ci = 0; ci < cCount; ci++) {
+      const matchesInCourt = schedule.map((round, ri) => {
+        const m = round[ci] || { teamA: [null, null], teamB: [null, null] };
+        const key = `${ri}-${ci}`;
+        const sc = scores[key] || { a: null, b: null };
+        const hasScore = sc.a !== null && sc.a !== undefined && sc.a !== '' &&
+                         sc.b !== null && sc.b !== undefined && sc.b !== '';
+        return {
+          ri,
+          ci,
+          match: m,
+          score: sc,
+          hasScore,
+          isWinA: hasScore && Number(sc.a) > Number(sc.b),
+          isWinB: hasScore && Number(sc.b) > Number(sc.a),
+          isDraw: hasScore && Number(sc.a) === Number(sc.b),
+        };
+      });
+      list.push(matchesInCourt);
+    }
+    return list;
+  }, [schedule, scores, courts]);
+
   /* ── 벌칙금 정산 통계 ── */
   const penaltySummary = useMemo(() => {
     const rate = penaltyAmount || 0;
@@ -628,30 +680,117 @@ export default function BracketTab({
           </div>
         )}
 
-        {/* 🎾 경기 방식(게임수) 설정 바 */}
+        {/* 👁️ 대진표 보기 모드 컨트롤러 (코트별 선수 배치 & 전체 펼쳐보기 / 진행중만 모아보기) */}
         <div 
           style={{ 
             display: 'flex', 
-            flexWrap: 'wrap', 
-            alignItems: 'center', 
             justifyContent: 'space-between', 
+            alignItems: 'center', 
+            flexWrap: 'wrap', 
             gap: '12px', 
-            marginBottom: '16px', 
-            padding: '10px 14px', 
+            marginBottom: '18px', 
+            padding: '12px 16px', 
             backgroundColor: '#f8fafc', 
-            borderRadius: '12px', 
-            border: '1px solid var(--border)' 
+            borderRadius: '14px', 
+            border: '1px solid var(--border)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.03)'
           }} 
           className="no-print"
         >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            {/* 1. 보기 방식: 코트별 선수 배치 vs 라운드별 전체 테이블 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)' }}>
+                👁️ 대진표 보기:
+              </span>
+              <div style={{ display: 'flex', backgroundColor: '#e2e8f0', borderRadius: '8px', padding: '2px', gap: '2px' }}>
+                <button
+                  type="button"
+                  style={{
+                    border: 'none',
+                    padding: '5px 12px',
+                    fontSize: '12px',
+                    fontWeight: viewMode === 'court' ? 800 : 500,
+                    backgroundColor: viewMode === 'court' ? '#2563eb' : 'transparent',
+                    color: viewMode === 'court' ? '#fff' : 'var(--txt2)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    boxShadow: viewMode === 'court' ? '0 1px 4px rgba(37,99,235,0.3)' : 'none'
+                  }}
+                  onClick={() => setViewMode('court')}
+                >
+                  🎾 코트별 선수 배치
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    border: 'none',
+                    padding: '5px 12px',
+                    fontSize: '12px',
+                    fontWeight: viewMode === 'table' ? 800 : 500,
+                    backgroundColor: viewMode === 'table' ? '#2563eb' : 'transparent',
+                    color: viewMode === 'table' ? '#fff' : 'var(--txt2)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    boxShadow: viewMode === 'table' ? '0 1px 4px rgba(37,99,235,0.3)' : 'none'
+                  }}
+                  onClick={() => setViewMode('table')}
+                >
+                  📋 라운드별 전체 테이블
+                </button>
+              </div>
+            </div>
+
+            {/* 2. 전체 펼쳐보기 vs 진행중 경기만 모아보기 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', backgroundColor: '#e2e8f0', borderRadius: '8px', padding: '2px', gap: '2px' }}>
+                <button
+                  type="button"
+                  style={{
+                    border: 'none',
+                    padding: '5px 12px',
+                    fontSize: '12px',
+                    fontWeight: !activeOnlyMode ? 800 : 500,
+                    backgroundColor: !activeOnlyMode ? '#fff' : 'transparent',
+                    color: !activeOnlyMode ? 'var(--navy)' : 'var(--txt3)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    boxShadow: !activeOnlyMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                  }}
+                  onClick={() => setGlobalMode(false)}
+                >
+                  📋 전체 펼쳐보기
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    border: 'none',
+                    padding: '5px 12px',
+                    fontSize: '12px',
+                    fontWeight: activeOnlyMode ? 800 : 500,
+                    backgroundColor: activeOnlyMode ? '#0284c7' : 'transparent',
+                    color: activeOnlyMode ? '#fff' : 'var(--txt3)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    boxShadow: activeOnlyMode ? '0 1px 3px rgba(2,132,199,0.3)' : 'none'
+                  }}
+                  onClick={() => setGlobalMode(true)}
+                >
+                  ⚡ 현재 진행중인 경기만 모아보기
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. 경기 방식(게임수) 설정 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <label style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--txt)' }}>
-              🎾 경기 방식(게임수):
+              🎾 경기 방식:
             </label>
             {isAdmin && !isReadOnly ? (
               <select
                 className="input input-sm"
-                style={{ width: '125px', fontWeight: 700, padding: '4px 8px', borderRadius: '8px' }}
+                style={{ width: '120px', fontWeight: 700, padding: '4px 8px', borderRadius: '8px' }}
                 value={maxGames}
                 onChange={e => handleMaxGamesChange(parseInt(e.target.value) || 6)}
               >
@@ -660,128 +799,435 @@ export default function BracketTab({
                 ))}
               </select>
             ) : (
-              <span className="hero-chip" style={{ fontSize: '12.5px', padding: '3px 10px', color: '#0284c7', background: 'rgba(2, 132, 199, 0.1)', fontWeight: 700 }}>
+              <span className="hero-chip" style={{ fontSize: '12px', padding: '3px 10px', color: '#0284c7', background: 'rgba(2, 132, 199, 0.1)', fontWeight: 700 }}>
                 {maxGames}게임 선승
               </span>
             )}
-            <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>
-              • 각 경기별 스코어 선택 범위가 0~{maxGames}점으로 자동 제한됩니다.
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span className="badge badge-blue" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 700 }}>
               최대 {maxGames}점
             </span>
           </div>
         </div>
 
-        <div className="table-wrap">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <table>
-              <thead>
-                <tr>
-                  <th>라운드</th>
-                  {Array.from({ length: courts }, (_, i) => <th key={i}>{COURT_LABELS[i]}코트</th>)}
-                </tr>
-              </thead>
-              <SortableContext items={roundIdsRef.current} strategy={verticalListSortingStrategy}>
-                <tbody>
-                  {schedule.map((round, ri) => (
-                    <SortableRow key={roundIdsRef.current[ri]} id={roundIdsRef.current[ri]}>
-                      {(listeners) => (
-                        <>
-                          <td className={styles.roundLabel}>
-                            {isAdmin && (
-                              <span
-                                {...listeners}
-                                style={{ cursor: 'grab', marginRight: '8px', opacity: 0.5, fontSize: '18px', verticalAlign: 'middle' }}
-                                title="순서 변경"
-                              >
-                                ☰
-                              </span>
+        {/* ── 1. 코트별 선수 배치 뷰 ── */}
+        {viewMode === 'court' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {courtMatchesList.map((matchesInCourt, ci) => {
+              const courtLabel = `${COURT_LABELS[ci] || ci + 1}코트`;
+              const isCollapsed = isCourtCollapsed(ci);
+              const completedMatches = matchesInCourt.filter(m => m.hasScore);
+              const activeMatch = matchesInCourt.find(m => !m.hasScore) || null;
+              const activeMatchIdx = activeMatch ? matchesInCourt.indexOf(activeMatch) + 1 : null;
+              const matchesToRender = isCollapsed
+                ? (activeMatch ? [activeMatch] : [])
+                : matchesInCourt;
+
+              return (
+                <div 
+                  key={ci} 
+                  style={{ 
+                    border: '1px solid var(--border)', 
+                    borderRadius: '16px', 
+                    padding: '16px', 
+                    backgroundColor: '#f8fafc',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                  }}
+                >
+                  {/* 코트 헤더 */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
+                        🎾 {courtLabel} 선수 배치 ({matchesInCourt.length}경기)
+                      </h3>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          padding: '3px 10px',
+                          fontSize: '11.5px',
+                          height: '26px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          borderRadius: '12px',
+                          backgroundColor: isCollapsed ? '#e0f2fe' : '#fff',
+                          color: isCollapsed ? '#0369a1' : 'var(--txt)',
+                          borderColor: isCollapsed ? '#7dd3fc' : 'var(--border)',
+                          fontWeight: isCollapsed ? 700 : 500
+                        }}
+                        onClick={() => toggleCourtCollapse(ci)}
+                      >
+                        {isCollapsed ? '⚡ 진행중만 모아보기' : '📋 전체 펼쳐보기'}
+                        <span>{isCollapsed ? '▲' : '▼'}</span>
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className={`badge ${completedMatches.length === matchesInCourt.length && matchesInCourt.length > 0 ? 'badge-green' : 'badge-blue'}`} style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
+                        {completedMatches.length === matchesInCourt.length && matchesInCourt.length > 0
+                          ? '🎉 전 경기 완료'
+                          : `${completedMatches.length} / ${matchesInCourt.length} 완료`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 진행중/완료 안내 바 */}
+                  {isCollapsed && (
+                    <div style={{
+                      marginBottom: '14px',
+                      padding: '8px 12px',
+                      backgroundColor: activeMatch !== null ? '#f0fdf4' : '#f8fafc',
+                      border: `1px solid ${activeMatch !== null ? '#bbf7d0' : 'var(--border)'}`,
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      color: activeMatch !== null ? '#166534' : 'var(--txt2)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '6px'
+                    }}>
+                      <span>
+                        {activeMatch !== null ? (
+                          <>🔥 <strong>{activeMatch.ri + 1}R</strong> 경기 진행 중 ({completedMatches.length}경기 완료 / {matchesInCourt.length - (activeMatchIdx || 0)}경기 대기)</>
+                        ) : (
+                          <>✅ <strong>{courtLabel}의 모든 경기({matchesInCourt.length}경기)가 완료되었습니다!</strong></>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleCourtCollapse(ci)}
+                        style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', fontWeight: 700, fontSize: '11.5px', textDecoration: 'underline' }}
+                      >
+                        전체 경기 펼쳐보기 ({matchesInCourt.length}경기)
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 경기 카드 목록 */}
+                  {matchesToRender.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {matchesToRender.map((mObj) => {
+                        const { ri, ci: currentCi, match: m, score: sc, hasScore, isWinA, isWinB } = mObj;
+                        const sumA = teamNtrpSum(m.teamA, byId);
+                        const sumB = teamNtrpSum(m.teamB, byId);
+                        const isCurrentActive = activeMatch && activeMatch.ri === ri;
+
+                        return (
+                          <div
+                            key={ri}
+                            style={{
+                              border: isCurrentActive ? '2px solid #38bdf8' : '1px solid #e2e8f0',
+                              borderRadius: '14px',
+                              padding: '12px 14px',
+                              backgroundColor: isCurrentActive ? '#ffffff' : '#fafafa',
+                              boxShadow: isCurrentActive ? '0 4px 12px rgba(56, 189, 248, 0.15)' : '0 1px 3px rgba(0,0,0,0.02)',
+                              position: 'relative',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {/* 카드 상단: 라운드 번호 & 상태 배지 */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ 
+                                  fontWeight: 800, 
+                                  fontSize: '13px', 
+                                  color: isCurrentActive ? '#0284c7' : 'var(--txt)',
+                                  backgroundColor: isCurrentActive ? 'rgba(2, 132, 199, 0.1)' : '#e2e8f0',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px'
+                                }}>
+                                  {ri + 1}라운드 ({ri + 1}R)
+                                </span>
+                                {isCurrentActive && (
+                                  <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 7px', fontWeight: 700 }}>
+                                    🔥 현재 진행 중
+                                  </span>
+                                )}
+                              </div>
+
+                              <div>
+                                {hasScore ? (
+                                  <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 700 }}>
+                                    ✅ 경기 완료 ({sc.a} : {sc.b})
+                                  </span>
+                                ) : isCurrentActive ? (
+                                  <span style={{ fontSize: '11.5px', color: '#0284c7', fontWeight: 700 }}>
+                                    점수를 입력해주세요
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '11.5px', color: 'var(--txt3)' }}>
+                                    ⏳ 대기 중
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 대진 (Team A vs Team B) */}
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: '1fr auto 1fr',
+                              alignItems: 'center',
+                              gap: '8px',
+                              width: '100%'
+                            }}>
+                              {/* Team A */}
+                              <div style={{
+                                border: isWinA ? '2px solid #3b82f6' : '1px solid #bfdbfe',
+                                borderRadius: '10px',
+                                padding: '8px 10px',
+                                backgroundColor: isWinA ? 'rgba(59, 130, 246, 0.08)' : 'rgba(239, 246, 255, 0.7)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px'
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#1d4ed8' }}>
+                                    A팀 {isWinA && '🏆 WIN'}
+                                  </span>
+                                  <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 600 }}>
+                                    NTRP {sumA.toFixed(1)}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                  {[0, 1].map(slot => {
+                                    const pId = m.teamA[slot];
+                                    const isDup = pId && roundConflicts[ri]?.[pId];
+                                    return (
+                                      <select
+                                        key={slot}
+                                        disabled={isReadOnly}
+                                        className={`${styles.playerSel} ${styles.bgTeamA}`}
+                                        style={{
+                                          flex: 1,
+                                          minWidth: '90px',
+                                          ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 700 } : {})
+                                        }}
+                                        value={pId || ''}
+                                        onChange={e => onPlayerSelect(ri, currentCi, 'a', slot, e.target.value)}
+                                      >
+                                        {playerOptions(pId)}
+                                      </select>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* 스코어 입력 영역 */}
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                padding: '0 4px'
+                              }}>
+                                <select
+                                  disabled={isReadOnly}
+                                  className={styles.scoreInput}
+                                  style={{ width: '44px', height: '34px', fontSize: '14px', fontWeight: 800 }}
+                                  value={sc.a === null || sc.a === undefined ? '' : sc.a}
+                                  onChange={e => onScore(ri, currentCi, 'a', e.target.value)}
+                                >
+                                  {scoreOptions(maxGames)}
+                                </select>
+                                <span style={{ fontWeight: 800, fontSize: '16px', color: 'var(--txt3)' }}>:</span>
+                                <select
+                                  disabled={isReadOnly}
+                                  className={styles.scoreInput}
+                                  style={{ width: '44px', height: '34px', fontSize: '14px', fontWeight: 800 }}
+                                  value={sc.b === null || sc.b === undefined ? '' : sc.b}
+                                  onChange={e => onScore(ri, currentCi, 'b', e.target.value)}
+                                >
+                                  {scoreOptions(maxGames)}
+                                </select>
+                              </div>
+
+                              {/* Team B */}
+                              <div style={{
+                                border: isWinB ? '2px solid #ef4444' : '1px solid #fecdd3',
+                                borderRadius: '10px',
+                                padding: '8px 10px',
+                                backgroundColor: isWinB ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255, 241, 242, 0.7)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px'
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#b91c1c' }}>
+                                    B팀 {isWinB && '🏆 WIN'}
+                                  </span>
+                                  <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>
+                                    NTRP {sumB.toFixed(1)}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                  {[0, 1].map(slot => {
+                                    const pId = m.teamB[slot];
+                                    const isDup = pId && roundConflicts[ri]?.[pId];
+                                    return (
+                                      <select
+                                        key={slot}
+                                        disabled={isReadOnly}
+                                        className={`${styles.playerSel} ${styles.bgTeamB}`}
+                                        style={{
+                                          flex: 1,
+                                          minWidth: '90px',
+                                          ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 700 } : {})
+                                        }}
+                                        value={pId || ''}
+                                        onChange={e => onPlayerSelect(ri, currentCi, 'b', slot, e.target.value)}
+                                      >
+                                        {playerOptions(pId)}
+                                      </select>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 중복 출전 경고 배너 if any */}
+                            {roundConflicts[ri] && Object.keys(roundConflicts[ri]).some(pId => [...m.teamA, ...m.teamB].includes(pId)) && (
+                              <div style={{ marginTop: '8px', fontSize: '11px', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                ⚠️ 해당 라운드({ri + 1}R)의 타 코트와 중복 배정된 선수가 포함되어 있습니다.
+                              </div>
                             )}
-                            {ri + 1}R
-                          </td>
-                  {round.map((m, ci) => {
-                    const key = `${ri}-${ci}`;
-                    const sc = scores[key] || { a: null, b: null };
-                    const sumA = teamNtrpSum(m.teamA, byId);
-                    const sumB = teamNtrpSum(m.teamB, byId);
-                    const hasScore = sc.a !== null && sc.a !== undefined && sc.a !== '' &&
-                                     sc.b !== null && sc.b !== undefined && sc.b !== '';
-                    const winA = hasScore && Number(sc.a) > Number(sc.b);
-                    const winB = hasScore && Number(sc.b) > Number(sc.a);
-                    return (
-                      <td key={ci} className={styles.matchCell}>
-                        <div className={`${styles.matchCellContent} ${courts === 1 ? styles.singleCourt : ''}`}>
-                          {/* 팀 A */}
-                          <div className={`${styles.teamLine} ${winA ? styles.winner : ''}`}>
-                            {[0, 1].map(slot => {
-                              const pId = m.teamA[slot];
-                              const isDup = pId && roundConflicts[ri]?.[pId];
-                              return (
-                                <select 
-                                  key={slot} 
-                                  disabled={isReadOnly}
-                                  className={`${styles.playerSel} ${styles.bgTeamA}`}
-                                  style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
-                                  value={pId || ''}
-                                  onChange={e => onPlayerSelect(ri, ci, 'a', slot, e.target.value)}>
-                                  {playerOptions(pId)}
-                                </select>
-                              );
-                            })}
                           </div>
-                          {/* 스코어 */}
-                          <div className={styles.scoreRow}>
-                            <select 
-                              disabled={isReadOnly}
-                              className={styles.scoreInput}
-                              value={sc.a === null || sc.a === undefined ? '' : sc.a}
-                              onChange={e => onScore(ri, ci, 'a', e.target.value)}>
-                              {scoreOptions(maxGames)}
-                            </select>
-                            <span className={styles.scoreSep}>:</span>
-                            <select 
-                              disabled={isReadOnly}
-                              className={styles.scoreInput}
-                              value={sc.b === null || sc.b === undefined ? '' : sc.b}
-                              onChange={e => onScore(ri, ci, 'b', e.target.value)}>
-                              {scoreOptions(maxGames)}
-                            </select>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '24px', textAlign: 'center', backgroundColor: '#fff', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '26px', marginBottom: '6px' }}>🏆</div>
+                      <div style={{ fontWeight: 800, fontSize: '13.5px', color: '#166534' }}>
+                        {courtLabel}의 모든 경기({matchesInCourt.length}경기)가 완료되었습니다!
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ marginTop: '10px', fontSize: '11.5px', fontWeight: 700 }}
+                        onClick={() => toggleCourtCollapse(ci)}
+                      >
+                        📋 전체 경기 결과 펼쳐보기 ({matchesInCourt.length}경기)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── 2. 라운드별 전체 테이블 뷰 ── */}
+        {viewMode === 'table' && (
+          <div className="table-wrap">
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>라운드</th>
+                    {Array.from({ length: courts }, (_, i) => <th key={i}>{COURT_LABELS[i]}코트</th>)}
+                  </tr>
+                </thead>
+                <SortableContext items={roundIdsRef.current} strategy={verticalListSortingStrategy}>
+                  <tbody>
+                    {schedule.map((round, ri) => (
+                      <SortableRow key={roundIdsRef.current[ri]} id={roundIdsRef.current[ri]}>
+                        {(listeners) => (
+                          <>
+                            <td className={styles.roundLabel}>
+                              {isAdmin && (
+                                <span
+                                  {...listeners}
+                                  style={{ cursor: 'grab', marginRight: '8px', opacity: 0.5, fontSize: '18px', verticalAlign: 'middle' }}
+                                  title="순서 변경"
+                                >
+                                  ☰
+                                </span>
+                              )}
+                              {ri + 1}R
+                            </td>
+                    {round.map((m, ci) => {
+                      const key = `${ri}-${ci}`;
+                      const sc = scores[key] || { a: null, b: null };
+                      const sumA = teamNtrpSum(m.teamA, byId);
+                      const sumB = teamNtrpSum(m.teamB, byId);
+                      const hasScore = sc.a !== null && sc.a !== undefined && sc.a !== '' &&
+                                       sc.b !== null && sc.b !== undefined && sc.b !== '';
+                      const winA = hasScore && Number(sc.a) > Number(sc.b);
+                      const winB = hasScore && Number(sc.b) > Number(sc.a);
+                      return (
+                        <td key={ci} className={styles.matchCell}>
+                          <div className={`${styles.matchCellContent} ${courts === 1 ? styles.singleCourt : ''}`}>
+                            {/* 팀 A */}
+                            <div className={`${styles.teamLine} ${winA ? styles.winner : ''}`}>
+                              {[0, 1].map(slot => {
+                                const pId = m.teamA[slot];
+                                const isDup = pId && roundConflicts[ri]?.[pId];
+                                return (
+                                  <select 
+                                    key={slot} 
+                                    disabled={isReadOnly}
+                                    className={`${styles.playerSel} ${styles.bgTeamA}`}
+                                    style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
+                                    value={pId || ''}
+                                    onChange={e => onPlayerSelect(ri, ci, 'a', slot, e.target.value)}>
+                                    {playerOptions(pId)}
+                                  </select>
+                                );
+                              })}
+                            </div>
+                            {/* 스코어 */}
+                            <div className={styles.scoreRow}>
+                              <select 
+                                disabled={isReadOnly}
+                                className={styles.scoreInput}
+                                value={sc.a === null || sc.a === undefined ? '' : sc.a}
+                                onChange={e => onScore(ri, ci, 'a', e.target.value)}>
+                                {scoreOptions(maxGames)}
+                              </select>
+                              <span className={styles.scoreSep}>:</span>
+                              <select 
+                                disabled={isReadOnly}
+                                className={styles.scoreInput}
+                                value={sc.b === null || sc.b === undefined ? '' : sc.b}
+                                onChange={e => onScore(ri, ci, 'b', e.target.value)}>
+                                {scoreOptions(maxGames)}
+                              </select>
+                            </div>
+                            {/* 팀 B */}
+                            <div className={`${styles.teamLine} ${winB ? styles.winner : ''}`}>
+                              {[0, 1].map(slot => {
+                                const pId = m.teamB[slot];
+                                const isDup = pId && roundConflicts[ri]?.[pId];
+                                return (
+                                  <select 
+                                    key={slot} 
+                                    disabled={isReadOnly}
+                                    className={`${styles.playerSel} ${styles.bgTeamB}`}
+                                    style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
+                                    value={pId || ''}
+                                    onChange={e => onPlayerSelect(ri, ci, 'b', slot, e.target.value)}>
+                                    {playerOptions(pId)}
+                                  </select>
+                                );
+                              })}
+                            </div>
                           </div>
-                          {/* 팀 B */}
-                          <div className={`${styles.teamLine} ${winB ? styles.winner : ''}`}>
-                            {[0, 1].map(slot => {
-                              const pId = m.teamB[slot];
-                              const isDup = pId && roundConflicts[ri]?.[pId];
-                              return (
-                                <select 
-                                  key={slot} 
-                                  disabled={isReadOnly}
-                                  className={`${styles.playerSel} ${styles.bgTeamB}`}
-                                  style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
-                                  value={pId || ''}
-                                  onChange={e => onPlayerSelect(ri, ci, 'b', slot, e.target.value)}>
-                                  {playerOptions(pId)}
-                                </select>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </td>
-                    );
-                  })}
-                </>
-              )}
-            </SortableRow>
-          ))}
-                </tbody>
-              </SortableContext>
-            </table>
-          </DndContext>
-        </div>
+                        </td>
+                      );
+                    })}
+                  </>
+                )}
+              </SortableRow>
+            ))}
+                  </tbody>
+                </SortableContext>
+              </table>
+            </DndContext>
+          </div>
+        )}
+
+        {/* 하단 관리자 라운드/코트 조정 버튼 */}
         {isAdmin && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '16px' }} className="no-print">
             <button className="btn btn-secondary btn-sm" onClick={addRound}>+ 라운드 추가</button>
