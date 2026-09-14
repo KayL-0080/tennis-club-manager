@@ -9,13 +9,7 @@ import {
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import BracketTab   from '@/components/tabs/BracketTab';
-import HistoryTab   from '@/components/tabs/HistoryTab';
 import styles from './editor.module.css';
-
-const TABS = [
-  { key: 'bracket',   label: '📋 오늘 대진표' },
-  { key: 'history',   label: '🏆 기록 · 순위' },
-];
 
 export default function EditorPage({ params }) {
   const { id } = use(params);
@@ -25,7 +19,6 @@ export default function EditorPage({ params }) {
   const [fetching, setFetching] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveLabel, setSaveLabel] = useState('');
-  const [activeTab, setActiveTab] = useState('bracket');
 
   /* ── 전역 상태 ── */
   const [title, setTitle] = useState('');
@@ -213,48 +206,26 @@ export default function EditorPage({ params }) {
           </div>
         </div>
 
-        {/* 탭 네비게이션 */}
-        <div className={`${styles.tabNav} no-print`}>
-          {TABS.map(t => (
-            <button key={t.key}
-              className={`${styles.tabBtn} ${activeTab === t.key ? styles.tabActive : ''}`}
-              onClick={() => setActiveTab(t.key)}
-              type="button">
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 탭 콘텐츠 */}
+        {/* 대진표 콘텐츠 */}
         <div>
-          {activeTab === 'bracket' && (
-            <BracketTab
-              schedule={schedule} setSchedule={setSchedule}
-              scores={scores} setScores={setScores}
-              members={members} participants={participants}
-              lastGenStats={lastGenStats}
-              scheduleRounds={scheduleRounds} scheduleCourts={scheduleCourts}
-              setScheduleRounds={setScheduleRounds} setScheduleCourts={setScheduleCourts}
-              penaltyAmount={penaltyAmount} setPenaltyAmount={setPenaltyAmount}
-              penaltyPaidMap={penaltyPaidMap} setPenaltyPaidMap={setPenaltyPaidMap}
-              clubSettings={clubSettings}
-              matchDate={matchDate}
-              title={title}
-              onSave={save}
-              onPrint={() => window.print()}
-              isAdmin={isAdmin}
-              isReadOnly={isReadOnly}
-              isPastMatch={isPastMatch}
-            />
-          )}
-          {activeTab === 'history' && (
-            <HistoryTab
-              schedule={schedule} scores={scores}
-              members={members} history={history} setHistory={setHistory}
-              onSave={save}
-              isAdmin={isAdmin}
-            />
-          )}
+          <BracketTab
+            schedule={schedule} setSchedule={setSchedule}
+            scores={scores} setScores={setScores}
+            members={members} participants={participants}
+            lastGenStats={lastGenStats}
+            scheduleRounds={scheduleRounds} scheduleCourts={scheduleCourts}
+            setScheduleRounds={setScheduleRounds} setScheduleCourts={setScheduleCourts}
+            penaltyAmount={penaltyAmount} setPenaltyAmount={setPenaltyAmount}
+            penaltyPaidMap={penaltyPaidMap} setPenaltyPaidMap={setPenaltyPaidMap}
+            clubSettings={clubSettings}
+            matchDate={matchDate}
+            title={title}
+            onSave={save}
+            onPrint={() => window.print()}
+            isAdmin={isAdmin}
+            isReadOnly={isReadOnly}
+            isPastMatch={isPastMatch}
+          />
         </div>
       </main>
     </div>
