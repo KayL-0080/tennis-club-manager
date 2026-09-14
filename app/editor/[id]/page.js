@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getSchedule, updateSchedule, subscribeSchedule,
-  getMembers, initDefaultMembers
+  getMembers, initDefaultMembers, getClubSettings
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import BracketTab   from '@/components/tabs/BracketTab';
@@ -48,6 +48,9 @@ export default function EditorPage({ params }) {
   const [scheduleCourts, setScheduleCourts] = useState(0);
   const [lastGenStats, setLastGenStats] = useState(null);
   const [history, setHistory] = useState([]);
+  const [penaltyAmount, setPenaltyAmount] = useState(1000); // 1인당 패배 벌칙금 (기본 1,000원)
+  const [penaltyPaidMap, setPenaltyPaidMap] = useState({}); // { [playerId]: boolean }
+  const [clubSettings, setClubSettings] = useState(null);
 
   /* ── 초기 데이터 로드 및 실시간 동기화 구독 (onSnapshot) ── */
   useEffect(() => {
@@ -55,10 +58,14 @@ export default function EditorPage({ params }) {
     let unsub = () => {};
 
     (async () => {
-      // 회원 목록 (별도 컬렉션)
+      // 회원 목록 및 클럽 설정
       await initDefaultMembers('shared');
-      const mbrs = await getMembers('shared');
+      const [mbrs, settings] = await Promise.all([
+        getMembers('shared'),
+        getClubSettings()
+      ]);
       setMembers(mbrs);
+      setClubSettings(settings);
 
       // 대진표 문서 실시간 구독
       unsub = subscribeSchedule('shared', id, (data) => {
@@ -86,6 +93,12 @@ export default function EditorPage({ params }) {
         setScheduleCourts(data.scheduleCourts_ ?? 0);
         setLastGenStats(data.lastGenStats ?? null);
         setHistory(data.history ?? []);
+        if (data.penaltyAmount !== undefined) {
+          setPenaltyAmount(data.penaltyAmount);
+        }
+        if (data.penaltyPaidMap) {
+          setPenaltyPaidMap(data.penaltyPaidMap);
+        }
         setFetching(false);
       });
     })();
@@ -138,6 +151,8 @@ export default function EditorPage({ params }) {
       scheduleRounds_: overrides.scheduleRounds_ !== undefined ? overrides.scheduleRounds_ : scheduleRounds,
       scheduleCourts_: overrides.scheduleCourts_ !== undefined ? overrides.scheduleCourts_ : scheduleCourts,
       lastGenStats, history: nextHistory,
+      penaltyAmount: overrides.penaltyAmount !== undefined ? overrides.penaltyAmount : penaltyAmount,
+      penaltyPaidMap: overrides.penaltyPaidMap !== undefined ? overrides.penaltyPaidMap : penaltyPaidMap,
       ...overrides,
     };
     try {
@@ -149,7 +164,7 @@ export default function EditorPage({ params }) {
     } finally {
       setSaving(false);
     }
-  }, [id, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history, members]);
+  }, [id, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history, members, penaltyAmount, penaltyPaidMap]);
 
   if (loading || fetching) {
     return (
@@ -220,6 +235,11 @@ export default function EditorPage({ params }) {
               lastGenStats={lastGenStats}
               scheduleRounds={scheduleRounds} scheduleCourts={scheduleCourts}
               setScheduleRounds={setScheduleRounds} setScheduleCourts={setScheduleCourts}
+              penaltyAmount={penaltyAmount} setPenaltyAmount={setPenaltyAmount}
+              penaltyPaidMap={penaltyPaidMap} setPenaltyPaidMap={setPenaltyPaidMap}
+              clubSettings={clubSettings}
+              matchDate={matchDate}
+              title={title}
               onSave={save}
               onPrint={() => window.print()}
               isAdmin={isAdmin}
