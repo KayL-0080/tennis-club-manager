@@ -206,22 +206,22 @@
     left: 0 !important;
     right: 0 !important;
     width: 100% !important;
-    height: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+    height: calc(66px + env(safe-area-inset-bottom, 0px)) !important;
     padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-    background: rgba(255, 255, 255, 0.96) !important;
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    backdrop-filter: blur(24px) saturate(190%);
+    -webkit-backdrop-filter: blur(24px) saturate(190%);
+    border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
     border-left: none !important;
     border-right: none !important;
     border-bottom: none !important;
     border-radius: 0 !important;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.07) !important;
     z-index: 99999 !important;
     justify-content: space-around;
     align-items: center;
-    padding-left: 4px;
-    padding-right: 4px;
+    padding-left: 6px;
+    padding-right: 6px;
     margin: 0 !important;
     transform: none !important;
     -webkit-transform: none !important;
@@ -237,31 +237,32 @@
     justify-content: center;
     background: transparent;
     border: none;
-    color: var(--txt3);
-    font-size: 0.68rem;
+    color: var(--txt2);
+    font-size: 0.76rem;
     font-weight: 600;
-    gap: 2px;
+    gap: 3px;
     cursor: pointer;
-    transition: color 0.15s ease;
-    padding: 4px 0;
+    transition: all 0.18s ease;
+    padding: 8px 0;
+    min-height: 52px;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
   }
   
   .tabBtn.active {
     color: var(--ios-blue);
-    font-weight: 700;
+    font-weight: 800;
   }
 
   .tabBtn.active .tabIcon {
-    transform: scale(1.1);
-    filter: drop-shadow(0 2px 5px rgba(0, 122, 255, 0.3));
+    transform: scale(1.15);
+    filter: drop-shadow(0 2px 6px rgba(0, 122, 255, 0.35));
   }
 
   .tabIcon {
-    font-size: 1.25rem;
+    font-size: 1.45rem;
     line-height: 1;
-    transition: transform 0.15s ease;
+    transition: transform 0.18s ease;
   }
 }
 

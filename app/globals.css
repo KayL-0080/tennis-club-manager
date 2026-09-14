@@ -104,7 +104,7 @@ body {
 
 @media (max-width: 768px) {
   body {
-    padding-bottom: calc(75px + var(--safe-bottom)) !important;
+    padding-bottom: calc(85px + var(--safe-bottom)) !important;
   }
 }
 
