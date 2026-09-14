@@ -9,7 +9,7 @@ import {
 import Navbar from '@/components/Navbar';
 import MembersTab from '@/components/tabs/MembersTab';
 import FinanceCalculator from '@/components/FinanceCalculator';
-import styles from '../editor/[id]/editor.module.css';
+import styles from '../dashboard/dashboard.module.css';
 
 export default function MembersPage() {
   const { isAdmin } = useAuth();
@@ -99,7 +99,6 @@ export default function MembersPage() {
 
   const handleAddMember = async (memberData) => {
     if (!isAdmin) return;
-    // memberData is passed from the Add Member modal in MembersTab
     const fid = await addMember('shared', memberData);
     setMembers(prev => [...prev, { id: fid, ...memberData }]);
   };
@@ -132,42 +131,25 @@ export default function MembersPage() {
     <div className={styles.page}>
       <Navbar />
       <main className={styles.main}>
-        <div className={`${styles.editorHeader} no-print`}>
-          <div className={styles.titleRow} style={{ justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>← 목록</button>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', paddingLeft: '1rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                👥 회원 관리
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
-                  (총 {totalCount}명: 남 {maleCount} / 여 {femaleCount})
-                </span>
-              </h2>
-            </div>
-            <div>
-              {isAdmin ? (
-                <span className="badge badge-blue" style={{ fontSize: '12px', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  👑 운영자 모드
-                </span>
-              ) : (
-                <button
-                  className="btn btn-primary btn-sm"
-                  style={{
-                    backgroundColor: '#2563eb',
-                    borderColor: '#2563eb',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    padding: '6px 14px',
-                    borderRadius: '8px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                  onClick={() => router.push('/login')}
-                >
-                  🔐 운영자 로그인
-                </button>
-              )}
-            </div>
+        <div className={styles.header}>
+          <div>
+            <h1 className={styles.title}>👥 회원 관리</h1>
+            <p className={styles.sub}>클럽 정회원/준회원/게스트 명단과 회비 납부 현황을 관리합니다.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {isAdmin ? (
+              <span className="badge badge-blue" style={{ fontSize: '12px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                👑 운영자 모드
+              </span>
+            ) : (
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => router.push('/login')}
+              >
+                🔐 운영자 로그인
+              </button>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>대시보드</button>
           </div>
         </div>
 

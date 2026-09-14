@@ -501,95 +501,129 @@ export default function Dashboard() {
 function ScheduleCard({ s, members, isAdmin, onOpen, onDelete, isCompleted }) {
   const dateObj = s.matchDate ? new Date(s.matchDate) : (s.updatedAt?.toDate?.() ?? new Date());
   const dateStr = dateObj.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
-  const timeStr = !s.matchDate ? dateObj.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+  const timeStr = (s.startTime || s.endTime) ? `${s.startTime || '?'} ~ ${s.endTime || '?'}` : (!s.matchDate ? dateObj.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '');
 
   return (
-    <div className={`card ${styles.schedCard} ${isCompleted ? styles.completedSchedCard : ''}`} onClick={onOpen}>
-      <div className={styles.schedTop}>
-        <div className={styles.schedIcon} style={isCompleted ? { background: 'rgba(156, 163, 175, 0.12)', borderColor: 'rgba(156, 163, 175, 0.3)' } : {}}>
-          {isCompleted ? '🏁' : '🎾'}
+    <div 
+      className="card card-hoverable" 
+      style={{ 
+        padding: '20px 22px', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '16px',
+        position: 'relative',
+        background: isCompleted ? 'rgba(255, 255, 255, 0.65)' : 'var(--surface)',
+        gap: '14px',
+        flexWrap: 'wrap'
+      }} 
+      onClick={onOpen}
+    >
+      <div style={{ flex: '1 1 280px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <span style={{ fontSize: '20px' }}>{isCompleted ? '🏁' : '🎾'}</span>
+          <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.02em', color: isCompleted ? '#475569' : 'var(--txt)' }}>
+            {s.title}
+          </h3>
+          {isCompleted && (
+            <span className="badge" style={{ backgroundColor: '#e2e8f0', color: '#475569', fontSize: '11px' }}>
+              종료
+            </span>
+          )}
         </div>
-        <div className={styles.schedInfo}>
-          <h2 className={styles.schedTitle} style={isCompleted ? { color: '#374151' } : {}}>{s.title}</h2>
-          <p className={styles.schedMeta}>
-            {s.participants?.length ?? 0}명 · {s.rounds ?? 0}R · {s.courts ?? 0}코트
-          </p>
-        </div>
-      </div>
-      <div className={styles.schedBadges}>
-        {isCompleted && (
-          <span className="badge badge-gray" style={{ padding: '2px 6px', fontSize: '11px', backgroundColor: '#e2e8f0', color: '#475569' }}>
-            종료
-          </span>
-        )}
-        {s.schedule ? (
-          <span className="badge badge-green" style={{ padding: '2px 6px', fontSize: '11px' }}>✓ 생성됨</span>
-        ) : (
-          <span className="badge badge-gold" style={{ padding: '2px 6px', fontSize: '11px' }}>미생성</span>
-        )}
-        {(() => {
-          let totalMens = 0, totalWomens = 0, totalMixed = 0, totalJoint = 0, totalSingles = 0;
-          if (s.schedule) {
-            const memberMap = new Map((members || []).map(m => [m.id, m]));
-            s.schedule.forEach(round => {
-              round.forEach(m => {
-                const getPlayers = (teamIds) => (teamIds || []).map(id => memberMap.get(id)).filter(Boolean);
-                const pA = getPlayers(m.teamA);
-                const pB = getPlayers(m.teamB);
-                const allPlayers = [...pA, ...pB];
-                
-                if (allPlayers.length === 2) {
-                  totalSingles++;
-                } else if (allPlayers.length === 4) {
-                  const aMales = pA.filter(p => p.gender === 'M').length;
-                  const aFemales = pA.filter(p => p.gender === 'F').length;
-                  const bMales = pB.filter(p => p.gender === 'M').length;
-                  const bFemales = pB.filter(p => p.gender === 'F').length;
-                  
-                  if (aMales === 2 && bMales === 2) totalMens++;
-                  else if (aFemales === 2 && bFemales === 2) totalWomens++;
-                  else if (aMales === 1 && aFemales === 1 && bMales === 1 && bFemales === 1) totalMixed++;
-                  else totalJoint++;
-                } else {
-                  totalJoint++;
-                }
-              });
-            });
-          } else {
-            totalMens = (s.mensDoublesCount || 0) * (s.rounds || 0);
-            totalWomens = (s.womensDoublesCount || 0) * (s.rounds || 0);
-            totalMixed = (s.mixedCount || 0) * (s.rounds || 0);
-            const isSinglesActive = s.allowSingles && s.participants && s.participants.length < s.courts * 4 && s.participants.length > 0;
-            const singlesPerRound = isSinglesActive ? Math.min(s.courts, Math.ceil((s.courts * 4 - s.participants.length) / 2)) : 0;
-            totalSingles = singlesPerRound * (s.rounds || 0);
-            const doublesPerRound = s.courts - singlesPerRound;
-            totalJoint = Math.max(0, (s.rounds || 0) * doublesPerRound - totalMens - totalWomens - totalMixed);
-          }
 
-          return (
-            <>
-              {totalMens > 0 && <span className="badge badge-blue" style={{ padding: '2px 6px', fontSize: '11px' }}>남복 {totalMens}</span>}
-              {totalWomens > 0 && <span className="badge badge-red" style={{ padding: '2px 6px', fontSize: '11px' }}>여복 {totalWomens}</span>}
-              {totalMixed > 0 && <span className="badge badge-purple" style={{ padding: '2px 6px', fontSize: '11px' }}>혼복 {totalMixed}</span>}
-              {totalJoint > 0 && <span className="badge badge-green" style={{ padding: '2px 6px', fontSize: '11px' }}>잡복 {totalJoint}</span>}
-              {totalSingles > 0 && <span className="badge badge-gold" style={{ padding: '2px 6px', fontSize: '11px' }}>단식 {totalSingles}</span>}
-            </>
-          );
-        })()}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* Hero Chips Row */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
+              📅 {dateStr}
+            </span>
+            {timeStr && (
+              <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
+                ⏰ {timeStr}
+              </span>
+            )}
+            <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
+              🎾 {s.courts ?? 0}코트 · {s.rounds ?? 0}R ({s.participants?.length ?? 0}명)
+            </span>
+          </div>
+
+          {/* Badges Row */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+            {s.schedule ? (
+              <span className="badge badge-green" style={{ fontSize: '11px' }}>✓ 생성 완료</span>
+            ) : (
+              <span className="badge badge-gold" style={{ fontSize: '11px' }}>📝 미생성</span>
+            )}
+            {(() => {
+              let totalMens = 0, totalWomens = 0, totalMixed = 0, totalJoint = 0, totalSingles = 0;
+              if (s.schedule) {
+                const memberMap = new Map((members || []).map(m => [m.id, m]));
+                s.schedule.forEach(round => {
+                  round.forEach(m => {
+                    const getPlayers = (teamIds) => (teamIds || []).map(id => memberMap.get(id)).filter(Boolean);
+                    const pA = getPlayers(m.teamA);
+                    const pB = getPlayers(m.teamB);
+                    const allPlayers = [...pA, ...pB];
+                    if (allPlayers.length === 2) {
+                      totalSingles++;
+                    } else if (allPlayers.length === 4) {
+                      const aMales = pA.filter(p => p.gender === 'M').length;
+                      const aFemales = pA.filter(p => p.gender === 'F').length;
+                      const bMales = pB.filter(p => p.gender === 'M').length;
+                      const bFemales = pB.filter(p => p.gender === 'F').length;
+                      if (aMales === 2 && bMales === 2) totalMens++;
+                      else if (aFemales === 2 && bFemales === 2) totalWomens++;
+                      else if (aMales === 1 && aFemales === 1 && bMales === 1 && bFemales === 1) totalMixed++;
+                      else totalJoint++;
+                    } else {
+                      totalJoint++;
+                    }
+                  });
+                });
+              } else {
+                totalMens = (s.mensDoublesCount || 0) * (s.rounds || 0);
+                totalWomens = (s.womensDoublesCount || 0) * (s.rounds || 0);
+                totalMixed = (s.mixedCount || 0) * (s.rounds || 0);
+                const isSinglesActive = s.allowSingles && s.participants && s.participants.length < s.courts * 4 && s.participants.length > 0;
+                const singlesPerRound = isSinglesActive ? Math.min(s.courts, Math.ceil((s.courts * 4 - s.participants.length) / 2)) : 0;
+                totalSingles = singlesPerRound * (s.rounds || 0);
+                const doublesPerRound = s.courts - singlesPerRound;
+                totalJoint = Math.max(0, (s.rounds || 0) * doublesPerRound - totalMens - totalWomens - totalMixed);
+              }
+
+              return (
+                <>
+                  {totalMens > 0 && <span className="badge badge-blue" style={{ fontSize: '11px' }}>남복 {totalMens}</span>}
+                  {totalWomens > 0 && <span className="badge badge-red" style={{ fontSize: '11px' }}>여복 {totalWomens}</span>}
+                  {totalMixed > 0 && <span className="badge badge-purple" style={{ fontSize: '11px' }}>혼복 {totalMixed}</span>}
+                  {totalJoint > 0 && <span className="badge badge-green" style={{ fontSize: '11px' }}>잡복 {totalJoint}</span>}
+                  {totalSingles > 0 && <span className="badge badge-gold" style={{ fontSize: '11px' }}>단식 {totalSingles}</span>}
+                </>
+              );
+            })()}
+          </div>
+        </div>
       </div>
-      <div style={{ fontSize: '11.5px', color: 'var(--txt2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-        <span>📅 {dateStr}</span>
-        {(s.startTime || s.endTime) ? (
-          <span>⏰ {s.startTime || '?'}~{s.endTime || '?'}</span>
-        ) : (
-          <span>{timeStr}</span>
-        )}
-      </div>
-      <div className={styles.schedActions}>
-        <button className="btn btn-secondary btn-sm" style={{ padding: '3px 9px', fontSize: '12px' }} onClick={(e) => { e.stopPropagation(); onOpen(); }}>
-          {isCompleted ? '기록 보기' : '기록/입력'}
+
+      {/* Action Buttons */}
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <button 
+          className={isCompleted ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm'} 
+          style={{ fontWeight: 700, padding: '7px 14px', fontSize: '12px' }} 
+          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        >
+          {isCompleted ? '기록 보기' : '🎾 경기 진행 / 입력'}
         </button>
-        {isAdmin && <button className="btn btn-danger btn-sm" style={{ padding: '3px 8px', fontSize: '11px' }} onClick={(e) => { e.stopPropagation(); onDelete(); }}>삭제</button>}
+        {isAdmin && (
+          <button 
+            className="btn btn-secondary btn-sm" 
+            style={{ padding: '7px 10px', fontSize: '12px', color: 'var(--txt3)' }} 
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            삭제
+          </button>
+        )}
       </div>
     </div>
   );

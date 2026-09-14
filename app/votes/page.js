@@ -524,36 +524,79 @@ export default function VotesPage() {
               return (
                 <div 
                   key={e.id} 
-                  className={`card ${styles.voteCard} ${isPast ? styles.pastVoteCard : ''}`} 
+                  className={`card card-hoverable ${isPast ? styles.pastVoteCard : ''}`} 
+                  style={{
+                    padding: '20px 22px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '16px',
+                    position: 'relative',
+                    background: isPast ? 'rgba(255, 255, 255, 0.65)' : 'var(--surface)',
+                    gap: '14px',
+                    flexWrap: 'wrap'
+                  }}
                   onClick={() => openModal(e)}
                 >
-                  <div className={styles.voteTop}>
-                    <div 
-                      className={styles.voteIcon}
-                      style={isPast ? { background: 'rgba(156, 163, 175, 0.12)', borderColor: 'rgba(156, 163, 175, 0.3)' } : {}}
+                  <div style={{ flex: '1 1 280px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '20px' }}>{isPast ? '🏁' : '🗓️'}</span>
+                      <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.02em', color: isPast ? '#475569' : 'var(--txt)' }}>
+                        {e.title}
+                      </h3>
+                      {isPast ? (
+                        <span className="badge" style={{ backgroundColor: '#e2e8f0', color: '#475569', fontSize: '11px' }}>
+                          종료됨
+                        </span>
+                      ) : isClosed ? (
+                        <span className="badge badge-red" style={{ fontSize: '11px' }}>
+                          마감됨
+                        </span>
+                      ) : (
+                        <span className="badge badge-gold" style={{ fontSize: '11px' }}>
+                          마감 {dlStr}
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {/* Hero Chips */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
+                          📅 {e.date} ({eventDayName})
+                        </span>
+                        <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
+                          ⏰ {e.startTime} ~ {e.endTime}
+                        </span>
+                        <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
+                          📍 {e.location || '테니스장'}
+                        </span>
+                      </div>
+
+                      {/* Attendee Badges */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        <span className="badge badge-blue" style={{ fontSize: '11px' }}>
+                          참석 {attCount}명
+                        </span>
+                        <span className="badge badge-red" style={{ fontSize: '11px' }}>
+                          불참 {absCount}명
+                        </span>
+                        <span className="badge" style={{ backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '11px' }}>
+                          미정 {unkCount}명
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Action */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button 
+                      className={isPast ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm'} 
+                      style={{ fontWeight: 700, padding: '7px 14px', fontSize: '12px' }}
+                      onClick={(ev) => { ev.stopPropagation(); openModal(e); }}
                     >
-                      {isPast ? '🏁' : '🗓️'}
-                    </div>
-                    <div className={styles.voteInfo}>
-                      <h2 className={styles.voteTitle} style={isPast ? { color: '#374151' } : {}}>{e.title}</h2>
-                      <span className={styles.voteDate} style={isPast ? { color: '#64748b' } : {}}>
-                        {e.date} ({eventDayName})
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--txt2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                    <span>⏰ {e.startTime} ~ {e.endTime}</span>
-                    <span>📍 {e.location}</span>
-                  </div>
-                  <div style={{ paddingTop: '6px', borderTop: '1px solid rgba(0,0,0,0.05)', fontSize: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <span style={{ fontWeight: '700', color: isPast ? '#475569' : 'var(--ios-blue)' }}>참석: {attCount}명</span>
-                      <span style={{ fontWeight: '600', color: isPast ? '#94a3b8' : 'var(--ios-red)' }}>불참: {absCount}명</span>
-                      <span style={{ color: 'var(--txt3)' }}>미정: {unkCount}명</span>
-                    </div>
-                    <div style={{ color: isPast ? '#64748b' : (isClosed ? 'var(--ios-red)' : 'var(--ios-orange)'), fontSize: '11px', fontWeight: '700' }}>
-                      {isPast ? '종료됨' : (isClosed ? '마감됨' : `마감 : ${dlStr}`)}
-                    </div>
+                      {isPast ? '투표 결과 보기' : '🗳️ 참석 투표하기'}
+                    </button>
                   </div>
                 </div>
               );

@@ -168,21 +168,23 @@
 
 /* ── 대진표 ── */
 .roundLabel {
-  background: linear-gradient(135deg, rgba(41, 128, 185, 0.12), rgba(0, 102, 0, 0.05)) !important;
-  color: var(--blue) !important;
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.08), rgba(0, 122, 255, 0.02)) !important;
+  color: var(--ios-blue) !important;
   font-weight: 800;
   white-space: nowrap;
-  min-width: 50px;
-  border-right: 2px solid var(--blue);
+  min-width: 55px;
+  border-right: 2px solid rgba(0, 122, 255, 0.25);
+  text-align: center;
 }
 
 .matchCell {
   vertical-align: middle;
-  padding: 10px 12px !important;
-  min-width: 260px;
+  padding: 10px 14px !important;
+  min-width: 270px;
   background: var(--surface) !important;
+  transition: background 0.15s ease;
 }
-tr:nth-child(even) .matchCell { background: rgba(245, 244, 240, 0.5) !important; }
+tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important; }
 
 .matchCellContent {
   display: flex;
@@ -190,6 +192,8 @@ tr:nth-child(even) .matchCell { background: rgba(245, 244, 240, 0.5) !important;
   align-items: center;
   justify-content: center;
   gap: 12px;
+  padding: 4px 6px;
+  border-radius: 12px;
 }
 
 .teamLine {
@@ -199,7 +203,7 @@ tr:nth-child(even) .matchCell { background: rgba(245, 244, 240, 0.5) !important;
   justify-content: center;
   gap: 4px;
   margin: 0;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   line-height: 1.2;
   position: relative;
 }
@@ -207,45 +211,48 @@ tr:nth-child(even) .matchCell { background: rgba(245, 244, 240, 0.5) !important;
 @media (min-width: 992px) {
   .teamLine {
     flex-direction: row;
-    gap: 12px;
+    gap: 8px;
   }
 }
-.winner { font-weight: 800; color: var(--prt); }
+.winner { font-weight: 800; color: #16a34a; }
 
 .playerSel {
-  font-size: 0.76rem;
-  padding: 2px 4px;
-  border-radius: 6px;
-  border: 1.5px solid var(--border);
+  font-size: 0.8rem;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
   background: var(--surface);
   color: var(--txt);
-  width: 65px;
-  height: 28px;
+  width: 72px;
+  height: 30px;
   box-sizing: border-box;
   text-align: center;
-  font-weight: 600;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  font-weight: 700;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 .playerSel:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.15);
+  border-color: var(--ios-blue);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.18);
 }
 .playerSel:disabled {
-  opacity: 0.85;
+  opacity: 0.9;
   cursor: not-allowed;
-  background-color: rgba(241, 245, 249, 0.85) !important;
+  background-color: rgba(241, 245, 249, 0.9) !important;
   border-color: rgba(203, 213, 225, 0.7) !important;
   color: #64748b;
 }
 
 .bgTeamA {
-  background-color: rgba(41, 128, 185, 0.08) !important;
-  border-color: rgba(41, 128, 185, 0.25) !important;
+  background-color: rgba(37, 99, 235, 0.08) !important;
+  border-color: rgba(37, 99, 235, 0.3) !important;
+  color: #1d4ed8;
 }
 .bgTeamB {
-  background-color: rgba(198, 11, 30, 0.08) !important;
-  border-color: rgba(198, 11, 30, 0.25) !important;
+  background-color: rgba(225, 29, 72, 0.08) !important;
+  border-color: rgba(225, 29, 72, 0.3) !important;
+  color: #be123c;
 }
 .playerSel option { background: #fff; color: var(--txt); }
 
@@ -276,41 +283,42 @@ tr:nth-child(even) .matchCell { background: rgba(245, 244, 240, 0.5) !important;
 }
 .scoreInput {
   width: 44px;
-  height: 28px;
+  height: 30px;
   box-sizing: border-box;
   text-align: center;
   padding: 0;
-  font-size: 0.76rem;
-  font-weight: 700;
-  border: 1.5px solid var(--border);
-  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--surface);
   color: var(--txt);
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 .scoreInput:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.15);
+  border-color: var(--ios-blue);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.18);
 }
 .scoreInput:disabled {
-  opacity: 0.85;
+  opacity: 0.9;
   cursor: not-allowed;
-  background-color: rgba(241, 245, 249, 0.85) !important;
+  background-color: rgba(241, 245, 249, 0.9) !important;
   border-color: rgba(203, 213, 225, 0.7) !important;
   color: #64748b;
 }
 
 .scoreSep { 
-  width: 12px; 
+  width: 10px; 
   text-align: center; 
   color: var(--txt3); 
-  font-weight: 700; 
-  font-size: 0.8rem; 
+  font-weight: 800; 
+  font-size: 0.9rem; 
 }
 
 /* ── 검증/통계 ── */

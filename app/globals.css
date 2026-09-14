@@ -487,6 +487,54 @@ tr:hover td { background: rgba(0, 122, 255, 0.04); }
   }
 }
 
+/* ── Standard Tournament-Inspired Layouts ── */
+.page-container {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px 14px;
+  }
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.page-title {
+  font-size: clamp(1.4rem, 3.5vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--txt);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.page-sub {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--txt2);
+  margin-top: 5px;
+}
+
+.card-hoverable {
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+}
+.card-hoverable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 122, 255, 0.35);
+}
+
 @media print {
   body { background: #fff; color: #000; padding: 0 !important; }
   .no-print { display: none !important; }

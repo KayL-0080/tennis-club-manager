@@ -5,6 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getAdmins, addAdmin, deleteAdmin } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 
+import styles from '../dashboard/dashboard.module.css';
+
 export default function AdminsPage() {
   const { user, isSuperAdmin, loading } = useAuth();
   const router = useRouter();
@@ -64,38 +66,72 @@ export default function AdminsPage() {
     }
   };
 
-  if (loading || (!loading && !isSuperAdmin)) return <div className="p-4">확인 중...</div>;
+  if (loading || (!loading && !isSuperAdmin)) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span className="spinner" />
+    </div>
+  );
 
   return (
-    <div>
+    <div className={styles.page}>
       <Navbar />
-      <main className="container" style={{ padding: '24px', maxWidth: '600px', margin: '0 auto' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' }}>운영진 관리 (Super Admin 전용)</h1>
+      <main className={styles.main} style={{ maxWidth: '680px' }}>
+        <div className={styles.header}>
+          <div>
+            <h1 className={styles.title}>🛡️ 운영진 권한 관리</h1>
+            <p className={styles.sub}>최고 관리자(Super Admin) 전용 클럽 운영자 권한 부여 및 관리</p>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>대시보드</button>
+        </div>
         
-        <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
+        <div className="card" style={{ padding: '24px', marginBottom: '20px' }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 12px 0', color: 'var(--txt)' }}>
+            ➕ 새 운영진 권한 추가
+          </h2>
           <form onSubmit={handleAdd} style={{ display: 'flex', gap: '8px' }}>
             <input 
               type="email" 
               className="input" 
-              placeholder="추가할 운영진 이메일 주소" 
+              placeholder="추가할 운영진 이메일 주소 입력" 
               value={email} 
               onChange={e => setEmail(e.target.value)} 
               required
               style={{ flex: 1 }}
             />
-            <button type="submit" className="btn btn-primary" disabled={busy}>추가</button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>추가하기</button>
           </form>
         </div>
 
-        <div className="card" style={{ padding: '20px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>현재 운영진 목록</h2>
+        <div className="card" style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
+              👥 등록된 운영진 목록
+            </h2>
+            <span className="badge badge-blue" style={{ fontSize: '11px', padding: '3px 8px' }}>
+              총 {admins.length}명
+            </span>
+          </div>
+
           {admins.length === 0 ? (
-            <p className="text-muted">등록된 운영진이 없습니다.</p>
+            <p style={{ color: 'var(--txt3)', fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>
+              등록된 운영진이 없습니다.
+            </p>
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {admins.map(admin => (
-                <li key={admin.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid var(--border)' }}>
-                  <span>{admin.email}</span>
+                <li key={admin.id} style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  padding: '12px 16px', 
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                  border: '1px solid var(--border)' 
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>👑</span>
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>{admin.email}</span>
+                  </div>
                   <button className="btn btn-danger btn-sm" onClick={() => handleDelete(admin.id)} disabled={busy}>삭제</button>
                 </li>
               ))}

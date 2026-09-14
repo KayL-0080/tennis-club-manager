@@ -177,33 +177,31 @@ export default function StatsPage() {
     <div className={styles.page}>
       <Navbar />
       <main className={styles.main}>
-        <div className={styles.header} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div className={styles.header}>
           <div>
             <h1 className={styles.title}>📊 통계 대시보드</h1>
-            <p className={styles.sub}>조회 기간 동안의 클럽 정기 모임 및 분기 대회 결과를 통합 집계합니다</p>
+            <p className={styles.sub}>조회 기간 동안의 클럽 정기 모임 및 분기 대회 결과를 통합 집계합니다.</p>
           </div>
-          {isAdmin && (
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={() => {
-                setRuleForm({ ...rankingRules });
-                setShowRuleModal(true);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '13px',
-                fontWeight: 700,
-                padding: '7px 14px',
-                borderRadius: '8px',
-                boxShadow: '0 2px 6px rgba(0, 122, 255, 0.2)'
-              }}
-            >
-              ⚙️ 승점/순위 산정 기준 설정 (운영진)
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {isAdmin && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  setRuleForm({ ...rankingRules });
+                  setShowRuleModal(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                ⚙️ 승점/순위 산정 기준 (운영진)
+              </button>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>대시보드</button>
+          </div>
         </div>
 
         {/* 필터 영역 (조회 기간 + 집계 대상 선택) */}
@@ -559,22 +557,24 @@ export default function StatsPage() {
         {/* Top 3 영역 */}
         {top3.length > 0 && (
           <div style={{ marginBottom: '28px' }}>
-            <div className="section-head">
-              <span>🏆 명예의 전당 (Top 3)</span>
+            <div className="section-head" style={{ marginBottom: '12px' }}>
+              <span style={{ fontSize: '1rem', fontWeight: 800 }}>🏆 명예의 전당 (Top 3)</span>
             </div>
             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               {top3.map((s, idx) => (
                 <div 
                   key={s.id} 
-                  className="card" 
+                  className="card card-hoverable" 
                   style={{ 
-                    flex: '1 1 220px', 
-                    padding: '20px', 
+                    flex: '1 1 240px', 
+                    padding: '20px 22px', 
                     display: 'flex', 
                     alignItems: 'center', 
                     gap: '16px',
                     position: 'relative',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    border: idx === 0 ? '1px solid rgba(255, 149, 0, 0.35)' : idx === 1 ? '1px solid rgba(142, 142, 147, 0.35)' : '1px solid rgba(175, 82, 222, 0.35)',
+                    background: idx === 0 ? 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,247,237,0.92) 100%)' : 'var(--surface)'
                   }}
                 >
                   <div style={{ 
@@ -611,16 +611,16 @@ export default function StatsPage() {
         )}
 
         {/* 전체 누적 순위표 */}
-        <div className="card" style={{ padding: '20px' }}>
+        <div className="card" style={{ padding: '22px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>전체 순위 및 참여 현황</h2>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>전체 순위 및 참여 현황</h2>
               <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>
                 (※ 승점 산정 기준: {rankingRules.calcType === 'sum' ? '누적포인트' : '평균포인트'}(승{rankingRules.winPoints}, 무{rankingRules.drawPoints}, 패{rankingRules.lossPoints}) + 출전가산점(참여일수당 {rankingRules.bonusPerDay}점{rankingRules.bonusPerMatch > 0 ? `, 경기당 ${rankingRules.bonusPerMatch}점` : ''}))
               </span>
             </div>
             {sourceFilter === 'ALL' && (
-              <span style={{ fontSize: '11.5px', color: '#2563eb', fontWeight: 700, backgroundColor: '#eff6ff', padding: '2px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+              <span className="badge badge-blue" style={{ fontSize: '11.5px', padding: '4px 10px' }}>
                 🎾 정기모임 + 🏆 분기대회 통합 반영중
               </span>
             )}
@@ -629,7 +629,7 @@ export default function StatsPage() {
             <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>해당 기간에 기록된 데이터가 없습니다.</p>
           ) : (
             <div className="table-wrap">
-              <table>
+              <table className="table" style={{ width: '100%', textAlign: 'center' }}>
                 <thead>
                   <tr>
                     <th style={{ width: 50 }}>순위</th>

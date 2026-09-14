@@ -76,31 +76,32 @@ export default function AuthPage() {
 
   return (
     <div className={styles.page}>
-      {/* 배경 테니스 코트 패턴 */}
-      <div className={styles.courtBg} aria-hidden />
+      {/* 배경 블러 효과 */}
+      <div className={styles.heroBg} aria-hidden />
+      <div className={styles.heroParticles} aria-hidden />
 
-      <div className={styles.container}>
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '24px 16px', width: '100%' }}>
         {/* 로고 */}
-        <div className={styles.logo}>
+        <div style={{ textAlign: 'center', marginBottom: '24px', cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
           <img 
             src="/apple-touch-icon.png" 
             alt="테친회 로고" 
             style={{ 
-              width: '68px', 
-              height: '68px', 
+              width: '72px', 
+              height: '72px', 
               borderRadius: '50%', 
               objectFit: 'cover',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
-              border: '2px solid #fff',
-              marginBottom: '10px'
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+              border: '2.5px solid #fff',
+              marginBottom: '12px'
             }} 
           />
-          <h1 className={styles.logoTitle}>Tennis Match</h1>
-          <p className={styles.logoSub}>NTRP 밸런스 대진표 자동 생성</p>
+          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 900, color: 'var(--txt)', letterSpacing: '-0.02em' }}>Tennis Match</h1>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: 'var(--txt2)', fontWeight: 600 }}>TENNIS CRAZY CLUB — 테친회</p>
         </div>
 
-        {/* 탭 */}
-        <div className={`card ${styles.authCard}`}>
+        {/* 탭 & 로그인 카드 */}
+        <div className={`card ${styles.authCard}`} style={{ maxWidth: '420px', width: '100%' }}>
           <div className={styles.tabs}>
             <button
               className={`${styles.tab} ${mode === 'login' ? styles.tabActive : ''}`}
