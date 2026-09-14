@@ -62,6 +62,13 @@
   flex: 1;
   white-space: nowrap;
 }
+.topToolbarGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
 .toolbarGroup {
   display: flex;
   flex-direction: column;
@@ -71,7 +78,9 @@
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
+  min-width: 0;
 }
+
 .toolbarLabel {
   font-size: 0.72rem;
   font-weight: 700;
@@ -349,7 +358,6 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
 /* ── 코트별 선수 배치 뷰 반응형 카드 ── */
 .controllerBar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
@@ -361,6 +369,67 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   box-shadow: 0 1px 4px rgba(0,0,0,0.03);
   box-sizing: border-box;
   width: 100%;
+}
+
+.ctrlGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ctrlLabel {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--txt);
+  white-space: nowrap;
+}
+
+.segmentedControl {
+  display: inline-flex;
+  background-color: #e2e8f0;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.segBtn {
+  border: none;
+  padding: 6px 13px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--txt2);
+  background-color: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.segBtn:hover {
+  color: var(--txt);
+}
+
+.segBtnActive {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+}
+
+.segBtnActiveLight {
+  background-color: #ffffff !important;
+  color: var(--navy) !important;
+  font-weight: 800;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.segBtnActiveSky {
+  background-color: #0284c7 !important;
+  color: #ffffff !important;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
 }
 
 .courtSection {
@@ -434,10 +503,40 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   .section {
     padding: 12px 10px;
   }
+  .topToolbarGrid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .toolbarGroup {
+    padding: 12px 12px;
+    gap: 8px;
+  }
   .controllerBar {
     padding: 10px 8px;
-    gap: 8px;
-    border-radius: 10px;
+    gap: 10px;
+    border-radius: 12px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ctrlGroup {
+    width: 100%;
+    margin-left: 0 !important;
+    justify-content: space-between;
+  }
+  .segmentedControl {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    padding: 2px;
+  }
+  .segBtn {
+    padding: 6px 4px;
+    font-size: 11.5px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .courtSection {
     padding: 10px 6px;

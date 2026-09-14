@@ -13,25 +13,54 @@
 .titleRow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
+
+.titleMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.titleStatus {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.pastMatchBadge {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
 .titleInput {
   flex: 1;
-  min-width: 160px;
+  min-width: 140px;
   font-size: 1.15rem !important;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--txt) !important;
-  background: transparent !important;
-  border-color: transparent !important;
-  padding: 6px 10px !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  padding: 6px 12px !important;
   border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
 }
 .titleInput:focus {
   border-color: var(--ios-blue) !important;
-  background: rgba(255, 255, 255, 0.9) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15) !important;
 }
 .saveLabel { font-size: 12px; color: var(--ios-green); min-width: 60px; font-weight: 600; }
@@ -80,6 +109,24 @@
     padding: 10px 8px 60px;
   }
   .tabBtn { min-width: 75px; font-size: 12px; padding: 7px 6px; }
-  .titleRow { gap: 8px; }
-  .titleInput { font-size: 1rem !important; }
+  .titleRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .titleMain {
+    width: 100%;
+    min-width: 0;
+  }
+  .titleStatus {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .pastMatchBadge {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+  .titleInput { 
+    font-size: 1rem !important; 
+  }
 }

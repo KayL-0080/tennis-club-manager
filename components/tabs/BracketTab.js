@@ -585,51 +585,55 @@ export default function BracketTab({
   return (
     <div>
       {/* 도구 모음 */}
-      <div className={`card ${styles.section} no-print`}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <div className={styles.toolbarGroup} style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className={styles.toolbarLabel}>데이터 관리</span>
-                {isReadOnly ? (
-                  <span style={{ fontSize: '11px', color: '#64748b', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '1px 7px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
-                    🔒 읽기 전용 (수정 불가)
-                  </span>
-                ) : (
-                  <span style={{ fontSize: '11px', color: '#16a34a', backgroundColor: '#dcfce7', padding: '1px 7px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#16a34a', display: 'inline-block' }}></span>
-                    실시간 자동 저장 중
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? 'repeat(3, 1fr)' : '1fr', gap: '8px' }}>
-                <button 
-                  className="btn btn-primary btn-sm" 
-                  disabled={isReadOnly}
-                  style={isReadOnly ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                  onClick={async () => { 
-                    if (isReadOnly) return;
-                    await onSave(); 
-                    alert('저장되었습니다.'); 
-                  }}
-                >
-                  💾 수동 저장
-                </button>
-                {isAdmin && (
-                  <>
-                    <button className="btn btn-secondary btn-sm" onClick={clearScores}>점수 초기화</button>
-                    <button className="btn btn-danger btn-sm" onClick={clearSchedule}>🗑️ 전체 삭제</button>
-                  </>
-                )}
-              </div>
+      <div className={`card ${styles.section} no-print`} style={{ marginBottom: '16px' }}>
+        <div className={styles.topToolbarGrid}>
+          {/* 데이터 관리 그룹 */}
+          <div className={styles.toolbarGroup}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+              <span className={styles.toolbarLabel}>데이터 관리</span>
+              {isReadOnly ? (
+                <span style={{ fontSize: '11px', color: '#64748b', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '2px 8px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
+                  🔒 읽기 전용 (수정 불가)
+                </span>
+              ) : (
+                <span style={{ fontSize: '11px', color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#16a34a', display: 'inline-block' }}></span>
+                  실시간 자동 저장 중
+                </span>
+              )}
             </div>
-            <div className={styles.toolbarGroup} style={{ flex: 1, minWidth: 160 }}>
-              <span className={styles.toolbarLabel}>공유</span>
-              <button className="btn btn-secondary btn-sm" onClick={shareNative} style={{ width: '100%' }}>
-                📤 대진표 공유하기
+            <div className={styles.toolbarBtnGrid} style={{ display: 'grid', gridTemplateColumns: isAdmin ? 'repeat(auto-fit, minmax(85px, 1fr))' : '1fr', gap: '8px' }}>
+              <button 
+                className="btn btn-primary btn-sm" 
+                disabled={isReadOnly}
+                style={isReadOnly ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                onClick={async () => { 
+                  if (isReadOnly) return;
+                  await onSave(); 
+                  alert('저장되었습니다.'); 
+                }}
+              >
+                💾 수동 저장
               </button>
+              {isAdmin && (
+                <>
+                  <button className="btn btn-secondary btn-sm" onClick={clearScores}>
+                    점수 초기화
+                  </button>
+                  <button className="btn btn-danger btn-sm" onClick={clearSchedule}>
+                    🗑️ 전체 삭제
+                  </button>
+                </>
+              )}
             </div>
+          </div>
+
+          {/* 공유 그룹 */}
+          <div className={styles.toolbarGroup} style={{ justifyContent: 'space-between' }}>
+            <span className={styles.toolbarLabel}>공유</span>
+            <button className="btn btn-secondary btn-sm" onClick={shareNative} style={{ width: '100%' }}>
+              📤 대진표 공유하기
+            </button>
           </div>
         </div>
       </div>
@@ -675,100 +679,60 @@ export default function BracketTab({
 
         {/* 👁️ 대진표 보기 모드 컨트롤러 (코트별 선수 배치 & 전체 펼쳐보기 / 진행중만 모아보기) */}
         <div className={`${styles.controllerBar} no-print`}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            {/* 1. 보기 방식: 코트별 선수 배치 vs 라운드별 전체 테이블 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)' }}>
-                👁️ 대진표 보기:
-              </span>
-              <div style={{ display: 'flex', backgroundColor: '#e2e8f0', borderRadius: '8px', padding: '2px', gap: '2px' }}>
-                <button
-                  type="button"
-                  style={{
-                    border: 'none',
-                    padding: '5px 12px',
-                    fontSize: '12px',
-                    fontWeight: viewMode === 'court' ? 800 : 500,
-                    backgroundColor: viewMode === 'court' ? '#2563eb' : 'transparent',
-                    color: viewMode === 'court' ? '#fff' : 'var(--txt2)',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    boxShadow: viewMode === 'court' ? '0 1px 4px rgba(37,99,235,0.3)' : 'none'
-                  }}
-                  onClick={() => setViewMode('court')}
-                >
-                  🎾 코트별 선수 배치
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    border: 'none',
-                    padding: '5px 12px',
-                    fontSize: '12px',
-                    fontWeight: viewMode === 'table' ? 800 : 500,
-                    backgroundColor: viewMode === 'table' ? '#2563eb' : 'transparent',
-                    color: viewMode === 'table' ? '#fff' : 'var(--txt2)',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    boxShadow: viewMode === 'table' ? '0 1px 4px rgba(37,99,235,0.3)' : 'none'
-                  }}
-                  onClick={() => setViewMode('table')}
-                >
-                  📋 라운드별 전체 테이블
-                </button>
-              </div>
+          {/* 1. 대진표 보기 방식 선택 */}
+          <div className={styles.ctrlGroup}>
+            <span className={styles.ctrlLabel}>
+              👁️ 대진표 보기:
+            </span>
+            <div className={styles.segmentedControl}>
+              <button
+                type="button"
+                className={`${styles.segBtn} ${viewMode === 'court' ? styles.segBtnActive : ''}`}
+                onClick={() => setViewMode('court')}
+              >
+                🎾 코트별 선수 배치
+              </button>
+              <button
+                type="button"
+                className={`${styles.segBtn} ${viewMode === 'table' ? styles.segBtnActive : ''}`}
+                onClick={() => setViewMode('table')}
+              >
+                📋 라운드별 전체 테이블
+              </button>
             </div>
+          </div>
 
-            {/* 2. 전체 펼쳐보기 vs 진행중 경기만 모아보기 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ display: 'flex', backgroundColor: '#e2e8f0', borderRadius: '8px', padding: '2px', gap: '2px' }}>
+          {/* 2. 코트별 뷰 모드 필터 (펼쳐보기 vs 진행중) */}
+          {viewMode === 'court' && (
+            <div className={styles.ctrlGroup}>
+              <div className={styles.segmentedControl}>
                 <button
                   type="button"
-                  style={{
-                    border: 'none',
-                    padding: '5px 12px',
-                    fontSize: '12px',
-                    fontWeight: !activeOnlyMode ? 800 : 500,
-                    backgroundColor: !activeOnlyMode ? '#fff' : 'transparent',
-                    color: !activeOnlyMode ? 'var(--navy)' : 'var(--txt3)',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    boxShadow: !activeOnlyMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                  }}
+                  className={`${styles.segBtn} ${!activeOnlyMode ? styles.segBtnActiveLight : ''}`}
                   onClick={() => setGlobalMode(false)}
                 >
                   📋 전체 펼쳐보기
                 </button>
                 <button
                   type="button"
-                  style={{
-                    border: 'none',
-                    padding: '5px 12px',
-                    fontSize: '12px',
-                    fontWeight: activeOnlyMode ? 800 : 500,
-                    backgroundColor: activeOnlyMode ? '#0284c7' : 'transparent',
-                    color: activeOnlyMode ? '#fff' : 'var(--txt3)',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    boxShadow: activeOnlyMode ? '0 1px 3px rgba(2,132,199,0.3)' : 'none'
-                  }}
+                  className={`${styles.segBtn} ${activeOnlyMode ? styles.segBtnActiveSky : ''}`}
                   onClick={() => setGlobalMode(true)}
                 >
-                  ⚡ 현재 진행중인 경기만 모아보기
+                  ⚡ 진행중 경기만 모아보기
                 </button>
               </div>
             </div>
-          </div>
+          )}
 
           {/* 3. 경기 방식(게임수) 설정 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <label style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--txt)' }}>
+          <div className={styles.ctrlGroup} style={{ marginLeft: 'auto' }}>
+            <label className={styles.ctrlLabel} style={{ cursor: 'default' }}>
               🎾 경기 방식:
             </label>
             {isAdmin && !isReadOnly ? (
               <select
                 className="input input-sm"
-                style={{ width: '120px', fontWeight: 700, padding: '4px 8px', borderRadius: '8px' }}
+                style={{ width: '115px', fontWeight: 700, padding: '4px 8px', borderRadius: '8px' }}
                 value={maxGames}
                 onChange={e => handleMaxGamesChange(parseInt(e.target.value) || 6)}
               >

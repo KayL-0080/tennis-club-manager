@@ -183,31 +183,37 @@ export default function EditorPage({ params }) {
         {/* 헤더 */}
         <div className={`${styles.editorHeader} no-print`}>
           <div className={styles.titleRow}>
-            <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>← 목록</button>
-            <input className={`input ${styles.titleInput}`} value={title}
-              onChange={e => setTitle(e.target.value)} onBlur={() => save()} placeholder="대진표 제목" readOnly={!isAdmin} />
-            {isPastMatch && (
-              <span 
-                style={{ 
-                  fontSize: '12px', 
-                  padding: '4px 10px', 
-                  borderRadius: '20px', 
-                  fontWeight: 700,
-                  backgroundColor: isReadOnly ? '#f1f5f9' : 'rgba(0, 122, 255, 0.1)',
-                  color: isReadOnly ? '#64748b' : 'var(--ios-blue)',
-                  border: `1px solid ${isReadOnly ? '#cbd5e1' : 'rgba(0, 122, 255, 0.25)'}`,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {isReadOnly ? '🔒 종료된 경기 (읽기 전용)' : '⚙️ 종료된 경기 (관리자 모드)'}
+            <div className={styles.titleMain}>
+              <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>
+                ← 목록
+              </button>
+              <input 
+                className={`input ${styles.titleInput}`} 
+                value={title}
+                onChange={e => setTitle(e.target.value)} 
+                onBlur={() => save()} 
+                placeholder="대진표 제목" 
+                readOnly={!isAdmin} 
+              />
+            </div>
+            
+            <div className={styles.titleStatus}>
+              {isPastMatch && (
+                <span 
+                  className={styles.pastMatchBadge}
+                  style={{ 
+                    backgroundColor: isReadOnly ? '#f1f5f9' : 'rgba(0, 122, 255, 0.1)',
+                    color: isReadOnly ? '#64748b' : 'var(--ios-blue)',
+                    border: `1px solid ${isReadOnly ? '#cbd5e1' : 'rgba(0, 122, 255, 0.25)'}`,
+                  }}
+                >
+                  {isReadOnly ? '🔒 종료된 경기 (읽기 전용)' : '⚙️ 종료된 경기 (관리자 모드)'}
+                </span>
+              )}
+              <span className={styles.saveLabel}>
+                {saving ? <span className="spinner" style={{ width: 14, height: 14 }} /> : saveLabel}
               </span>
-            )}
-            <span className={styles.saveLabel}>
-              {saving ? <span className="spinner" style={{ width: 14, height: 14 }} /> : saveLabel}
-            </span>
+            </div>
           </div>
         </div>
 
