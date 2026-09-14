@@ -76,5 +76,10 @@
 }
 
 @media (max-width: 640px) {
+  .main {
+    padding: 10px 8px 60px;
+  }
   .tabBtn { min-width: 75px; font-size: 12px; padding: 7px 6px; }
+  .titleRow { gap: 8px; }
+  .titleInput { font-size: 1rem !important; }
 }

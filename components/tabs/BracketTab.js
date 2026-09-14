@@ -681,22 +681,7 @@ export default function BracketTab({
         )}
 
         {/* 👁️ 대진표 보기 모드 컨트롤러 (코트별 선수 배치 & 전체 펼쳐보기 / 진행중만 모아보기) */}
-        <div 
-          style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
-            flexWrap: 'wrap', 
-            gap: '12px', 
-            marginBottom: '18px', 
-            padding: '12px 16px', 
-            backgroundColor: '#f8fafc', 
-            borderRadius: '14px', 
-            border: '1px solid var(--border)',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.03)'
-          }} 
-          className="no-print"
-        >
+        <div className={`${styles.controllerBar} no-print`}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             {/* 1. 보기 방식: 코트별 선수 배치 vs 라운드별 전체 테이블 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -825,13 +810,7 @@ export default function BracketTab({
               return (
                 <div 
                   key={ci} 
-                  style={{ 
-                    border: '1px solid var(--border)', 
-                    borderRadius: '16px', 
-                    padding: '16px', 
-                    backgroundColor: '#f8fafc',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-                  }}
+                  className={styles.courtSection}
                 >
                   {/* 코트 헤더 */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
@@ -916,14 +895,11 @@ export default function BracketTab({
                         return (
                           <div
                             key={ri}
+                            className={styles.courtMatchCard}
                             style={{
                               border: isCurrentActive ? '2px solid #38bdf8' : '1px solid #e2e8f0',
-                              borderRadius: '14px',
-                              padding: '12px 14px',
                               backgroundColor: isCurrentActive ? '#ffffff' : '#fafafa',
                               boxShadow: isCurrentActive ? '0 4px 12px rgba(56, 189, 248, 0.15)' : '0 1px 3px rgba(0,0,0,0.02)',
-                              position: 'relative',
-                              transition: 'all 0.2s'
                             }}
                           >
                             {/* 카드 상단: 라운드 번호 & 상태 배지 */}
@@ -963,33 +939,25 @@ export default function BracketTab({
                               </div>
                             </div>
 
-                            {/* 대진 (Team A vs Team B) */}
-                            <div style={{
-                              display: 'grid',
-                              gridTemplateColumns: '1fr auto 1fr',
-                              alignItems: 'center',
-                              gap: '8px',
-                              width: '100%'
-                            }}>
+                            {/* 대진 (Team A vs Team B) - 모바일 최적화 그리드 */}
+                            <div className={styles.courtMatchGrid}>
                               {/* Team A */}
-                              <div style={{
-                                border: isWinA ? '2px solid #3b82f6' : '1px solid #bfdbfe',
-                                borderRadius: '10px',
-                                padding: '8px 10px',
-                                backgroundColor: isWinA ? 'rgba(59, 130, 246, 0.08)' : 'rgba(239, 246, 255, 0.7)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#1d4ed8' }}>
-                                    A팀 {isWinA && '🏆 WIN'}
+                              <div 
+                                className={styles.courtTeamBlock}
+                                style={{
+                                  border: isWinA ? '2px solid #3b82f6' : '1px solid #bfdbfe',
+                                  backgroundColor: isWinA ? 'rgba(59, 130, 246, 0.08)' : 'rgba(239, 246, 255, 0.7)',
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '2px', overflow: 'hidden' }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#1d4ed8', whiteSpace: 'nowrap' }}>
+                                    A팀 {isWinA && '🏆'}
                                   </span>
-                                  <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 600 }}>
-                                    NTRP {sumA.toFixed(1)}
+                                  <span style={{ fontSize: '10.5px', color: '#3b82f6', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                    {sumA.toFixed(1)}
                                   </span>
                                 </div>
-                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
                                   {[0, 1].map(slot => {
                                     const pId = m.teamA[slot];
                                     const isDup = pId && roundConflicts[ri]?.[pId];
@@ -999,8 +967,14 @@ export default function BracketTab({
                                         disabled={isReadOnly}
                                         className={`${styles.playerSel} ${styles.bgTeamA}`}
                                         style={{
-                                          flex: 1,
-                                          minWidth: '90px',
+                                          width: '100%',
+                                          minWidth: 0,
+                                          maxWidth: '100%',
+                                          height: '28px',
+                                          fontSize: '12px',
+                                          padding: '2px 4px',
+                                          borderRadius: '6px',
+                                          boxSizing: 'border-box',
                                           ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 700 } : {})
                                         }}
                                         value={pId || ''}
@@ -1014,27 +988,19 @@ export default function BracketTab({
                               </div>
 
                               {/* 스코어 입력 영역 */}
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                                padding: '0 4px'
-                              }}>
+                              <div className={styles.courtScoreArea}>
                                 <select
                                   disabled={isReadOnly}
-                                  className={styles.scoreInput}
-                                  style={{ width: '44px', height: '34px', fontSize: '14px', fontWeight: 800 }}
+                                  className={styles.courtScoreBox}
                                   value={sc.a === null || sc.a === undefined ? '' : sc.a}
                                   onChange={e => onScore(ri, currentCi, 'a', e.target.value)}
                                 >
                                   {scoreOptions(maxGames)}
                                 </select>
-                                <span style={{ fontWeight: 800, fontSize: '16px', color: 'var(--txt3)' }}>:</span>
+                                <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--txt3)', userSelect: 'none' }}>:</span>
                                 <select
                                   disabled={isReadOnly}
-                                  className={styles.scoreInput}
-                                  style={{ width: '44px', height: '34px', fontSize: '14px', fontWeight: 800 }}
+                                  className={styles.courtScoreBox}
                                   value={sc.b === null || sc.b === undefined ? '' : sc.b}
                                   onChange={e => onScore(ri, currentCi, 'b', e.target.value)}
                                 >
@@ -1043,24 +1009,22 @@ export default function BracketTab({
                               </div>
 
                               {/* Team B */}
-                              <div style={{
-                                border: isWinB ? '2px solid #ef4444' : '1px solid #fecdd3',
-                                borderRadius: '10px',
-                                padding: '8px 10px',
-                                backgroundColor: isWinB ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255, 241, 242, 0.7)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#b91c1c' }}>
-                                    B팀 {isWinB && '🏆 WIN'}
+                              <div 
+                                className={styles.courtTeamBlock}
+                                style={{
+                                  border: isWinB ? '2px solid #ef4444' : '1px solid #fecdd3',
+                                  backgroundColor: isWinB ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255, 241, 242, 0.7)',
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '2px', overflow: 'hidden' }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#b91c1c', whiteSpace: 'nowrap' }}>
+                                    B팀 {isWinB && '🏆'}
                                   </span>
-                                  <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>
-                                    NTRP {sumB.toFixed(1)}
+                                  <span style={{ fontSize: '10.5px', color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                    {sumB.toFixed(1)}
                                   </span>
                                 </div>
-                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
                                   {[0, 1].map(slot => {
                                     const pId = m.teamB[slot];
                                     const isDup = pId && roundConflicts[ri]?.[pId];
@@ -1070,8 +1034,14 @@ export default function BracketTab({
                                         disabled={isReadOnly}
                                         className={`${styles.playerSel} ${styles.bgTeamB}`}
                                         style={{
-                                          flex: 1,
-                                          minWidth: '90px',
+                                          width: '100%',
+                                          minWidth: 0,
+                                          maxWidth: '100%',
+                                          height: '28px',
+                                          fontSize: '12px',
+                                          padding: '2px 4px',
+                                          borderRadius: '6px',
+                                          boxSizing: 'border-box',
                                           ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 700 } : {})
                                         }}
                                         value={pId || ''}

@@ -345,3 +345,124 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
 .statNum2  { font-size: 1.6rem; font-weight: 800; color: var(--txt); }
 .statGreen .statNum2 { color: var(--prt); }
 .statRed   .statNum2 { color: var(--bcn); }
+
+/* ── 코트별 선수 배치 뷰 반응형 카드 ── */
+.controllerBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  background-color: #f8fafc;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.courtSection {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  background-color: #f8fafc;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.courtMatchCard {
+  border-radius: 14px;
+  padding: 12px 14px;
+  position: relative;
+  transition: all 0.2s;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.courtMatchGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.courtTeamBlock {
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.courtScoreArea {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.courtScoreBox {
+  width: 44px;
+  height: 34px;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--txt);
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+@media (max-width: 640px) {
+  .section {
+    padding: 12px 10px;
+  }
+  .controllerBar {
+    padding: 10px 8px;
+    gap: 8px;
+    border-radius: 10px;
+  }
+  .courtSection {
+    padding: 10px 6px;
+    border-radius: 12px;
+  }
+  .courtMatchCard {
+    padding: 8px 6px;
+    border-radius: 10px;
+  }
+  .courtMatchGrid {
+    gap: 4px;
+  }
+  .courtTeamBlock {
+    padding: 6px 5px;
+    gap: 4px;
+    border-radius: 8px;
+  }
+  .courtScoreArea {
+    gap: 2px;
+    padding: 0 1px;
+  }
+  .courtScoreBox {
+    width: 35px;
+    height: 30px;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+}
