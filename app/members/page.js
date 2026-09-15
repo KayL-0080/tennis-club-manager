@@ -201,30 +201,39 @@ export default function MembersPage() {
             </div>
           </div>
 
-          {/* ── 2. 서브 탭 전환 버튼 ── */}
+          {/* ── 2. 서브 탭 전환 버튼 (회원 명단 관리 / 코트비 & 최적 인원 산출기) ── */}
           <div style={{
             display: 'flex',
             gap: '8px',
-            marginBottom: '16px',
-            background: 'rgba(0, 0, 0, 0.04)',
-            padding: '4px',
-            borderRadius: '12px',
-            width: 'fit-content'
+            marginBottom: '20px',
+            background: 'rgba(0, 0, 0, 0.05)',
+            padding: '5px',
+            borderRadius: 'var(--radius-full)',
+            width: 'fit-content',
+            maxWidth: '100%',
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.06)'
           }}>
             <button
               type="button"
               onClick={() => setActiveSubTab('members')}
               style={{
-                padding: '8px 18px',
-                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '10px 20px',
+                borderRadius: 'var(--radius-full)',
                 border: 'none',
                 fontWeight: 700,
-                fontSize: '13.5px',
+                fontSize: '0.9rem',
                 cursor: 'pointer',
                 background: activeSubTab === 'members' ? '#ffffff' : 'transparent',
-                color: activeSubTab === 'members' ? '#1d4ed8' : 'var(--txt2)',
-                boxShadow: activeSubTab === 'members' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.15s ease'
+                color: activeSubTab === 'members' ? 'var(--ios-blue)' : 'var(--txt2)',
+                boxShadow: activeSubTab === 'members' ? '0 3px 10px rgba(0, 122, 255, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                whiteSpace: 'nowrap'
               }}
             >
               👥 회원 명단 관리
@@ -233,16 +242,21 @@ export default function MembersPage() {
               type="button"
               onClick={() => setActiveSubTab('finance')}
               style={{
-                padding: '8px 18px',
-                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '10px 20px',
+                borderRadius: 'var(--radius-full)',
                 border: 'none',
                 fontWeight: 700,
-                fontSize: '13.5px',
+                fontSize: '0.9rem',
                 cursor: 'pointer',
                 background: activeSubTab === 'finance' ? '#ffffff' : 'transparent',
-                color: activeSubTab === 'finance' ? '#1d4ed8' : 'var(--txt2)',
-                boxShadow: activeSubTab === 'finance' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.15s ease'
+                color: activeSubTab === 'finance' ? 'var(--ios-blue)' : 'var(--txt2)',
+                boxShadow: activeSubTab === 'finance' ? '0 3px 10px rgba(0, 122, 255, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                whiteSpace: 'nowrap'
               }}
             >
               🏟️ 코트비 & 최적 인원 산출기
