@@ -11,6 +11,65 @@ import {
 } from '@/lib/canvasCardRenderer';
 import styles from './posters.module.css';
 
+const DEFAULT_TEMPLATES = [
+  {
+    id: 'tpl_default_member',
+    title: '테친회 2026 하반기 신규 회원 모집 (기본 템플릿)',
+    category: 'member',
+    createdAt: '2026. 09. 01 10:00',
+    bgType: 'hard',
+    aspectRatio: '1:1',
+    formData: {
+      title: '테친회 2026 하반기 신규 회원 모집',
+      place: '올림픽공원 테니스장',
+      schedule: '매주 일요일 07:00 ~ 11:00',
+      target: '남/여 무관, 구력 2년 이상 (동배/은배 이상 환영)',
+      joinFee: '없음',
+      monthlyFee: '월 40,000원',
+      contact: '010-1234-5678',
+      kakaoId: 'tennis_club',
+      notes: '2030 열정 동호인 환영! 게스트 1회 참석 후 입회 결정 가능'
+    }
+  },
+  {
+    id: 'tpl_default_guest',
+    title: '주말 일요 정기모임 게스트 모집 (기본 템플릿)',
+    category: 'guest',
+    createdAt: '2026. 09. 10 14:30',
+    bgType: 'grass',
+    aspectRatio: '1:1',
+    formData: {
+      title: '이번 주 일요 정기모임 게스트 2명 모십니다',
+      place: '올림픽공원 실내테니스장 3번 코트',
+      dateTime: '2026.09.20 (일) 08:00 ~ 11:00 (3시간)',
+      cost: '15,000원 (새 볼/음료 포함)',
+      target: '남/여 무관 (NTRP 3.0+ / 구력 2년 이상)',
+      contact: '010-1234-5678',
+      kakaoId: 'tennis_guest',
+      notes: '실내 하드코트 / 샤워실 및 주차 무료 / 매너 게임 환영!'
+    }
+  },
+  {
+    id: 'tpl_default_court',
+    title: '올림픽공원 실내코트 양도 (기본 템플릿)',
+    category: 'court',
+    createdAt: '2026. 09. 12 18:00',
+    bgType: 'clay',
+    aspectRatio: '1:1',
+    formData: {
+      title: '[양도] 올림픽공원 실내코트 양도합니다',
+      place: '올림픽공원 테니스경기장 실내코트',
+      date: '2026.09.21 (월)',
+      time: '19:00 ~ 21:00 (2시간)',
+      courtInfo: '실내 하드 2코트 (냉난방 완비)',
+      price: '40,000원 (원가 양도)',
+      contact: '010-1234-5678',
+      kakaoId: 'court_transfer',
+      notes: '입금 즉시 예약 번호 및 명의 변경 안내 드립니다.'
+    }
+  }
+];
+
 export default function PostersPage() {
   const [activeTab, setActiveTab] = useState('member'); // 'member' | 'guest' | 'court'
   const [aspectRatio, setAspectRatio] = useState('1:1'); // '1:1' | '4:5' | '9:16'
@@ -22,6 +81,20 @@ export default function PostersPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareText, setShareText] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
+
+  // 템플릿 저장 및 이력 관리 상태
+  const [savedHistory, setSavedHistory] = useState([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState('ALL'); // 'ALL' | 'member' | 'guest' | 'court'
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
+
+  // 토스트 알림 표시
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3000);
+  };
 
   // 1. 신규 회원 모집 폼 상태
   const [memberData, setMemberData] = useState({
@@ -63,6 +136,26 @@ export default function PostersPage() {
 
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // 로컬 저장소에서 템플릿 이력 불러오기
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('tcm_poster_history');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSavedHistory(parsed);
+          return;
+        }
+      }
+      // 최초 실행 시 기본 템플릿으로 초기화
+      setSavedHistory(DEFAULT_TEMPLATES);
+      localStorage.setItem('tcm_poster_history', JSON.stringify(DEFAULT_TEMPLATES));
+    } catch (e) {
+      console.warn('Failed to load poster history from localStorage:', e);
+      setSavedHistory(DEFAULT_TEMPLATES);
+    }
+  }, []);
 
   // 클럽 기본 설정 로드
   useEffect(() => {
@@ -219,9 +312,96 @@ export default function PostersPage() {
     setCopySuccess(false);
   };
 
+  // 템플릿 저장 모달 열기
+  const handleOpenSaveModal = () => {
+    let defaultTitle = '';
+    if (activeTab === 'member') defaultTitle = memberData.title || '신규 회원 모집 포스터';
+    else if (activeTab === 'guest') defaultTitle = guestData.title || '게스트 모집 포스터';
+    else defaultTitle = courtData.title || '코트 양도 포스터';
+    setSaveTemplateName(defaultTitle);
+    setShowSaveModal(true);
+  };
+
+  // 템플릿 저장 확정
+  const handleConfirmSaveTemplate = () => {
+    const trimmedTitle = saveTemplateName.trim();
+    if (!trimmedTitle) {
+      alert('템플릿 이름을 입력해주세요.');
+      return;
+    }
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const createdAt = `${now.getFullYear()}. ${pad(now.getMonth() + 1)}. ${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    let currentFormData = {};
+    if (activeTab === 'member') currentFormData = { ...memberData };
+    else if (activeTab === 'guest') currentFormData = { ...guestData };
+    else currentFormData = { ...courtData };
+
+    const newTemplate = {
+      id: 'tpl_' + Date.now(),
+      title: trimmedTitle,
+      category: activeTab,
+      createdAt,
+      bgType,
+      aspectRatio,
+      formData: currentFormData
+    };
+
+    const updated = [newTemplate, ...savedHistory];
+    setSavedHistory(updated);
+    try {
+      localStorage.setItem('tcm_poster_history', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+    }
+    setShowSaveModal(false);
+    showToast(`💾 "${trimmedTitle}" 템플릿이 저장되었습니다!`);
+  };
+
+  // 템플릿 불러오기 (적용)
+  const handleApplyTemplate = (item) => {
+    setActiveTab(item.category);
+    if (item.category === 'member') {
+      setMemberData(item.formData);
+    } else if (item.category === 'guest') {
+      setGuestData(item.formData);
+    } else if (item.category === 'court') {
+      setCourtData(item.formData);
+    }
+
+    if (item.bgType) setBgType(item.bgType);
+    if (item.aspectRatio) setAspectRatio(item.aspectRatio);
+
+    setShowHistoryModal(false);
+    showToast(`📂 "${item.title}" 템플릿을 적용했습니다.`);
+  };
+
+  // 템플릿 삭제
+  const handleDeleteTemplate = (id, title, e) => {
+    e.stopPropagation();
+    if (window.confirm(`"${title}" 저장 내역을 삭제하시겠습니까?`)) {
+      const updated = savedHistory.filter(h => h.id !== id);
+      setSavedHistory(updated);
+      try {
+        localStorage.setItem('tcm_poster_history', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to update localStorage:', e);
+      }
+      showToast(`🗑️ "${title}" 내역이 삭제되었습니다.`);
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
       <Navbar />
+
+      {/* 플로팅 토스트 알림 */}
+      {toastMessage && (
+        <div className={styles.toastFloating}>
+          {toastMessage}
+        </div>
+      )}
 
       <main className={styles.container}>
         {/* 상단 헤더 */}
@@ -276,9 +456,26 @@ export default function PostersPage() {
                   {activeTab === 'court' && '코트 양도 정보 입력'}
                 </span>
               </h2>
-              <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
-                실시간 오른쪽 카드에 반영됩니다
-              </span>
+              <div className={styles.headerActions}>
+                <button
+                  type="button"
+                  className={styles.historyTriggerBtn}
+                  onClick={() => setShowHistoryModal(true)}
+                  title="저장된 이전 작성 내역 불러오기"
+                >
+                  <span>📂</span>
+                  <span>저장 이력 ({savedHistory.length})</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.saveCurrentBtn}
+                  onClick={handleOpenSaveModal}
+                  title="현재 입력한 내용을 템플릿으로 저장"
+                >
+                  <span>💾</span>
+                  <span>현재 입력값 저장</span>
+                </button>
+              </div>
             </div>
 
             {/* 코트 배경 디자인 선택 */}
@@ -767,6 +964,190 @@ export default function PostersPage() {
                 }}
               >
                 {copySuccess ? '✓ 복사 완료!' : '📋 본문 전체 복사'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 💾 현재 입력값 템플릿 저장 모달 */}
+      {showSaveModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowSaveModal(false)}>
+          <div className={styles.modalBox} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--navy)' }}>
+                💾 템플릿으로 저장하기
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowSaveModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--txt3)' }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--txt2)', marginBottom: '14px', lineHeight: 1.5 }}>
+              현재 선택된 모드(<strong>{activeTab === 'member' ? '신규회원모집' : activeTab === 'guest' ? '게스트모집' : '코트양도'}</strong>),
+              배경 스타일, 이미지 비율 및 입력한 모든 항목이 저장됩니다. 나중에 언제든지 다시 불러올 수 있습니다.
+            </p>
+            <div className={styles.fieldGroup} style={{ marginBottom: '16px' }}>
+              <label className={styles.label}>템플릿 이름 (별칭)</label>
+              <input
+                className="input"
+                autoFocus
+                value={saveTemplateName}
+                onChange={e => setSaveTemplateName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleConfirmSaveTemplate();
+                }}
+                placeholder="예: 9월 주말 정모 게스트 모집"
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowSaveModal(false)}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={handleConfirmSaveTemplate}
+              >
+                💾 저장하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📂 저장 이력 관리 모달 */}
+      {showHistoryModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowHistoryModal(false)}>
+          <div className={styles.historyModalBox} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--navy)' }}>
+                  📂 저장 이력 & 템플릿 관리
+                </h3>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ios-blue)', background: 'rgba(0,122,255,0.1)', padding: '2px 8px', borderRadius: '12px' }}>
+                  총 {savedHistory.length}건
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--txt3)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 분류 필터 탭 */}
+            <div className={styles.historyFilterBar}>
+              {[
+                { key: 'ALL', label: '전체' },
+                { key: 'member', label: '👥 회원모집' },
+                { key: 'guest', label: '🎾 게스트모집' },
+                { key: 'court', label: '⚡ 코트양도' }
+              ].map(f => (
+                <button
+                  key={f.key}
+                  type="button"
+                  className={`${styles.historyFilterBtn} ${historyFilter === f.key ? styles.historyFilterBtnActive : ''}`}
+                  onClick={() => setHistoryFilter(f.key)}
+                >
+                  {f.label} {f.key === 'ALL' ? `(${savedHistory.length})` : `(${savedHistory.filter(h => h.category === f.key).length})`}
+                </button>
+              ))}
+            </div>
+
+            {/* 이력 목록 */}
+            <div className={styles.historyList}>
+              {savedHistory
+                .filter(item => historyFilter === 'ALL' || item.category === historyFilter)
+                .length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--txt3)', fontSize: '13px' }}>
+                  해당 카테고리에 저장된 템플릿이 없습니다.
+                </div>
+              ) : (
+                savedHistory
+                  .filter(item => historyFilter === 'ALL' || item.category === historyFilter)
+                  .map(item => {
+                    const badgeClass =
+                      item.category === 'member'
+                        ? styles.badgeMember
+                        : item.category === 'guest'
+                        ? styles.badgeGuest
+                        : styles.badgeCourt;
+                    const catLabel =
+                      item.category === 'member'
+                        ? '회원모집'
+                        : item.category === 'guest'
+                        ? '게스트모집'
+                        : '코트양도';
+
+                    const place = item.formData?.place || '-';
+                    const schedule = item.formData?.dateTime || item.formData?.schedule || (item.formData?.date ? `${item.formData?.date} ${item.formData?.time || ''}` : '-');
+                    const fee = item.formData?.monthlyFee || item.formData?.cost || item.formData?.price || '-';
+                    const contact = item.formData?.contact || item.formData?.kakaoId || '-';
+
+                    return (
+                      <div key={item.id} className={styles.historyCard}>
+                        <div className={styles.historyCardHeader}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className={`${styles.historyBadge} ${badgeClass}`}>
+                              {catLabel}
+                            </span>
+                            <strong style={{ fontSize: '14px', color: 'var(--txt)' }}>
+                              {item.title}
+                            </strong>
+                          </div>
+                          <span style={{ fontSize: '11.5px', color: 'var(--txt3)' }}>
+                            {item.createdAt}
+                          </span>
+                        </div>
+
+                        <div className={styles.historySummaryGrid}>
+                          <div><strong>장소:</strong> {place}</div>
+                          <div><strong>일시/일정:</strong> {schedule}</div>
+                          <div><strong>회비/비용:</strong> {fee}</div>
+                          <div><strong>연락처:</strong> {contact}</div>
+                        </div>
+
+                        <div className={styles.historyActions}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '4px 10px', fontSize: '12px', color: '#ef4444' }}
+                            onClick={e => handleDeleteTemplate(item.id, item.title, e)}
+                          >
+                            🗑️ 삭제
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            style={{ padding: '4px 14px', fontSize: '12px' }}
+                            onClick={() => handleApplyTemplate(item)}
+                          >
+                            🚀 불러오기 (적용)
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowHistoryModal(false)}
+              >
+                닫기
               </button>
             </div>
           </div>

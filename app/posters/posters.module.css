@@ -27,48 +27,64 @@
   line-height: 1.5;
 }
 
-/* 상단 3개 모드 전환 탭 */
+/* 상단 3개 모드 전환 탭 (반응형 3분할 캡슐 탭) */
 .modeTabs {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
   margin-bottom: 24px;
-  background: rgba(241, 245, 249, 0.7);
+  background: rgba(241, 245, 249, 0.85);
   backdrop-filter: blur(12px);
-  padding: 6px;
-  border-radius: 16px;
+  -webkit-backdrop-filter: blur(12px);
+  padding: 5px;
+  border-radius: var(--radius-full, 9999px);
   border: 1px solid var(--border);
-  overflow-x: auto;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tabBtn {
-  flex: 1;
-  min-width: 140px;
-  padding: 12px 18px;
+  width: 100%;
+  padding: 11px 10px;
   border: none;
   background: transparent;
   color: var(--txt2);
-  font-size: 14px;
+  font-size: clamp(0.76rem, 2.8vw, 0.92rem);
   font-weight: 700;
-  border-radius: 12px;
+  border-radius: var(--radius-full, 9999px);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
 }
 
 .tabBtn:hover {
   color: var(--txt);
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .tabActive {
   background: #ffffff !important;
-  color: var(--navy) !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  color: var(--ios-blue) !important;
+  box-shadow: 0 3px 12px rgba(0, 122, 255, 0.16), 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 122, 255, 0.15);
+}
+
+@media (max-width: 480px) {
+  .modeTabs {
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 18px;
+  }
+  .tabBtn {
+    padding: 9px 4px;
+    gap: 4px;
+    font-size: 0.8rem;
+  }
 }
 
 /* 2열 메인 레이아웃 (좌측 입력 폼 + 우측 실시간 미리보기) */
@@ -99,8 +115,10 @@
 
 .sectionHeader {
   display: flex;
-  justifyContent: space-between;
+  justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
   margin-bottom: 4px;
@@ -358,3 +376,203 @@
   padding: 24px;
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2);
 }
+
+/* 템플릿 이력 관리 전용 스타일 */
+.historyModalBox {
+  background: #ffffff;
+  border-radius: 22px;
+  max-width: 620px;
+  width: 100%;
+  max-height: 85vh;
+  padding: 24px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.historyFilterBar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.historyFilterBtn {
+  padding: 6px 14px;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  color: var(--txt2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.historyFilterBtnActive {
+  background: var(--ios-blue) !important;
+  color: #ffffff !important;
+  border-color: var(--ios-blue) !important;
+  font-weight: 700;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
+  max-height: calc(85vh - 160px);
+}
+
+.historyCard {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.historyCard:hover {
+  border-color: rgba(0, 122, 255, 0.4);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+}
+
+.historyCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.historyBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full, 9999px);
+}
+
+.badgeMember {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.badgeGuest {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.badgeCourt {
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
+}
+
+.historySummaryGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.historyActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+/* 상단 헤더 액션 버튼군 */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.historyTriggerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: #f1f5f9;
+  color: var(--navy, #0f172a);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.historyTriggerBtn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.saveCurrentBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: rgba(0, 122, 255, 0.08);
+  color: var(--ios-blue, #007aff);
+  border: 1px solid rgba(0, 122, 255, 0.3);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.saveCurrentBtn:hover {
+  background: rgba(0, 122, 255, 0.15);
+  border-color: var(--ios-blue, #007aff);
+}
+
+/* 플로팅 토스트 메시지 */
+.toastFloating {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.92);
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-size: 13.5px;
+  font-weight: 700;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  z-index: 2100;
+  animation: toastFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+@keyframes toastFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
