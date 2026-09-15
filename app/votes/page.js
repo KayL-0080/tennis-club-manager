@@ -413,50 +413,36 @@ export default function VotesPage() {
               ※ 일반 사용자는 최초 투표 이후 1회 추가 변경만 가능합니다.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <select 
-              className="input" 
-              style={{ 
-                width: 'auto', 
-                minWidth: '140px',
-                padding: '9px 14px', 
-                fontSize: '0.88rem', 
-                fontWeight: 700,
-                borderRadius: 'var(--radius-full)',
-                backgroundColor: 'rgba(255, 255, 255, 0.85)',
-                boxShadow: 'var(--shadow-glass)'
-              }} 
-              value={selectedMonth} 
-              onChange={e => setSelectedMonth(e.target.value)}
-            >
-              <option value="ALL">🗓️ 전체 일정</option>
-              {availableMonths.map(m => (
-                <option key={m} value={m}>
-                  🗓️ {m.split('-')[0]}년 {m.split('-')[1]}월
-                </option>
-              ))}
-            </select>
+          <div className="votes-controls-bar">
+            <div className="votes-month-select-wrap">
+              <select 
+                className="votes-month-select" 
+                value={selectedMonth} 
+                onChange={e => setSelectedMonth(e.target.value)}
+              >
+                <option value="ALL">🗓️ 전체 일정</option>
+                {availableMonths.map(m => (
+                  <option key={m} value={m}>
+                    🗓️ {m.split('-')[0]}년 {m.split('-')[1]}월
+                  </option>
+                ))}
+              </select>
+            </div>
             {isAdmin && (
-              <>
+              <div className="votes-action-buttons">
                 <button 
-                  className="btn btn-secondary" 
-                  style={{ 
-                    borderRadius: 'var(--radius-full)', 
-                    padding: '9px 16px',
-                    fontWeight: 600,
-                    fontSize: '0.88rem'
-                  }} 
+                  type="button"
+                  className="btn btn-secondary votes-action-btn" 
                   onClick={() => setShowSettingsModal(true)}
                 >
                   ⚙️ 클럽 모임 설정
                 </button>
                 <button 
-                  className="btn btn-primary" 
+                  type="button"
+                  className="btn btn-primary votes-action-btn" 
                   style={{ 
-                    borderRadius: 'var(--radius-full)', 
-                    padding: '9px 18px',
-                    fontWeight: 700,
-                    fontSize: '0.88rem'
+                    boxShadow: '0 2px 8px rgba(0, 122, 255, 0.25)',
+                    fontWeight: 700
                   }} 
                   onClick={() => {
                     setSelectedEvent(null);
@@ -470,7 +456,7 @@ export default function VotesPage() {
                 >
                   + 새 투표 만들기
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>
