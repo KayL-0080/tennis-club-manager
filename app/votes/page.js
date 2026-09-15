@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getMembers, getEvents, createEvent, updateEventAttendees, updateEvent, deleteEvent,
+  getMembers, getEvents, getEvent, createEvent, updateEventAttendees, updateEvent, deleteEvent,
   getMeetingRules, updateMeetingRules
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
@@ -56,63 +56,142 @@ export default function VotesPage() {
   const DAY_NAMES = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
   const DAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
 
-  useEffect(() => {
-    setMounted(true);
+  const openModal = useCallback((e, updateUrl = true) => {
+    setSelectedEvent(e);
+    setIsEditing(false);
+    setEditTitle(e?.title || '');
+    setEditDate(e?.date || '');
+    setEditStartTime(e?.startTime || '');
+    setEditEndTime(e?.endTime || '');
+    setEditLocation(e?.location || '');
+    if (updateUrl && typeof window !== 'undefined' && e?.id) {
+      window.history.replaceState(null, '', `/votes?id=${e.id}`);
+    }
   }, []);
 
-  const loadData = useCallback(async () => {
-    setFetching(true);
-    try {
-      const mbrs = await getMembers('shared');
-      const validMembers = mbrs.filter(m => m.role !== '준회원' && m.role !== '게스트');
-      validMembers.sort((a, b) => a.name.localeCompare(b.name));
-      setMembers(validMembers);
-      
-      const rules = await getMeetingRules();
-      setMeetingRules(rules);
+  const closeModal = useCallback(() => {
+    setSelectedEvent(null);
+    setIsEditing(false);
+    setShowSettingsModal(false);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '/votes');
+    }
+  }, []);
 
-      const evts = await getEvents('shared');
-      
-      // Auto-generate missing events for the next 6 weeks based on meetingRules
-      const now = new Date();
-      const generated = [];
-      for (let i = 0; i < 42; i++) {
-        const d = new Date(now);
-        d.setDate(d.getDate() + i);
-        const day = d.getDay();
-        const matchingRules = (rules || []).filter(r => r.enabled !== false && Number(r.day) === day);
-        
-        for (const rule of matchingRules) {
-          const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
-          // Check if event already exists for this date and title
-          if (!evts.find(e => e.date === dateStr && (e.title === rule.title || !rule.title))) {
-            const newEvent = {
-              date: dateStr,
-              title: rule.title || `정기 모임 (${rule.dayName || DAY_SHORT[day]})`,
-              startTime: rule.startTime || '19:00',
-              endTime: rule.endTime || '22:00',
-              location: rule.location || '그린테니스장',
-              attendees: {}
-            };
-            const id = await createEvent('shared', newEvent);
-            generated.push({ id, ...newEvent });
+  // 1. 카카오톡 공유 링크 및 캐시 고속 로드
+  useEffect(() => {
+    setMounted(true);
+    try {
+      const cachedEvts = localStorage.getItem('tcm_cached_events');
+      const cachedMbrs = localStorage.getItem('tcm_cached_members');
+      let restoredEvents = [];
+      if (cachedEvts) {
+        restoredEvents = JSON.parse(cachedEvts);
+        if (Array.isArray(restoredEvents) && restoredEvents.length > 0) {
+          setEvents(restoredEvents);
+          setFetching(false);
+        }
+      }
+      if (cachedMbrs) {
+        setMembers(JSON.parse(cachedMbrs));
+      }
+
+      // 카카오톡 URL 파라미터(?id=... 또는 ?eventId=...) 감지 시 즉시 타겟 이벤트 오픈
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const targetId = params.get('id') || params.get('eventId');
+        if (targetId) {
+          const found = restoredEvents.find(e => e.id === targetId);
+          if (found) {
+            if (found.date) setSelectedMonth(found.date.substring(0, 7));
+            openModal(found, false);
+          } else {
+            // 캐시에 없으면 단일 문서만 즉시 직접 조회 (100ms 이내 초고속 모달 오픈)
+            getEvent('shared', targetId).then(target => {
+              if (target) {
+                setEvents(prev => prev.some(e => e.id === target.id) ? prev : [target, ...prev]);
+                if (target.date) setSelectedMonth(target.date.substring(0, 7));
+                openModal(target, false);
+                setFetching(false);
+              }
+            }).catch(console.warn);
           }
         }
       }
-      
-      if (generated.length > 0) {
-        setEvents([...evts, ...generated].sort((a, b) => (a.date > b.date ? 1 : -1)));
-      } else {
-        setEvents(evts.sort((a, b) => (a.date > b.date ? 1 : -1)));
+    } catch (e) {
+      console.warn('Cache restoration error:', e);
+    }
+  }, [openModal]);
+
+  // 2. 최신 일정 및 회원 데이터를 병렬(Promise.all)로 고속 갱신
+  const loadData = useCallback(async () => {
+    try {
+      const [mbrs, evts, rules] = await Promise.all([
+        getMembers('shared'),
+        getEvents('shared'),
+        getMeetingRules()
+      ]);
+
+      const validMembers = mbrs.filter(m => m.role !== '준회원' && m.role !== '게스트');
+      validMembers.sort((a, b) => a.name.localeCompare(b.name));
+      setMembers(validMembers);
+      setMeetingRules(rules);
+
+      const sortedEvts = evts.sort((a, b) => (a.date > b.date ? 1 : -1));
+      setEvents(sortedEvts);
+
+      // 캐시 저장
+      try {
+        localStorage.setItem('tcm_cached_events', JSON.stringify(sortedEvts));
+        localStorage.setItem('tcm_cached_members', JSON.stringify(validMembers));
+      } catch (e) {
+        console.warn('Cache save error:', e);
+      }
+
+      // 정기 모임 자동 생성은 화면 렌더링을 차단하지 않도록 비동기 백그라운드 처리
+      if (isAdmin && rules && rules.length > 0) {
+        (async () => {
+          try {
+            const now = new Date();
+            const toCreate = [];
+            for (let i = 0; i < 42; i++) {
+              const d = new Date(now);
+              d.setDate(d.getDate() + i);
+              const day = d.getDay();
+              const matchingRules = rules.filter(r => r.enabled !== false && Number(r.day) === day);
+              for (const rule of matchingRules) {
+                const dateStr = d.toLocaleDateString('en-CA');
+                if (!evts.find(e => e.date === dateStr && (e.title === rule.title || !rule.title))) {
+                  toCreate.push({
+                    date: dateStr,
+                    title: rule.title || `정기 모임 (${rule.dayName || DAY_SHORT[day]})`,
+                    startTime: rule.startTime || '19:00',
+                    endTime: rule.endTime || '22:00',
+                    location: rule.location || '그린테니스장',
+                    attendees: {}
+                  });
+                }
+              }
+            }
+            if (toCreate.length > 0) {
+              const created = await Promise.all(toCreate.map(async item => {
+                const id = await createEvent('shared', item);
+                return { id, ...item };
+              }));
+              setEvents(prev => [...prev, ...created].sort((a, b) => (a.date > b.date ? 1 : -1)));
+            }
+          } catch (e) {
+            console.warn('Background event generator error:', e);
+          }
+        })();
       }
 
     } catch (err) {
       console.error('Failed to load votes data:', err);
-      alert('데이터를 불러오지 못했습니다. Firestore 권한 설정을 확인해주세요.');
     } finally {
       setFetching(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   const handleAddMeetingRule = () => {
     if (!newRuleStartTime || !newRuleEndTime) {
@@ -230,28 +309,6 @@ export default function VotesPage() {
     closeModal();
   };
 
-  const openModal = (e, updateUrl = true) => {
-    setSelectedEvent(e);
-    setIsEditing(false);
-    setEditTitle(e.title);
-    setEditDate(e.date || '');
-    setEditStartTime(e.startTime);
-    setEditEndTime(e.endTime);
-    setEditLocation(e.location);
-    if (updateUrl && typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `/votes?id=${e.id}`);
-    }
-  };
-
-  const closeModal = () => {
-    setSelectedEvent(null);
-    setIsEditing(false);
-    setShowSettingsModal(false);
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', '/votes');
-    }
-  };
-
   // URL 쿼리 파라미터(?id=... 또는 ?eventId=...)로 접속 시 해당 모임 투표 모달 자동 오픈
   useEffect(() => {
     if (typeof window === 'undefined' || events.length === 0) return;
@@ -260,6 +317,7 @@ export default function VotesPage() {
     const targetDate = params.get('date');
 
     if (targetId) {
+      if (selectedEvent && selectedEvent.id === targetId) return;
       const target = events.find(e => e.id === targetId);
       if (target) {
         if (target.date) {
@@ -269,13 +327,14 @@ export default function VotesPage() {
         openModal(target, false);
       }
     } else if (targetDate) {
+      if (selectedEvent && selectedEvent.date === targetDate) return;
       const target = events.find(e => e.date === targetDate);
       if (target) {
         setSelectedMonth(prev => (prev === 'ALL' ? prev : targetDate.substring(0, 7)));
         openModal(target, false);
       }
     }
-  }, [events]);
+  }, [events, selectedEvent, openModal]);
 
   const handleShare = () => {
     if (!selectedEvent) return;
@@ -302,7 +361,7 @@ export default function VotesPage() {
     setShowReminderModal(true);
   };
 
-  if (!mounted || (fetching && events.length === 0)) {
+  if (!mounted || (fetching && events.length === 0 && !selectedEvent)) {
     return (
       <div className={styles.page}>
         <Navbar />

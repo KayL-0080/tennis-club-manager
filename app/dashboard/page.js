@@ -44,21 +44,53 @@ export default function Dashboard() {
 
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-  const load = useCallback(async () => {
-    setFetching(true);
+  // 1. 앱 오픈 시 캐시된 대진표 목록을 즉각 표시 (0초 로딩)
+  useEffect(() => {
     try {
-      await initDefaultMembers('shared');
-      const mbrs = await getMembers('shared');
-      setMembers(mbrs);
-      
-      const data = await getSchedules('shared');
-      setSchedules(data);
+      const cachedSched = localStorage.getItem('tcm_cached_schedules');
+      const cachedMbrs = localStorage.getItem('tcm_cached_members');
+      const cachedEvts = localStorage.getItem('tcm_cached_events');
+      if (cachedSched) {
+        const parsed = JSON.parse(cachedSched);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSchedules(parsed);
+          setFetching(false);
+        }
+      }
+      if (cachedMbrs) setMembers(JSON.parse(cachedMbrs));
+      if (cachedEvts) setEvents(JSON.parse(cachedEvts));
+    } catch (e) {
+      console.warn('Cache restoration error:', e);
+    }
+  }, []);
 
-      const evts = await getEvents('shared');
+  // 2. 백그라운드에서 최신 데이터를 병렬(Promise.all)로 고속 갱신
+  const load = useCallback(async () => {
+    try {
+      const [mbrs, data, evts] = await Promise.all([
+        getMembers('shared'),
+        getSchedules('shared'),
+        getEvents('shared'),
+      ]);
+
+      setMembers(mbrs);
+      setSchedules(data);
       setEvents(evts);
+
+      // 최신 데이터를 로컬 캐시에 저장
+      try {
+        localStorage.setItem('tcm_cached_schedules', JSON.stringify(data));
+        localStorage.setItem('tcm_cached_members', JSON.stringify(mbrs));
+        localStorage.setItem('tcm_cached_events', JSON.stringify(evts));
+      } catch (e) {
+        console.warn('Cache write error:', e);
+      }
+
+      if (mbrs.length === 0) {
+        initDefaultMembers('shared').then(() => getMembers('shared').then(setMembers));
+      }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      alert('데이터를 불러오지 못했습니다. Firestore 권한 설정을 확인해주세요.');
     } finally {
       setFetching(false);
     }
