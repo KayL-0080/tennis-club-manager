@@ -525,7 +525,17 @@ export default function VotesPage() {
       {/* 투표 / 설정 / 수정 모달 */}
       {(selectedEvent || isEditing || showSettingsModal) && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', width: '100%', maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden' }}>
+          <div 
+            className="modal-content" 
+            onClick={e => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '500px', 
+              width: '100%', 
+              display: 'flex', 
+              flexDirection: 'column',
+              padding: '20px 18px 16px 18px'
+            }}
+          >
             
             {showSettingsModal ? (
               <div style={{ marginBottom: '10px' }}>
@@ -760,63 +770,77 @@ export default function VotesPage() {
                   </div>
                 </div>
 
-                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>투표 명단</span>
-                  {(() => {
-                    const [y, m, d] = selectedEvent.date.split('-');
-                    const deadline = new Date(y, m - 1, d);
-                    deadline.setDate(deadline.getDate() - 1);
-                    deadline.setHours(18, 0, 0, 0);
-                    const isClosed = new Date() > deadline;
-                    if (!isClosed) return null;
-                    return (
-                      <span style={{ color: isAdmin ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12.5px', fontWeight: 600 }}>
-                        {isAdmin ? '마감됨 (운영진 수정 가능)' : '투표 마감됨'}
-                      </span>
-                    );
-                  })()}
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {members.map(m => {
-                    const status = selectedEvent.attendees?.[m.id] || '?';
-                    const [y, mm, d] = selectedEvent.date.split('-');
-                    const deadline = new Date(y, mm - 1, d);
-                    deadline.setDate(deadline.getDate() - 1);
-                    deadline.setHours(18, 0, 0, 0);
-                    const isClosed = new Date() > deadline;
-                    const isVoteDisabled = !isAdmin && isClosed;
-                    
-                    return (
-                      <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', gap: '6px' }}>
-                        <span style={{ fontWeight: '600', fontSize: '13.5px', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
-                        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                          <button 
-                            className={`btn btn-sm ${status === 'Y' ? 'btn-primary' : 'btn-secondary'}`}
-                            style={{ opacity: status === 'Y' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
-                            disabled={isVoteDisabled}
-                            onClick={() => handleToggleAttendance(m.id, 'Y')}
-                          >참석</button>
-                          <button 
-                            className={`btn btn-sm ${status === 'N' ? 'btn-danger' : 'btn-secondary'}`}
-                            style={{ opacity: status === 'N' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
-                            disabled={isVoteDisabled}
-                            onClick={() => handleToggleAttendance(m.id, 'N')}
-                          >불참</button>
-                          <button 
-                            className={`btn btn-sm ${status === '?' ? '' : 'btn-secondary'}`}
-                            style={{ opacity: status === '?' ? 1 : 0.6, background: status === '?' ? '#e2e8f0' : undefined, color: status === '?' ? '#1e293b' : undefined, padding: '4px 10px', fontSize: '12px' }}
-                            disabled={isVoteDisabled}
-                            onClick={() => handleToggleAttendance(m.id, '?')}
-                          >미정</button>
+                <div style={{ flex: '1 1 auto', overflowY: 'auto', overflowX: 'hidden', paddingRight: '2px', margin: '0 -4px', paddingLeft: '4px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>투표 명단</span>
+                    {(() => {
+                      const [y, m, d] = selectedEvent.date.split('-');
+                      const deadline = new Date(y, m - 1, d);
+                      deadline.setDate(deadline.getDate() - 1);
+                      deadline.setHours(18, 0, 0, 0);
+                      const isClosed = new Date() > deadline;
+                      if (!isClosed) return null;
+                      return (
+                        <span style={{ color: isAdmin ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12.5px', fontWeight: 600 }}>
+                          {isAdmin ? '마감됨 (운영진 수정 가능)' : '투표 마감됨'}
+                        </span>
+                      );
+                    })()}
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {members.map(m => {
+                      const status = selectedEvent.attendees?.[m.id] || '?';
+                      const [y, mm, d] = selectedEvent.date.split('-');
+                      const deadline = new Date(y, mm - 1, d);
+                      deadline.setDate(deadline.getDate() - 1);
+                      deadline.setHours(18, 0, 0, 0);
+                      const isClosed = new Date() > deadline;
+                      const isVoteDisabled = !isAdmin && isClosed;
+                      
+                      return (
+                        <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', gap: '6px' }}>
+                          <span style={{ fontWeight: '600', fontSize: '13.5px', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
+                          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                            <button 
+                              className={`btn btn-sm ${status === 'Y' ? 'btn-primary' : 'btn-secondary'}`}
+                              style={{ opacity: status === 'Y' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
+                              disabled={isVoteDisabled}
+                              onClick={() => handleToggleAttendance(m.id, 'Y')}
+                            >참석</button>
+                            <button 
+                              className={`btn btn-sm ${status === 'N' ? 'btn-danger' : 'btn-secondary'}`}
+                              style={{ opacity: status === 'N' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
+                              disabled={isVoteDisabled}
+                              onClick={() => handleToggleAttendance(m.id, 'N')}
+                            >불참</button>
+                            <button 
+                              className={`btn btn-sm ${status === '?' ? '' : 'btn-secondary'}`}
+                              style={{ opacity: status === '?' ? 1 : 0.6, background: status === '?' ? '#e2e8f0' : undefined, color: status === '?' ? '#1e293b' : undefined, padding: '4px 10px', fontSize: '12px' }}
+                              disabled={isVoteDisabled}
+                              onClick={() => handleToggleAttendance(m.id, '?')}
+                            >미정</button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
                 
-                <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                  <button className="btn btn-secondary" onClick={handleShare}>📤 공유하기</button>
-                  <button className="btn btn-primary" onClick={closeModal}>닫기</button>
+                <div style={{ 
+                  marginTop: '16px', 
+                  paddingTop: '12px',
+                  borderTop: '1px solid rgba(0, 0, 0, 0.08)', 
+                  display: 'flex', 
+                  justifyContent: 'flex-end', 
+                  gap: '8px',
+                  background: 'rgba(255, 255, 255, 0.95)',
+                  backdropFilter: 'blur(10px)',
+                  position: 'sticky',
+                  bottom: 0,
+                  zIndex: 10
+                }}>
+                  <button className="btn btn-secondary" style={{ padding: '10px 18px', fontWeight: 700, fontSize: '0.9rem' }} onClick={handleShare}>📤 공유하기</button>
+                  <button className="btn btn-primary" style={{ padding: '10px 22px', fontWeight: 700, fontSize: '0.9rem' }} onClick={closeModal}>닫기</button>
                 </div>
               </>
             ) : null}

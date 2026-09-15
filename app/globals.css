@@ -442,7 +442,7 @@ tr:hover td { background: rgba(0, 122, 255, 0.04); }
   height: 100vh;
   height: 100dvh;
   min-height: -webkit-fill-available;
-  z-index: 9999;
+  z-index: 1000000;
   background: rgba(0, 0, 0, 0.48);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -450,8 +450,10 @@ tr:hover td { background: rgba(0, 122, 255, 0.04); }
   align-items: center; 
   justify-content: center;
   padding: 16px;
+  padding-bottom: calc(80px + var(--safe-bottom));
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .modal-content {
   background: rgba(255, 255, 255, 0.98);
@@ -463,8 +465,8 @@ tr:hover td { background: rgba(0, 122, 255, 0.04); }
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22), var(--glass-specular);
   width: 100%;
   max-width: 500px;
-  max-height: calc(100dvh - 32px);
-  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 120px);
+  max-height: calc(100vh - 120px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   margin: auto;
@@ -475,14 +477,15 @@ tr:hover td { background: rgba(0, 122, 255, 0.04); }
 @media (max-width: 768px) {
   .modal-overlay {
     padding: 12px;
+    padding-bottom: calc(85px + var(--safe-bottom));
     align-items: center;
     justify-content: center;
   }
   .modal-content {
     padding: 20px 16px;
     border-radius: 16px;
-    max-height: calc(100dvh - 24px);
-    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 110px);
+    max-height: calc(100vh - 110px);
   }
 }
 
