@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getMembers, getEvents, createEvent, updateEventAttendees, updateEvent, deleteEvent,
-  getMonthlyFinance, updateMonthlyFinance, getMeetingRules, updateMeetingRules
+  getMeetingRules, updateMeetingRules
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
@@ -34,9 +34,6 @@ export default function VotesPage() {
   // Reminder Modal State
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderText, setReminderText] = useState('');
-  
-  const [showMonthlyTableModal, setShowMonthlyTableModal] = useState(false);
-  const [monthlyFinance, setMonthlyFinance] = useState({ totalCourtFee: 0 });
 
   // For Edit Mode
   const [isEditing, setIsEditing] = useState(false);
@@ -157,15 +154,8 @@ export default function VotesPage() {
   };
 
   useEffect(() => {
-    if (showMonthlyTableModal && selectedMonth !== 'ALL') {
-      getMonthlyFinance(selectedMonth).then(data => {
-        setMonthlyFinance(data || { totalCourtFee: 0 });
-      });
-    }
-  }, [showMonthlyTableModal, selectedMonth]);
-
-  useEffect(() => {
-    loadData(); }, [loadData]);
+    loadData();
+  }, [loadData]);
 
   const handleToggleAttendance = async (memberId, status) => {
     if (!selectedEvent) return;
@@ -287,46 +277,6 @@ export default function VotesPage() {
     }
   }, [events]);
 
-  const exportToExcel = () => {
-    const modalBody = document.querySelector('#printable-monthly-table .modal-body');
-    if (!modalBody) return;
-    
-    const clone = modalBody.cloneNode(true);
-    
-    // Replace inputs with their values
-    const inputs = clone.querySelectorAll('input');
-    inputs.forEach(input => {
-      const span = document.createElement('span');
-      span.innerText = input.value;
-      input.parentNode.replaceChild(span, input);
-    });
-
-    const html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          table { border-collapse: collapse; }
-          th, td { border: 1px solid #cbd5e1; }
-        </style>
-      </head>
-      <body>
-        ${clone.innerHTML}
-      </body>
-      </html>
-    `;
-    
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedMonth.split('-')[1]}월_투표현황표.xls`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   const handleShare = () => {
     if (!selectedEvent) return;
     
@@ -404,36 +354,64 @@ export default function VotesPage() {
               ※ 일반 사용자는 최초 투표 이후 1회 추가 변경만 가능합니다.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              {selectedMonth !== 'ALL' && isAdmin && (
-                <button className="btn btn-secondary btn-sm" style={{ padding: '6px 10px', fontSize: '13px' }} onClick={() => setShowMonthlyTableModal(true)}>
-                  📅 월별 현황표
-                </button>
-              )}
-              <select 
-                className="input input-sm" 
-                style={{ width: 'auto', padding: '6px 10px', fontSize: '13px', fontWeight: 600 }} 
-                value={selectedMonth} 
-                onChange={e => setSelectedMonth(e.target.value)}
-              >
-                <option value="ALL">전체 보기</option>
-                {availableMonths.map(m => <option key={m} value={m}>{m.split('-')[0]}년 {m.split('-')[1]}월</option>)}
-              </select>
-            </div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <select 
+              className="input" 
+              style={{ 
+                width: 'auto', 
+                minWidth: '140px',
+                padding: '9px 14px', 
+                fontSize: '0.88rem', 
+                fontWeight: 700,
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: 'rgba(255, 255, 255, 0.85)',
+                boxShadow: 'var(--shadow-glass)'
+              }} 
+              value={selectedMonth} 
+              onChange={e => setSelectedMonth(e.target.value)}
+            >
+              <option value="ALL">🗓️ 전체 일정</option>
+              {availableMonths.map(m => (
+                <option key={m} value={m}>
+                  🗓️ {m.split('-')[0]}년 {m.split('-')[1]}월
+                </option>
+              ))}
+            </select>
             {isAdmin && (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="btn btn-secondary" onClick={() => setShowSettingsModal(true)}>⚙️ 클럽 모임 설정</button>
-                <button className="btn btn-primary" onClick={() => {
-                  setSelectedEvent(null);
-                  setEditTitle('새 투표');
-                  setEditDate(formatDateToYMD());
-                  setEditStartTime('19:00');
-                  setEditEndTime('22:00');
-                  setEditLocation('그린테니스장');
-                  setIsEditing(true);
-                }}>+ 새 투표 만들기</button>
-              </div>
+              <>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ 
+                    borderRadius: 'var(--radius-full)', 
+                    padding: '9px 16px',
+                    fontWeight: 600,
+                    fontSize: '0.88rem'
+                  }} 
+                  onClick={() => setShowSettingsModal(true)}
+                >
+                  ⚙️ 클럽 모임 설정
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  style={{ 
+                    borderRadius: 'var(--radius-full)', 
+                    padding: '9px 18px',
+                    fontWeight: 700,
+                    fontSize: '0.88rem'
+                  }} 
+                  onClick={() => {
+                    setSelectedEvent(null);
+                    setEditTitle('새 투표');
+                    setEditDate(formatDateToYMD());
+                    setEditStartTime('19:00');
+                    setEditEndTime('22:00');
+                    setEditLocation('그린테니스장');
+                    setIsEditing(true);
+                  }}
+                >
+                  + 새 투표 만들기
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -880,244 +858,6 @@ export default function VotesPage() {
                   navigator.share({ title: '투표 참여 안내', text: reminderText, url: shareUrl }).catch(console.error);
                 }}>공유하기</button>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 월별 투표 현황표 모달 */}
-      {showMonthlyTableModal && (
-        <div className="modal-overlay" onClick={() => setShowMonthlyTableModal(false)}>
-          <div className="modal-content" id="printable-monthly-table" onClick={e => e.stopPropagation()} style={{ maxWidth: '900px', width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-            <style>{`
-              @media print {
-                html, body {
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
-                }
-                nav, main { display: none !important; }
-                .modal-overlay { 
-                  position: static !important; 
-                  background: transparent !important; 
-                  padding: 0 !important;
-                  display: block !important;
-                }
-                .modal-content {
-                  box-shadow: none !important;
-                  width: 100% !important;
-                  max-width: none !important;
-                  margin: 0 !important;
-                  border: none !important;
-                }
-                .no-print { display: none !important; }
-                .modal-body { overflow: visible !important; max-height: none !important; }
-              }
-            `}</style>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>{selectedMonth.split('-')[1]}월 투표 현황표</h2>
-                <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-                  <label style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>월 총 코트비:</label>
-                  <input 
-                    type="number" 
-                    step="1000"
-                    className="input" 
-                    style={{ width: '100px', padding: '4px 8px', textAlign: 'right' }} 
-                    value={monthlyFinance.totalCourtFee || ''}
-                    onChange={e => setMonthlyFinance({ ...monthlyFinance, totalCourtFee: parseInt(e.target.value) || 0 })}
-                    onBlur={() => updateMonthlyFinance(selectedMonth, { totalCourtFee: monthlyFinance.totalCourtFee })}
-                    placeholder="0"
-                  />
-                  <span>원</span>
-                </div>
-              </div>
-              <div className="no-print" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <button className="btn btn-secondary btn-sm" onClick={exportToExcel}>📊 엑셀 저장</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>🖨️ 인쇄</button>
-                <button className="modal-close" onClick={() => setShowMonthlyTableModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
-              </div>
-            </div>
-            <div className="modal-body" style={{ overflowY: 'auto', flex: 1 }}>
-              {(() => {
-                // Prepare data
-                const sortedEvents = [...displayEvents].sort((a, b) => a.date.localeCompare(b.date));
-                const eventAttendees = sortedEvents.map(e => members.filter(m => e.attendees?.[m.id] === 'Y'));
-                const maxAtt = Math.max(0, ...eventAttendees.map(list => list.length));
-                const rows = Array.from({ length: maxAtt });
-                
-                const memberStats = members.map(m => {
-                  return {
-                    name: m.name,
-                    count: sortedEvents.filter(e => e.attendees?.[m.id] === 'Y').length
-                  };
-                }).sort((a, b) => b.count - a.count);
-
-                return (
-                  <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                    <div style={{ flex: '1 1 auto', overflowX: 'auto' }}>
-                      <table className="table" style={{ whiteSpace: 'nowrap', textAlign: 'center', minWidth: '400px', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr>
-                            <th rowSpan={3} style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px' }}>일자</th>
-                            {sortedEvents.map(e => (
-                              <th key={e.id} style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px' }}>
-                                {parseInt(e.date.split('-')[1])}월{parseInt(e.date.split('-')[2])}일({new Date(e.date).toLocaleDateString('ko-KR', { weekday: 'short' })})
-                              </th>
-                            ))}
-                          </tr>
-                          <tr>
-                            <th style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px', display: 'none' }}>시간</th>
-                            {sortedEvents.map(e => (
-                              <th key={`t-${e.id}`} style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px', fontWeight: 'normal', fontSize: '12px' }}>
-                                {e.startTime}~{e.endTime}
-                              </th>
-                            ))}
-                          </tr>
-                          <tr>
-                            <th style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px', display: 'none' }}>장소</th>
-                            {sortedEvents.map(e => (
-                              <th key={`l-${e.id}`} style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px', fontWeight: 'normal', fontSize: '12px' }}>
-                                {e.location}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map((_, rIdx) => (
-                            <tr key={rIdx}>
-                              <td style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px', fontWeight: 'bold', fontSize: '12px' }}>{rIdx + 1}</td>
-                              {sortedEvents.map((e, cIdx) => {
-                                const member = eventAttendees[cIdx][rIdx];
-                                const isSelected = e.settlementAttendees?.[member?.id];
-                                return (
-                                  <td 
-                                    key={`${e.id}-${rIdx}`} 
-                                    style={{ 
-                                      border: '1px solid var(--border)', 
-                                      padding: '4px', 
-                                      fontSize: '14px',
-                                      background: isSelected ? '#e0f2fe' : undefined,
-                                      cursor: member ? 'pointer' : 'default'
-                                    }}
-                                    onClick={async () => {
-                                      if (!member) return;
-                                      const newStatus = !isSelected;
-                                      
-                                      if (newStatus) {
-                                        const isAlreadySelected = sortedEvents.some(otherEvent => otherEvent.id !== e.id && otherEvent.settlementAttendees?.[member.id] && otherEvent.attendees?.[member.id] === 'Y');
-                                        if (isAlreadySelected) {
-                                          alert('이미 다른 일정에서 선택된 참석자입니다. 한 월에 중복 선택은 불가합니다.');
-                                          return;
-                                        }
-                                      }
-
-                                      setEvents(prev => prev.map(ev => ev.id === e.id ? { ...ev, settlementAttendees: { ...(ev.settlementAttendees || {}), [member.id]: newStatus } } : ev));
-                                      await updateEvent('shared', e.id, { [`settlementAttendees.${member.id}`]: newStatus });
-                                    }}
-                                  >
-                                    {member?.name || ''}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                          <tr>
-                            <td colSpan={sortedEvents.length + 1} style={{ border: 'none', height: '8px' }}></td>
-                          </tr>
-                          <tr>
-                            <td style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px', fontWeight: 'bold', fontSize: '12px' }}>지원금</td>
-                            {sortedEvents.map(e => {
-                              const count = Object.keys(e.settlementAttendees || {}).filter(id => e.settlementAttendees[id] === true && e.attendees?.[id] === 'Y').length;
-                              const subsidy = count * 30000;
-                              return <td key={`sub-${e.id}`} style={{ border: '1px solid var(--border)', padding: '4px', fontSize: '14px', textAlign: 'right' }}>{subsidy.toLocaleString()}</td>
-                            })}
-                          </tr>
-                          <tr>
-                            <td style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px', fontWeight: 'bold', fontSize: '12px' }}>코트비</td>
-                            {sortedEvents.map(e => {
-                              const feePerEvent = sortedEvents.length > 0 ? Math.floor(monthlyFinance.totalCourtFee / sortedEvents.length) : 0;
-                              return <td key={`crt-${e.id}`} style={{ border: '1px solid var(--border)', padding: '4px', fontSize: '14px', textAlign: 'right' }}>{feePerEvent.toLocaleString()}</td>
-                            })}
-                          </tr>
-                          <tr>
-                            <td style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px', fontWeight: 'bold', fontSize: '12px' }}>간식비</td>
-                            {sortedEvents.map(e => {
-                              const totalAttendees = Object.values(e.attendees || {}).filter(v => v === 'Y').length;
-                              const snackPerPerson = e.snackFeePerPerson !== undefined ? e.snackFeePerPerson : 6000;
-                              const totalSnack = totalAttendees * snackPerPerson;
-                              return (
-                                <td key={`snk-${e.id}`} style={{ border: '1px solid var(--border)', padding: '4px', fontSize: '14px', textAlign: 'right' }}>
-                                  <input 
-                                    type="number" 
-                                    step="100"
-                                    style={{ width: '60px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: '4px', marginBottom: '2px', padding: '2px' }}
-                                    value={snackPerPerson}
-                                    onChange={(ev) => {
-                                      const val = parseInt(ev.target.value) || 0;
-                                      setEvents(prev => prev.map(evt => evt.id === e.id ? { ...evt, snackFeePerPerson: val } : evt));
-                                    }}
-                                    onBlur={(ev) => {
-                                      const val = parseInt(ev.target.value) || 0;
-                                      updateEvent('shared', e.id, { snackFeePerPerson: val });
-                                    }}
-                                  />
-                                  <br/>
-                                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{totalSnack.toLocaleString()}</span>
-                                </td>
-                              )
-                            })}
-                          </tr>
-                          <tr>
-                            <td style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px', fontWeight: 'bold', fontSize: '12px' }}>잔액</td>
-                            {sortedEvents.map(e => {
-                              const settlementCount = Object.keys(e.settlementAttendees || {}).filter(id => e.settlementAttendees[id] && e.attendees?.[id] === 'Y').length;
-                              const totalAttendees = Object.values(e.attendees || {}).filter(v => v === 'Y').length;
-                              const subsidy = settlementCount * 30000;
-                              const feePerEvent = sortedEvents.length > 0 ? Math.floor(monthlyFinance.totalCourtFee / sortedEvents.length) : 0;
-                              const snackPerPerson = e.snackFeePerPerson !== undefined ? e.snackFeePerPerson : 6000;
-                              const totalSnack = totalAttendees * snackPerPerson;
-                              const balance = subsidy - feePerEvent - totalSnack;
-                              return <td key={`bal-${e.id}`} style={{ border: '1px solid var(--border)', padding: '4px', fontSize: '14px', textAlign: 'right', color: balance < 0 ? 'var(--error)' : 'inherit' }}>{balance.toLocaleString()}</td>
-                            })}
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: '1 1 auto' }}>
-                      {(() => {
-                        const chunks = [];
-                        for (let i = 0; i < memberStats.length; i += 5) {
-                          chunks.push(memberStats.slice(i, i + 5));
-                        }
-                        return chunks.map((chunk, idx) => (
-                          <div key={idx} style={{ width: '160px' }}>
-                            <table className="table" style={{ whiteSpace: 'nowrap', textAlign: 'center', width: '100%', borderCollapse: 'collapse' }}>
-                              <thead>
-                                <tr>
-                                  <th style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px' }}>성명</th>
-                                  <th style={{ border: '1px solid var(--border)', background: '#f8fafc', padding: '4px' }}>참석신청</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {chunk.map(m => (
-                                  <tr key={m.name}>
-                                    <td style={{ border: '1px solid var(--border)', padding: '4px', fontSize: '14px' }}>{m.name}</td>
-                                    <td style={{ border: '1px solid var(--border)', padding: '4px', fontSize: '14px', background: m.count === 0 ? '#fef3c7' : undefined }}>{m.count}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-              <button className="btn btn-secondary" onClick={() => setShowMonthlyTableModal(false)}>닫기</button>
             </div>
           </div>
         </div>
