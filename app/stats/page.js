@@ -180,7 +180,8 @@ export default function StatsPage() {
     );
   }
 
-  const top3 = globalStandings.slice(0, 3);
+  // 명예의 전당 (Top 3): 실제 경기 결과(played > 0)가 있는 회원만 대상으로 선정
+  const top3 = globalStandings.filter(s => s.played > 0).slice(0, 3);
 
   const now = new Date();
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-CA');
