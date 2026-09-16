@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSchedules, createSchedule, deleteSchedule, getMembers, initDefaultMembers, getEvents } from '@/lib/firestore';
+import { getSchedules, createSchedule, deleteSchedule, getMembers, initDefaultMembers, getEvents, getTournaments } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import SettingsTab from '@/components/tabs/SettingsTab';
 import styles from './dashboard.module.css';
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [schedules, setSchedules] = useState([]);
   const [members, setMembers] = useState([]);
   const [events, setEvents] = useState([]);
+  const [tournaments, setTournaments] = useState([]);
   const [fetching, setFetching] = useState(true);
   const [creating, setCreating] = useState(false);
   const [completedSelectedMonth, setCompletedSelectedMonth] = useState(() => formatDateToYMD().substring(0, 7));
@@ -50,6 +51,7 @@ export default function Dashboard() {
       const cachedSched = localStorage.getItem('tcm_cached_schedules');
       const cachedMbrs = localStorage.getItem('tcm_cached_members');
       const cachedEvts = localStorage.getItem('tcm_cached_events');
+      const cachedTrnms = localStorage.getItem('tcm_cached_tournaments');
       if (cachedSched) {
         const parsed = JSON.parse(cachedSched);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -59,6 +61,7 @@ export default function Dashboard() {
       }
       if (cachedMbrs) setMembers(JSON.parse(cachedMbrs));
       if (cachedEvts) setEvents(JSON.parse(cachedEvts));
+      if (cachedTrnms) setTournaments(JSON.parse(cachedTrnms));
     } catch (e) {
       console.warn('Cache restoration error:', e);
     }
@@ -67,21 +70,24 @@ export default function Dashboard() {
   // 2. 백그라운드에서 최신 데이터를 병렬(Promise.all)로 고속 갱신
   const load = useCallback(async () => {
     try {
-      const [mbrs, data, evts] = await Promise.all([
+      const [mbrs, data, evts, trnms] = await Promise.all([
         getMembers('shared'),
         getSchedules('shared'),
         getEvents('shared'),
+        getTournaments('shared'),
       ]);
 
       setMembers(mbrs);
       setSchedules(data);
       setEvents(evts);
+      setTournaments(trnms || []);
 
       // 최신 데이터를 로컬 캐시에 저장
       try {
         localStorage.setItem('tcm_cached_schedules', JSON.stringify(data));
         localStorage.setItem('tcm_cached_members', JSON.stringify(mbrs));
         localStorage.setItem('tcm_cached_events', JSON.stringify(evts));
+        localStorage.setItem('tcm_cached_tournaments', JSON.stringify(trnms || []));
       } catch (e) {
         console.warn('Cache write error:', e);
       }
@@ -235,6 +241,18 @@ export default function Dashboard() {
         return ym === completedSelectedMonth;
       });
 
+  // 정기 대회 현재 상태 계산 (실제 DB 데이터 기준 동적 반영)
+  const tournamentStatus = (() => {
+    if (!tournaments || tournaments.length === 0) return '진행 없음';
+    const playing = tournaments.find(t => t.status === 'playing');
+    if (playing) return '진행중';
+    const picking = tournaments.find(t => t.status === 'picking');
+    if (picking) return '선발중';
+    const draft = tournaments.find(t => t.status === 'draft');
+    if (draft) return '모집중';
+    return '종료';
+  })();
+
   return (
     <div className={styles.page}>
       <Navbar />
@@ -263,9 +281,19 @@ export default function Dashboard() {
                   <span className={styles.heroChipIcon}>🎾</span>
                   <span className={styles.heroChipText}>등록 대진표 <strong>{schedules.length}</strong>개</span>
                 </span>
-                <span className={styles.heroChip}>
+                <span 
+                  className={styles.heroChip}
+                  onClick={() => router.push('/tournaments')}
+                  style={{ cursor: 'pointer' }}
+                  title="정기 대회 관리 화면으로 이동"
+                >
                   <span className={styles.heroChipIcon}>🏆</span>
-                  <span className={styles.heroChipText}>정기 대회 <strong>진행중</strong></span>
+                  <span className={styles.heroChipText}>
+                    정기 대회{' '}
+                    <strong style={{ color: tournamentStatus === '진행중' ? '#16a34a' : tournamentStatus === '진행 없음' ? 'var(--txt3)' : 'inherit' }}>
+                      {tournamentStatus}
+                    </strong>
+                  </span>
                 </span>
               </div>
             </div>
