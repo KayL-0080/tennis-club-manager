@@ -80,6 +80,7 @@ html {
   scroll-behavior: smooth; 
   -webkit-text-size-adjust: 100%;
   width: 100%;
+  overflow-x: hidden;
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
@@ -91,8 +92,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-  min-height: -webkit-fill-available;
+  min-height: 100dvh;
   width: 100%;
+  overflow-x: hidden;
 }
 
 @media (min-width: 769px) {
@@ -103,7 +105,12 @@ body {
 
 @media (max-width: 768px) {
   body {
-    padding-bottom: calc(85px + var(--safe-bottom)) !important;
+    padding-bottom: calc(95px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .page,
+  main,
+  [class*="main"] {
+    padding-bottom: calc(30px + env(safe-area-inset-bottom, 0px));
   }
 }
 

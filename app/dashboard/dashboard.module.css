@@ -464,6 +464,15 @@
 }
 
 @media (max-width: 768px) {
+  .page {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .main {
+    padding: 16px 14px calc(85px + env(safe-area-inset-bottom, 0px)) 14px !important;
+  }
+
   .hero {
     padding: 22px 18px;
     margin-bottom: 20px;

@@ -6,6 +6,7 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  themeColor: '#ffffff',
 };
 
 export const metadata = {
@@ -34,7 +35,7 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="테친회" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="theme-color" content="#1b4332" />
+        <meta name="theme-color" content="#ffffff" />
       </head>
       <body>
         <AuthProvider>{children}</AuthProvider>
