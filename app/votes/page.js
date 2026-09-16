@@ -470,19 +470,19 @@ export default function VotesPage() {
                   key={e.id} 
                   className={`card card-hoverable ${isPast ? styles.pastVoteCard : ''}`} 
                   style={{
-                    padding: '20px 22px',
+                    padding: '18px 20px',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginBottom: '16px',
+                    marginBottom: '14px',
                     position: 'relative',
                     background: isPast ? 'rgba(255, 255, 255, 0.65)' : 'var(--surface)',
-                    gap: '14px',
-                    flexWrap: 'wrap'
+                    cursor: 'pointer',
+                    gap: '12px'
                   }}
                   onClick={() => openModal(e)}
                 >
-                  <div style={{ flex: '1 1 280px' }}>
+                  <div style={{ flex: '1 1 auto', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                       <span style={{ fontSize: '20px' }}>{isPast ? '🏁' : '🗓️'}</span>
                       <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.02em', color: isPast ? '#475569' : 'var(--txt)' }}>
@@ -532,15 +532,9 @@ export default function VotesPage() {
                     </div>
                   </div>
 
-                  {/* Right Action */}
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button 
-                      className={isPast ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm'} 
-                      style={{ fontWeight: 700, padding: '7px 14px', fontSize: '12px' }}
-                      onClick={(ev) => { ev.stopPropagation(); openModal(e); }}
-                    >
-                      {isPast ? '투표 결과 보기' : '🗳️ 참석 투표하기'}
-                    </button>
+                  {/* 우측 카드 클릭 안내 쉐브론 */}
+                  <div style={{ display: 'flex', alignItems: 'center', color: 'var(--txt3)', fontSize: '22px', paddingLeft: '8px', flexShrink: 0, fontWeight: 300 }}>
+                    ›
                   </div>
                 </div>
               );
