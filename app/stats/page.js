@@ -40,7 +40,9 @@ export default function StatsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [sourceFilter, setSourceFilter] = useState('ALL'); // 'ALL' | 'REGULAR' | 'TOURNAMENT'
-  const [showRulesDetail, setShowRulesDetail] = useState(true);
+  const [showRulesDetail, setShowRulesDetail] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [showCustomDate, setShowCustomDate] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -130,6 +132,12 @@ export default function StatsPage() {
     });
   }, [schedules, members, startDate, endDate, tournaments, sourceFilter, rankingRules]);
 
+  const filteredStandings = useMemo(() => {
+    if (!searchKeyword.trim()) return globalStandings;
+    const kw = searchKeyword.trim().toLowerCase();
+    return globalStandings.filter(s => s.name.toLowerCase().includes(kw));
+  }, [globalStandings, searchKeyword]);
+
   // 기간 내 포함된 정기모임 및 분기대회 수 & 총 경기수 요약 통계
   const statsSummary = useMemo(() => {
     const filteredSchedules = schedules.filter(s => {
@@ -189,6 +197,7 @@ export default function StatsPage() {
   const isCurrentHalf = startDate === currentHalfStart && endDate === currentHalfEnd;
 
   const isAllTime = !startDate && !endDate;
+  const isCustom = !isAllTime && !isCurrentMonth && !isCurrentQuarter && !isCurrentHalf;
 
   return (
     <div className={styles.page}>
@@ -238,236 +247,237 @@ export default function StatsPage() {
           </div>
         </div>
 
-        {/* 필터 영역 (조회 기간 + 집계 대상 선택) */}
-        <div className="card" style={{ marginBottom: '20px', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* 1. 조회 기간 선택 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '15px' }}>📅</span>
-                <strong style={{ fontSize: '13.5px', color: 'var(--txt)', fontWeight: 700 }}>조회 기간</strong>
-                {(startDate || endDate) && (
-                  <span style={{ fontSize: '11px', color: 'var(--ios-blue)', fontWeight: 600, backgroundColor: 'rgba(0, 122, 255, 0.08)', padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
-                    필터 적용 중
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 auto', justifyContent: 'flex-end' }}>
-                <input 
-                  className="input input-sm" 
-                  type="date" 
-                  value={startDate} 
-                  onChange={e => setStartDate(e.target.value)} 
-                  style={{ 
-                    flex: '1 1 125px',
-                    maxWidth: '150px',
-                    height: '34px', 
-                    fontSize: '12px',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '4px 8px'
-                  }} 
-                />
-                <span style={{ color: 'var(--txt3)', fontWeight: 600 }}>~</span>
-                <input 
-                  className="input input-sm" 
-                  type="date" 
-                  value={endDate} 
-                  onChange={e => setEndDate(e.target.value)} 
-                  style={{ 
-                    flex: '1 1 125px',
-                    maxWidth: '150px',
-                    height: '34px', 
-                    fontSize: '12px',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '4px 8px'
-                  }} 
-                />
-              </div>
-            </div>
-
-            {/* Quick Presets (4-column responsive grid) */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: '6px',
-              width: '100%'
-            }}>
-              <button 
-                type="button"
-                className={`btn btn-sm ${isAllTime ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => { setStartDate(''); setEndDate(''); }}
-                style={{
-                  borderRadius: 'var(--radius-full)',
-                  padding: '7px 4px',
-                  fontSize: '12px',
-                  fontWeight: isAllTime ? 700 : 500,
-                  textAlign: 'center',
-                  justifyContent: 'center',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                전체 기간
-              </button>
-              <button 
-                type="button"
-                className={`btn btn-sm ${isCurrentMonth ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => {
-                  setStartDate(currentMonthStart);
-                  setEndDate(currentMonthEnd);
-                }}
-                style={{
-                  borderRadius: 'var(--radius-full)',
-                  padding: '7px 4px',
-                  fontSize: '12px',
-                  fontWeight: isCurrentMonth ? 700 : 500,
-                  textAlign: 'center',
-                  justifyContent: 'center',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                이번 달
-              </button>
-              <button 
-                type="button"
-                className={`btn btn-sm ${isCurrentQuarter ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => {
-                  setStartDate(currentQuarterStart);
-                  setEndDate(currentQuarterEnd);
-                }}
-                style={{
-                  borderRadius: 'var(--radius-full)',
-                  padding: '7px 4px',
-                  fontSize: '12px',
-                  fontWeight: isCurrentQuarter ? 700 : 500,
-                  textAlign: 'center',
-                  justifyContent: 'center',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                이번 분기
-              </button>
-              <button 
-                type="button"
-                className={`btn btn-sm ${isCurrentHalf ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => {
-                  setStartDate(currentHalfStart);
-                  setEndDate(currentHalfEnd);
-                }}
-                style={{
-                  borderRadius: 'var(--radius-full)',
-                  padding: '7px 4px',
-                  fontSize: '12px',
-                  fontWeight: isCurrentHalf ? 700 : 500,
-                  textAlign: 'center',
-                  justifyContent: 'center',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                이번 반기
-              </button>
-            </div>
+        {/* 통합 필터 컨트롤러 (슬림형) */}
+        <div className="card" style={{ marginBottom: '18px', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          
+          {/* 1. 집계 대상 세그먼트 (전체 통합 / 정기 모임 / 분기 대회) */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '6px',
+            background: 'rgba(0, 0, 0, 0.05)',
+            padding: '3px',
+            borderRadius: 'var(--radius-full)',
+            width: '100%'
+          }}>
+            <button
+              type="button"
+              onClick={() => setSourceFilter('ALL')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                padding: '8px 4px',
+                borderRadius: 'var(--radius-full)',
+                border: 'none',
+                fontWeight: sourceFilter === 'ALL' ? 700 : 500,
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+                background: sourceFilter === 'ALL' ? '#ffffff' : 'transparent',
+                color: sourceFilter === 'ALL' ? 'var(--ios-blue)' : 'var(--txt2)',
+                boxShadow: sourceFilter === 'ALL' ? '0 2px 8px rgba(0, 122, 255, 0.15), 0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              🎾 전체 통합
+            </button>
+            <button
+              type="button"
+              onClick={() => setSourceFilter('REGULAR')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                padding: '8px 4px',
+                borderRadius: 'var(--radius-full)',
+                border: 'none',
+                fontWeight: sourceFilter === 'REGULAR' ? 700 : 500,
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+                background: sourceFilter === 'REGULAR' ? '#ffffff' : 'transparent',
+                color: sourceFilter === 'REGULAR' ? 'var(--ios-blue)' : 'var(--txt2)',
+                boxShadow: sourceFilter === 'REGULAR' ? '0 2px 8px rgba(0, 122, 255, 0.15), 0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              🏸 정기 모임
+            </button>
+            <button
+              type="button"
+              onClick={() => setSourceFilter('TOURNAMENT')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                padding: '8px 4px',
+                borderRadius: 'var(--radius-full)',
+                border: 'none',
+                fontWeight: sourceFilter === 'TOURNAMENT' ? 700 : 500,
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+                background: sourceFilter === 'TOURNAMENT' ? '#ffffff' : 'transparent',
+                color: sourceFilter === 'TOURNAMENT' ? 'var(--ios-blue)' : 'var(--txt2)',
+                boxShadow: sourceFilter === 'TOURNAMENT' ? '0 2px 8px rgba(0, 122, 255, 0.15), 0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              🏆 분기 대회
+            </button>
           </div>
 
-          {/* 2. 집계 대상 (정기모임 / 분기대회 / 전체 통합) 선택 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '15px' }}>🎯</span>
-                <strong style={{ fontSize: '13.5px', color: 'var(--txt)', fontWeight: 700 }}>집계 대상</strong>
-              </div>
-              <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
-                {sourceFilter === 'ALL' && '🎾 정기 모임 + 🏆 분기 대회 통합 집계'}
-                {sourceFilter === 'REGULAR' && '🏸 주간 정기 모임 결과만 집계'}
-                {sourceFilter === 'TOURNAMENT' && '🏆 분기 대회 경기 결과만 집계'}
-              </span>
-            </div>
-
-            {/* Segmented Tab Pill Group (3 equal columns) */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '6px',
-              background: 'rgba(0, 0, 0, 0.05)',
-              padding: '4px',
-              borderRadius: 'var(--radius-full)',
-              width: '100%',
-              boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.05)'
-            }}>
-              <button
-                type="button"
-                onClick={() => setSourceFilter('ALL')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  padding: '9px 4px',
-                  borderRadius: 'var(--radius-full)',
-                  border: 'none',
-                  fontWeight: sourceFilter === 'ALL' ? 700 : 500,
-                  fontSize: '0.84rem',
-                  cursor: 'pointer',
-                  background: sourceFilter === 'ALL' ? '#ffffff' : 'transparent',
-                  color: sourceFilter === 'ALL' ? 'var(--ios-blue)' : 'var(--txt2)',
-                  boxShadow: sourceFilter === 'ALL' ? '0 2px 8px rgba(0, 122, 255, 0.15), 0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                🎾 전체 통합
-              </button>
-              <button
-                type="button"
-                onClick={() => setSourceFilter('REGULAR')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  padding: '9px 4px',
-                  borderRadius: 'var(--radius-full)',
-                  border: 'none',
-                  fontWeight: sourceFilter === 'REGULAR' ? 700 : 500,
-                  fontSize: '0.84rem',
-                  cursor: 'pointer',
-                  background: sourceFilter === 'REGULAR' ? '#ffffff' : 'transparent',
-                  color: sourceFilter === 'REGULAR' ? 'var(--ios-blue)' : 'var(--txt2)',
-                  boxShadow: sourceFilter === 'REGULAR' ? '0 2px 8px rgba(0, 122, 255, 0.15), 0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                🏸 정기 모임
-              </button>
-              <button
-                type="button"
-                onClick={() => setSourceFilter('TOURNAMENT')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  padding: '9px 4px',
-                  borderRadius: 'var(--radius-full)',
-                  border: 'none',
-                  fontWeight: sourceFilter === 'TOURNAMENT' ? 700 : 500,
-                  fontSize: '0.84rem',
-                  cursor: 'pointer',
-                  background: sourceFilter === 'TOURNAMENT' ? '#ffffff' : 'transparent',
-                  color: sourceFilter === 'TOURNAMENT' ? 'var(--ios-blue)' : 'var(--txt2)',
-                  boxShadow: sourceFilter === 'TOURNAMENT' ? '0 2px 8px rgba(0, 122, 255, 0.15), 0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                🏆 분기 대회
-              </button>
-            </div>
+          {/* 2. 조회 기간 프리셋 칩 바 (5개) */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(68px, 1fr))',
+            gap: '6px',
+            width: '100%'
+          }}>
+            <button 
+              type="button"
+              className={`btn btn-sm ${isAllTime ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => { setStartDate(''); setEndDate(''); setShowCustomDate(false); }}
+              style={{
+                borderRadius: 'var(--radius-full)',
+                padding: '6px 4px',
+                fontSize: '12px',
+                fontWeight: isAllTime ? 700 : 500,
+                textAlign: 'center',
+                justifyContent: 'center',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              전체 기간
+            </button>
+            <button 
+              type="button"
+              className={`btn btn-sm ${isCurrentMonth ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => {
+                setStartDate(currentMonthStart);
+                setEndDate(currentMonthEnd);
+                setShowCustomDate(false);
+              }}
+              style={{
+                borderRadius: 'var(--radius-full)',
+                padding: '6px 4px',
+                fontSize: '12px',
+                fontWeight: isCurrentMonth ? 700 : 500,
+                textAlign: 'center',
+                justifyContent: 'center',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              이번 달
+            </button>
+            <button 
+              type="button"
+              className={`btn btn-sm ${isCurrentQuarter ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => {
+                setStartDate(currentQuarterStart);
+                setEndDate(currentQuarterEnd);
+                setShowCustomDate(false);
+              }}
+              style={{
+                borderRadius: 'var(--radius-full)',
+                padding: '6px 4px',
+                fontSize: '12px',
+                fontWeight: isCurrentQuarter ? 700 : 500,
+                textAlign: 'center',
+                justifyContent: 'center',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              이번 분기
+            </button>
+            <button 
+              type="button"
+              className={`btn btn-sm ${isCurrentHalf ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => {
+                setStartDate(currentHalfStart);
+                setEndDate(currentHalfEnd);
+                setShowCustomDate(false);
+              }}
+              style={{
+                borderRadius: 'var(--radius-full)',
+                padding: '6px 4px',
+                fontSize: '12px',
+                fontWeight: isCurrentHalf ? 700 : 500,
+                textAlign: 'center',
+                justifyContent: 'center',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              이번 반기
+            </button>
+            <button 
+              type="button"
+              className={`btn btn-sm ${isCustom || showCustomDate ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setShowCustomDate(prev => !prev)}
+              style={{
+                borderRadius: 'var(--radius-full)',
+                padding: '6px 4px',
+                fontSize: '12px',
+                fontWeight: isCustom || showCustomDate ? 700 : 500,
+                textAlign: 'center',
+                justifyContent: 'center',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              📅 직접 지정
+            </button>
           </div>
+
+          {/* 직접 날짜 선택 영역 (showCustomDate 또는 isCustom 일 때만 노출) */}
+          {(showCustomDate || isCustom) && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              paddingTop: '8px',
+              borderTop: '1px solid var(--border)',
+              flexWrap: 'wrap'
+            }}>
+              <span style={{ fontSize: '12px', color: 'var(--txt3)', fontWeight: 600 }}>기간 선택:</span>
+              <input 
+                className="input input-sm" 
+                type="date" 
+                value={startDate} 
+                onChange={e => setStartDate(e.target.value)} 
+                style={{ 
+                  width: '135px',
+                  height: '32px', 
+                  fontSize: '12px',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '4px 8px'
+                }} 
+              />
+              <span style={{ color: 'var(--txt3)', fontWeight: 600 }}>~</span>
+              <input 
+                className="input input-sm" 
+                type="date" 
+                value={endDate} 
+                onChange={e => setEndDate(e.target.value)} 
+                style={{ 
+                  width: '135px',
+                  height: '32px', 
+                  fontSize: '12px',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '4px 8px'
+                }} 
+              />
+            </div>
+          )}
+
         </div>
 
-        {/* 📐 승점 산정 기준 및 순위 결정 공식 상세 안내 카드 */}
-        <div className="card" style={{ marginBottom: '24px', padding: '16px 20px', backgroundColor: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '16px' }}>
+        {/* 📐 승점 산정 기준 및 순위 결정 공식 안내 (접이식 아코디언) */}
+        <div className="card" style={{ marginBottom: '18px', padding: '12px 18px', backgroundColor: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '14px' }}>
           <div 
             style={{ 
               display: 'flex', 
@@ -476,27 +486,18 @@ export default function StatsPage() {
               cursor: 'pointer',
               userSelect: 'none',
               flexWrap: 'wrap',
-              gap: '12px'
+              gap: '10px'
             }}
             onClick={() => setShowRulesDetail(prev => !prev)}
           >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: '1 1 280px' }}>
-              <span style={{ fontSize: '22px', lineHeight: 1 }}>📐</span>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <strong style={{ fontSize: '14px', color: '#1e40af' }}>승점 및 종합 순위 산정 기준 안내</strong>
-                  {isAdmin && (
-                    <span style={{ fontSize: '11px', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '2px 7px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
-                      ⚙️ 설정 가능
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: '12px', color: '#2563eb', marginTop: '4px', fontWeight: 600, lineHeight: 1.4 }}>
-                  최종 승점 = {rankingRules.calcType === 'sum' ? '누적 경기 포인트' : '평균 경기 포인트'}(승{rankingRules.winPoints} / 무{rankingRules.drawPoints} / 패{rankingRules.lossPoints}) + 출전 가산점(참여일수 × {rankingRules.bonusPerDay}점{rankingRules.bonusPerMatch > 0 ? ` + 경기수 × ${rankingRules.bonusPerMatch}점` : ''})
-                </div>
-              </div>
-            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '18px' }}>📐</span>
+              <strong style={{ fontSize: '13px', color: '#1e40af' }}>승점 산정 기준:</strong>
+              <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600 }}>
+                {rankingRules.calcType === 'sum' ? '누적 경기 포인트' : '평균 경기 포인트'}(승{rankingRules.winPoints} / 무{rankingRules.drawPoints} / 패{rankingRules.lossPoints}) + 출전 가산점(참여일당 {rankingRules.bonusPerDay}점{rankingRules.bonusPerMatch > 0 ? ` + 경기당 ${rankingRules.bonusPerMatch}점` : ''})
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {isAdmin && (
                 <button
                   type="button"
@@ -508,8 +509,8 @@ export default function StatsPage() {
                   }}
                   style={{ 
                     borderRadius: 'var(--radius-full)',
-                    padding: '6px 14px', 
-                    fontSize: '12px', 
+                    padding: '4px 12px', 
+                    fontSize: '11.5px', 
                     fontWeight: 700,
                     boxShadow: '0 2px 6px rgba(0, 122, 255, 0.2)'
                   }}
@@ -522,15 +523,15 @@ export default function StatsPage() {
                 className="btn btn-secondary btn-sm"
                 style={{ 
                   borderRadius: 'var(--radius-full)',
-                  padding: '6px 14px', 
-                  fontSize: '12px', 
+                  padding: '4px 12px', 
+                  fontSize: '11.5px', 
                   fontWeight: 700, 
                   color: '#2563eb', 
                   borderColor: '#bfdbfe', 
                   backgroundColor: '#fff' 
                 }}
               >
-                {showRulesDetail ? '산정 기준 접기 ▲' : '자세히 보기 ▼'}
+                {showRulesDetail ? '접기 ▲' : '상세 공식 보기 ▼'}
               </button>
             </div>
           </div>
@@ -673,63 +674,56 @@ export default function StatsPage() {
           )}
         </div>
 
-        {/* 📊 주요 KPI 요약 지표 카드 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '24px' }}>
-          <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ fontSize: '26px', width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(0, 122, 255, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {/* 📊 주요 KPI 요약 지표 카드 (슬림 4열 그리드) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '20px' }}>
+          <div className="card" style={{ padding: '12px 14px', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ fontSize: '20px', width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(0, 122, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               👥
             </div>
-            <div>
-              <div style={{ fontSize: '11.5px', color: 'var(--txt2)', fontWeight: 600 }}>총 출전 회원</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--txt)' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 600 }}>출전 회원</div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--txt)', whiteSpace: 'nowrap' }}>
                 {statsSummary.activePlayersCount}명
-                <span style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 500, marginLeft: '4px' }}>/ {members.length}명</span>
+                <span style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 500, marginLeft: '3px' }}>/{members.length}명</span>
               </div>
             </div>
           </div>
 
-          <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ fontSize: '26px', width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(52, 199, 89, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ padding: '12px 14px', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ fontSize: '20px', width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(52, 199, 89, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               🎾
             </div>
-            <div>
-              <div style={{ fontSize: '11.5px', color: 'var(--txt2)', fontWeight: 600 }}>총 경기 수</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--txt)' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 600 }}>총 경기 수</div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--txt)', whiteSpace: 'nowrap' }}>
                 {statsSummary.totalGames}경기
-                {sourceFilter === 'ALL' && (statsSummary.regularGames > 0 || statsSummary.tournamentGames > 0) && (
-                  <div style={{ fontSize: '10.5px', color: 'var(--txt3)', fontWeight: 600, marginTop: '1px' }}>
-                    (정기 {statsSummary.regularGames} + 대회 {statsSummary.tournamentGames})
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ fontSize: '26px', width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(255, 149, 0, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ padding: '12px 14px', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ fontSize: '20px', width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(255, 149, 0, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               📅
             </div>
-            <div>
-              <div style={{ fontSize: '11.5px', color: 'var(--txt2)', fontWeight: 600 }}>반영된 일정/대회</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--txt)' }}>
-                {sourceFilter === 'ALL' ? (
-                  <>정기 {statsSummary.filteredSchedulesCount}회 <span style={{ fontSize: '13px', color: 'var(--txt3)' }}>+</span> 대회 {statsSummary.filteredTournamentsCount}회</>
-                ) : sourceFilter === 'REGULAR' ? (
-                  <>정기 모임 {statsSummary.filteredSchedulesCount}회</>
-                ) : (
-                  <>분기 대회 {statsSummary.filteredTournamentsCount}회</>
-                )}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 600 }}>반영 일정</div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--txt)', whiteSpace: 'nowrap' }}>
+                {sourceFilter === 'ALL' 
+                  ? `${statsSummary.filteredSchedulesCount + statsSummary.filteredTournamentsCount}회`
+                  : sourceFilter === 'REGULAR' 
+                  ? `${statsSummary.filteredSchedulesCount}회`
+                  : `${statsSummary.filteredTournamentsCount}회`}
               </div>
             </div>
           </div>
 
-          <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ fontSize: '26px', width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(175, 82, 222, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ padding: '12px 14px', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ fontSize: '20px', width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(175, 82, 222, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               ⚖️
             </div>
-            <div>
-              <div style={{ fontSize: '11.5px', color: 'var(--txt2)', fontWeight: 600 }}>1인 평균 경기수</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--txt)' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 600 }}>1인 평균 경기</div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--txt)', whiteSpace: 'nowrap' }}>
                 {statsSummary.avgGamesPerPlayer}경기
               </div>
             </div>
@@ -738,52 +732,69 @@ export default function StatsPage() {
 
         {/* Top 3 영역 */}
         {top3.length > 0 && (
-          <div style={{ marginBottom: '28px' }}>
-            <div className="section-head" style={{ marginBottom: '12px' }}>
-              <span style={{ fontSize: '1rem', fontWeight: 800 }}>🏆 명예의 전당 (Top 3)</span>
+          <div style={{ marginBottom: '22px' }}>
+            <div className="section-head" style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.98rem', fontWeight: 800 }}>🏆 명예의 전당 (Top 3)</span>
             </div>
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
               {top3.map((s, idx) => (
                 <div 
                   key={s.id} 
                   className="card card-hoverable" 
                   style={{ 
-                    flex: '1 1 240px', 
-                    padding: '20px 22px', 
+                    marginBottom: 0,
+                    padding: '16px 18px', 
                     display: 'flex', 
                     alignItems: 'center', 
-                    gap: '16px',
+                    gap: '14px',
                     position: 'relative',
                     overflow: 'hidden',
-                    border: idx === 0 ? '1px solid rgba(255, 149, 0, 0.35)' : idx === 1 ? '1px solid rgba(142, 142, 147, 0.35)' : '1px solid rgba(175, 82, 222, 0.35)',
-                    background: idx === 0 ? 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,247,237,0.92) 100%)' : 'var(--surface)'
+                    borderRadius: '14px',
+                    border: idx === 0 
+                      ? '1px solid rgba(255, 149, 0, 0.4)' 
+                      : idx === 1 
+                      ? '1px solid rgba(148, 163, 184, 0.4)' 
+                      : '1px solid rgba(217, 119, 6, 0.3)',
+                    background: idx === 0 
+                      ? 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,247,237,0.95) 100%)' 
+                      : idx === 1
+                      ? 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)'
+                      : 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,247,237,0.9) 100%)',
+                    boxShadow: idx === 0 ? '0 4px 14px rgba(255, 149, 0, 0.12)' : '0 2px 8px rgba(0,0,0,0.03)'
                   }}
                 >
                   <div style={{ 
-                    fontSize: '28px', 
-                    width: '48px', 
-                    height: '48px', 
+                    fontSize: '24px', 
+                    width: '42px', 
+                    height: '42px', 
                     display: 'flex', 
                     alignItems: 'center', 
-                    justifyContent: 'center',
-                    borderRadius: '16px',
-                    background: idx === 0 ? 'rgba(255, 149, 0, 0.12)' : idx === 1 ? 'rgba(142, 142, 147, 0.12)' : 'rgba(175, 82, 222, 0.12)',
-                    boxShadow: idx === 0 ? '0 4px 14px rgba(255, 149, 0, 0.25)' : 'none'
+                    justifyContent: 'center', 
+                    borderRadius: '12px',
+                    background: idx === 0 ? 'rgba(255, 149, 0, 0.15)' : idx === 1 ? 'rgba(148, 163, 184, 0.15)' : 'rgba(217, 119, 6, 0.15)',
+                    flexShrink: 0
                   }}>
                     {idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}
                   </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px 0', letterSpacing: '-0.02em', color: 'var(--txt)' }}>
-                      {s.name} <span style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 500 }}>({s.gender === 'F' ? '여' : '남'})</span>
-                    </h3>
-                    <p style={{ fontSize: '12px', color: 'var(--txt2)', margin: 0 }}>
-                      {s.win}승 {s.draw > 0 ? `${s.draw}무 ` : ''}{s.loss}패 <strong style={{ color: 'var(--ios-blue)' }}>(승점 {Number.isInteger(s.points) ? s.points : s.points.toFixed(1)}점)</strong>
-                    </p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>득실: {s.diff > 0 ? `+${s.diff}` : s.diff}</span>
-                      <span style={{ fontSize: '10.5px', color: '#16a34a', backgroundColor: '#f0fdf4', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
-                        {s.attendedDays}일 참여 ({s.played}경기)
-                      </span>
+                  <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '3px' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--txt)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {s.name}
+                        <span style={{ fontSize: '11px', color: s.gender === 'F' ? '#e11d48' : '#2563eb', fontWeight: 600, marginLeft: '4px' }}>
+                          ({s.gender === 'F' ? '여' : '남'})
+                        </span>
+                      </h3>
+                      <strong style={{ color: 'var(--ios-blue)', fontSize: '13.5px', fontWeight: 800, flexShrink: 0 }}>
+                        {Number.isInteger(s.points) ? s.points : s.points.toFixed(1)}점
+                      </strong>
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--txt2)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span>{s.win}승 {s.draw > 0 ? `${s.draw}무 ` : ''}{s.loss}패</span>
+                      <span style={{ color: 'var(--txt3)' }}>•</span>
+                      <span>승률 {s.played > 0 ? Math.round(s.winRate * 100) : 0}%</span>
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: '#16a34a', marginTop: '2px', fontWeight: 600 }}>
+                      {s.attendedDays}일 출전 ({s.played}경기, 득실 {s.diff > 0 ? `+${s.diff}` : s.diff})
                     </div>
                   </div>
                 </div>
@@ -793,32 +804,69 @@ export default function StatsPage() {
         )}
 
         {/* 전체 누적 순위표 */}
-        <div className="card" style={{ padding: '22px' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>전체 순위 및 참여 현황</h2>
-              <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>
-                (※ 승점 산정 기준: {rankingRules.calcType === 'sum' ? '누적포인트' : '평균포인트'}(승{rankingRules.winPoints}, 무{rankingRules.drawPoints}, 패{rankingRules.lossPoints}) + 출전가산점(참여일수당 {rankingRules.bonusPerDay}점{rankingRules.bonusPerMatch > 0 ? `, 경기당 ${rankingRules.bonusPerMatch}점` : ''}))
+        <div className="card" style={{ padding: '18px 20px', borderRadius: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
+                📋 전체 순위표
+              </h2>
+              <span style={{ fontSize: '11.5px', color: 'var(--ios-blue)', backgroundColor: 'rgba(0, 122, 255, 0.08)', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
+                총 {filteredStandings.length}명
               </span>
             </div>
-            {sourceFilter === 'ALL' && (
-              <span className="badge badge-blue" style={{ fontSize: '11.5px', padding: '4px 10px' }}>
-                🎾 정기모임 + 🏆 분기대회 통합 반영중
-              </span>
-            )}
+
+            {/* 실시간 회원 검색 인풋 */}
+            <div style={{ position: 'relative', width: '100%', maxWidth: '200px' }}>
+              <input
+                type="text"
+                className="input input-sm"
+                placeholder="🔍 회원 이름 검색..."
+                value={searchKeyword}
+                onChange={e => setSearchKeyword(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 26px 6px 12px',
+                  fontSize: '12px',
+                  borderRadius: 'var(--radius-full)'
+                }}
+              />
+              {searchKeyword && (
+                <button
+                  type="button"
+                  onClick={() => setSearchKeyword('')}
+                  style={{
+                    position: 'absolute',
+                    right: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--txt3)',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    padding: 0
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
-          {globalStandings.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>해당 기간에 기록된 데이터가 없습니다.</p>
+
+          {filteredStandings.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', textAlign: 'center', padding: '24px 0' }}>
+              {searchKeyword ? `"${searchKeyword}" 검색 결과가 없습니다.` : '해당 기간에 기록된 데이터가 없습니다.'}
+            </p>
           ) : (
-            <div className="table-wrap">
+            <div className="table-wrap" style={{ overflowX: 'auto' }}>
               <table className="table" style={{ width: '100%', textAlign: 'center' }}>
                 <thead>
                   <tr>
-                    <th style={{ width: 50 }}>순위</th>
+                    <th style={{ width: 44 }}>순위</th>
                     <th>이름</th>
-                    <th>참여 일수</th>
-                    <th>경기수</th>
                     <th>승점</th>
+                    <th>출전일</th>
+                    <th>경기수</th>
                     <th>승률</th>
                     <th>승</th>
                     <th>무</th>
@@ -827,11 +875,11 @@ export default function StatsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {globalStandings.map((s, i) => (
+                  {filteredStandings.map((s, i) => (
                     <tr key={s.id}>
                       <td>
                         <strong>
-                          {i === 0 ? '🥇 1' : i === 1 ? '🥈 2' : i === 2 ? '🥉 3' : i + 1}
+                          {i === 0 && !searchKeyword ? '🥇 1' : i === 1 && !searchKeyword ? '🥈 2' : i === 2 && !searchKeyword ? '🥉 3' : i + 1}
                         </strong>
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
@@ -841,24 +889,24 @@ export default function StatsPage() {
                         </span>
                       </td>
                       <td>
-                        <strong>{s.attendedDays}</strong>일
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                          <span style={{ fontWeight: 800 }}>{s.played}경기</span>
-                          {sourceFilter === 'ALL' && s.played > 0 && (s.regularPlayed > 0 || s.tournamentPlayed > 0) && (
-                            <span style={{ fontSize: '10px', color: 'var(--txt3)' }}>
-                              (정기 {s.regularPlayed} / 대회 {s.tournamentPlayed})
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
                         <strong style={{ color: 'var(--ios-blue)', fontSize: '13.5px' }}>
                           {Number.isInteger(s.points) ? s.points : s.points.toFixed(1)}
                         </strong>
                       </td>
-                      <td>{s.played > 0 ? Math.round(s.winRate * 100) : 0}%</td>
+                      <td>
+                        <strong>{s.attendedDays}</strong>일
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                          <span style={{ fontWeight: 800 }}>{s.played}</span>
+                          {sourceFilter === 'ALL' && s.played > 0 && (s.regularPlayed > 0 || s.tournamentPlayed > 0) && (
+                            <span style={{ fontSize: '9.5px', color: 'var(--txt3)' }}>
+                              ({s.regularPlayed}/{s.tournamentPlayed})
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{s.played > 0 ? Math.round(s.winRate * 100) : 0}%</td>
                       <td><span style={{ color: '#16a34a', fontWeight: 700 }}>{s.win}</span></td>
                       <td><span style={{ color: '#64748b' }}>{s.draw}</span></td>
                       <td><span style={{ color: '#dc2626' }}>{s.loss}</span></td>
