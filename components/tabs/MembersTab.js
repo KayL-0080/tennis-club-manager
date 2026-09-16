@@ -1,6 +1,7 @@
 // components/tabs/MembersTab.js — 전체 회원 관리
 'use client';
 import { useState } from 'react';
+import { UserPlusIcon, CheckCircleIcon, RefreshIcon, NoticeIcon } from '@/components/Icons';
 import styles from './tabs.module.css';
 
 const NTRP_OPTIONS = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
@@ -194,14 +195,71 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
             </tbody>
           </table>
         </div>
-        {isAdmin && (
-          <div className={styles.toolbar} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '16px' }}>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAddModal(true)} type="button">+ 새 회원 추가</button>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => onBulkUpdateFeeStatus(true)} type="button" title="전체 회원을 납부완료 상태로 변경">✅ 일괄 납부완료</button>
-              <button className="btn btn-secondary btn-sm" onClick={() => onBulkUpdateFeeStatus(false)} type="button" title="전체 회원을 미납 상태로 변경">🔄 일괄 미납</button>
-              <button className="btn btn-secondary btn-sm" onClick={handleGenerateReminder} type="button">📝 미납자 독촉 글 생성</button>
+        {isAdmin ? (
+          <div className={styles.memberFooterBar}>
+            {/* 회원 추가 액션 */}
+            <div className={styles.memberAddArea}>
+              <button 
+                type="button"
+                className={styles.btnAddMember} 
+                onClick={() => setShowAddModal(true)}
+              >
+                <UserPlusIcon size={17} color="#ffffff" />
+                <span>새 회원 추가</span>
+              </button>
             </div>
+
+            {/* 회비 일괄 관리 툴 */}
+            <div className={styles.feeActionsGroup}>
+              <span className={styles.feeGroupLabel}>
+                <span>💰</span>
+                <span>회비 일괄 관리</span>
+              </span>
+              <div className={styles.feeButtonsRow}>
+                <button 
+                  type="button"
+                  className={styles.btnFeePaid} 
+                  onClick={() => onBulkUpdateFeeStatus(true)}
+                  title="전체 회원을 납부완료 상태로 변경"
+                >
+                  <CheckCircleIcon size={16} color="#15803d" />
+                  <span>일괄 납부완료</span>
+                </button>
+                <button 
+                  type="button"
+                  className={styles.btnFeeUnpaid} 
+                  onClick={() => onBulkUpdateFeeStatus(false)}
+                  title="전체 회원을 미납 상태로 변경"
+                >
+                  <RefreshIcon size={16} color="#b91c1c" />
+                  <span>일괄 미납</span>
+                </button>
+                <button 
+                  type="button"
+                  className={styles.btnFeeNotice} 
+                  onClick={handleGenerateReminder}
+                  title="미납 회원 대상 공지 및 독촉 글 생성"
+                >
+                  <NoticeIcon size={16} color="#1d4ed8" />
+                  <span>미납자 독촉 글 생성</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            marginTop: '16px',
+            padding: '12px 16px',
+            background: 'rgba(241, 245, 249, 0.7)',
+            borderRadius: '12px',
+            border: '1px solid rgba(0, 0, 0, 0.05)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span style={{ fontSize: '12.5px', color: 'var(--txt3)', fontWeight: 600 }}>
+              💡 회원 추가 및 회비 상태 변경은 클럽 운영자(관리자) 로그인 후 이용할 수 있습니다.
+            </span>
           </div>
         )}
       </div>

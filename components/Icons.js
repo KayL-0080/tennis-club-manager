@@ -249,3 +249,87 @@ export function PageHeaderIcon({ type, size = 24 }) {
     </span>
   );
 }
+
+// ── Action Toolbar Icons ──
+export function UserPlusIcon({ size = 18, color = 'currentColor', className = '', style = {} }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke={color} 
+      strokeWidth="2.2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+    >
+      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="8.5" cy="7" r="4" />
+      <line x1="20" y1="8" x2="20" y2="14" />
+      <line x1="17" y1="11" x2="23" y2="11" />
+    </svg>
+  );
+}
+
+export function CheckCircleIcon({ size = 18, color = '#15803d', className = '', style = {} }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke={color} 
+      strokeWidth="2.2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+    >
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
+export function RefreshIcon({ size = 18, color = '#dc2626', className = '', style = {} }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke={color} 
+      strokeWidth="2.2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+    >
+      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+    </svg>
+  );
+}
+
+export function NoticeIcon({ size = 18, color = '#2563eb', className = '', style = {} }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke={color} 
+      strokeWidth="2.2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <line x1="9" y1="9" x2="15" y2="9" />
+      <line x1="9" y1="13" x2="13" y2="13" />
+    </svg>
+  );
+}
+
