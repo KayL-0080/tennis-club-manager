@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import ManualModal from './ManualModal';
 import InstallAppModal from './InstallAppModal';
-import { HomeIcon, StatsIcon, VoteIcon, TrophyIcon, MembersIcon, ManualIcon, InstallIcon, LockIcon } from './Icons';
+import { HomeIcon, StatsIcon, VoteIcon, TrophyIcon, MembersIcon, ManualIcon, InstallIcon, LockIcon, LogoutIcon } from './Icons';
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
@@ -212,10 +212,11 @@ export default function Navbar() {
                 </div>
                 <button 
                   className="btn btn-secondary btn-sm" 
-                  style={{ width: '100%', marginTop: '8px', fontSize: '12px' }}
+                  style={{ width: '100%', marginTop: '8px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   onClick={handleLogout}
                 >
-                  로그아웃
+                  <LogoutIcon size={14} />
+                  <span>로그아웃</span>
                 </button>
               </div>
             ) : (
@@ -239,11 +240,24 @@ export default function Navbar() {
                   {(user.displayName || user.email)?.[0]?.toUpperCase()}
                 </span>
                 <button
+                  type="button"
                   className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '11px', padding: '3px 8px', height: '28px', whiteSpace: 'nowrap' }}
+                  style={{ 
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '32px',
+                    height: '28px', 
+                    padding: 0,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    color: '#475569'
+                  }}
                   onClick={handleLogout}
+                  title="로그아웃"
+                  aria-label="로그아웃"
                 >
-                  로그아웃
+                  <LogoutIcon size={15} />
                 </button>
               </div>
             ) : (
