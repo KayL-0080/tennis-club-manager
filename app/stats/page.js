@@ -133,11 +133,28 @@ export default function StatsPage() {
     });
   }, [schedules, members, startDate, endDate, tournaments, sourceFilter, rankingRules]);
 
-  const filteredStandings = useMemo(() => {
-    if (!searchKeyword.trim()) return globalStandings;
+  // 1. 경기 출전 회원 (실제 경기 결과가 있는 회원)
+  const rankedStandings = useMemo(() => {
+    return globalStandings.filter(s => s.played > 0);
+  }, [globalStandings]);
+
+  // 2. 경기 미참여 회원 (해당 기간 출전 기록이 없는 회원)
+  const unrankedStandings = useMemo(() => {
+    return globalStandings.filter(s => s.played === 0);
+  }, [globalStandings]);
+
+  // 검색어 필터링 적용
+  const filteredRankedStandings = useMemo(() => {
+    if (!searchKeyword.trim()) return rankedStandings;
     const kw = searchKeyword.trim().toLowerCase();
-    return globalStandings.filter(s => s.name.toLowerCase().includes(kw));
-  }, [globalStandings, searchKeyword]);
+    return rankedStandings.filter(s => s.name.toLowerCase().includes(kw));
+  }, [rankedStandings, searchKeyword]);
+
+  const filteredUnrankedStandings = useMemo(() => {
+    if (!searchKeyword.trim()) return unrankedStandings;
+    const kw = searchKeyword.trim().toLowerCase();
+    return unrankedStandings.filter(s => s.name.toLowerCase().includes(kw));
+  }, [unrankedStandings, searchKeyword]);
 
   // 기간 내 포함된 정기모임 및 분기대회 수 & 총 경기수 요약 통계
   const statsSummary = useMemo(() => {
@@ -180,8 +197,8 @@ export default function StatsPage() {
     );
   }
 
-  // 명예의 전당 (Top 3): 실제 경기 결과(played > 0)가 있는 회원만 대상으로 선정
-  const top3 = globalStandings.filter(s => s.played > 0).slice(0, 3);
+  // 명예의 전당 (Top 3): 실제 경기 결과가 있는 출전 회원 중 상위 3명
+  const top3 = rankedStandings.slice(0, 3);
 
   const now = new Date();
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-CA');
@@ -689,7 +706,7 @@ export default function StatsPage() {
               <div style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 600 }}>출전 회원</div>
               <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--txt)', whiteSpace: 'nowrap' }}>
                 {statsSummary.activePlayersCount}명
-                <span style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 500, marginLeft: '3px' }}>/{members.length}명</span>
+                <span style={{ fontSize: '11px', color: 'var(--txt3)', fontWeight: 500, marginLeft: '3px' }}>/{globalStandings.length}명</span>
               </div>
             </div>
           </div>
@@ -811,16 +828,16 @@ export default function StatsPage() {
           </div>
         )}
 
-        {/* 전체 누적 순위표 */}
+        {/* 전체 누적 순위표 (경기 출전 회원) */}
         <div className="card" style={{ padding: '18px 20px', borderRadius: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <StatsIcon size={18} color="#2563eb" active />
-                <span>전체 순위표</span>
+                <span>출전 순위표</span>
               </h2>
               <span style={{ fontSize: '11.5px', color: 'var(--ios-blue)', backgroundColor: 'rgba(0, 122, 255, 0.08)', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
-                총 {filteredStandings.length}명
+                출전 {filteredRankedStandings.length}명
               </span>
             </div>
 
@@ -862,9 +879,9 @@ export default function StatsPage() {
             </div>
           </div>
 
-          {filteredStandings.length === 0 ? (
+          {filteredRankedStandings.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', textAlign: 'center', padding: '24px 0' }}>
-              {searchKeyword ? `"${searchKeyword}" 검색 결과가 없습니다.` : '해당 기간에 기록된 데이터가 없습니다.'}
+              {searchKeyword ? `"${searchKeyword}" 검색 결과가 없습니다.` : '해당 기간 동안 진행된 경기 결과가 없습니다.'}
             </p>
           ) : (
             <div className="table-wrap" style={{ overflowX: 'auto' }}>
@@ -884,7 +901,7 @@ export default function StatsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStandings.map((s, i) => (
+                  {filteredRankedStandings.map((s, i) => (
                     <tr key={s.id}>
                       <td>
                         <strong>
@@ -931,6 +948,72 @@ export default function StatsPage() {
             </div>
           )}
         </div>
+
+        {/* 경기 미참여 회원 분리 카드 */}
+        {(!searchKeyword ? unrankedStandings.length > 0 : filteredUnrankedStandings.length > 0) && (
+          <div className="card" style={{ padding: '18px 20px', borderRadius: '16px', marginTop: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '16px' }}>⏸️</span>
+                  <span>경기 미참여 회원</span>
+                </h3>
+                <span style={{ fontSize: '11.5px', color: '#64748b', backgroundColor: 'rgba(100, 116, 139, 0.1)', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
+                  총 {filteredUnrankedStandings.length}명
+                </span>
+              </div>
+              <span style={{ fontSize: '11.5px', color: 'var(--txt3)' }}>
+                해당 기간 동안 출전 기록이 없는 정회원입니다
+              </span>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))',
+              gap: '10px'
+            }}>
+              {filteredUnrankedStandings.map(s => (
+                <div 
+                  key={s.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    background: 'rgba(248, 250, 252, 0.9)',
+                    border: '1px solid rgba(226, 232, 240, 0.9)',
+                    borderRadius: '12px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                  }}
+                >
+                  <span style={{
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: '50%',
+                    background: s.gender === 'F' ? 'rgba(225, 29, 72, 0.1)' : 'rgba(37, 99, 235, 0.1)',
+                    color: s.gender === 'F' ? '#e11d48' : '#2563eb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    flexShrink: 0
+                  }}>
+                    {s.name[0]}
+                  </span>
+                  <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--txt)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {s.name}
+                    </span>
+                    <span style={{ fontSize: '10.5px', color: s.gender === 'F' ? '#e11d48' : '#2563eb', fontWeight: 600 }}>
+                      {s.gender === 'F' ? '여성 정회원' : '남성 정회원'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ⚙️ 산정 기준 설정 모달 (운영진 전용) */}
         {showRuleModal && (
