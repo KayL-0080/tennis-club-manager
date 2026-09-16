@@ -470,71 +470,107 @@ export default function VotesPage() {
                   key={e.id} 
                   className={`card card-hoverable ${isPast ? styles.pastVoteCard : ''}`} 
                   style={{
-                    padding: '18px 20px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '14px',
+                    padding: 0,
+                    marginBottom: '12px',
                     position: 'relative',
-                    background: isPast ? 'rgba(255, 255, 255, 0.65)' : 'var(--surface)',
+                    background: isPast ? '#f8fafc' : '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '14px',
                     cursor: 'pointer',
-                    gap: '12px'
+                    boxShadow: isPast ? 'none' : '0 2px 8px rgba(0, 0, 0, 0.04)',
+                    overflow: 'hidden'
                   }}
                   onClick={() => openModal(e)}
                 >
-                  <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '20px' }}>{isPast ? '🏁' : '🗓️'}</span>
-                      <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.02em', color: isPast ? '#475569' : 'var(--txt)' }}>
-                        {e.title}
-                      </h3>
-                      {isPast ? (
-                        <span className="badge" style={{ backgroundColor: '#e2e8f0', color: '#475569', fontSize: '11px' }}>
-                          종료됨
-                        </span>
-                      ) : isClosed ? (
-                        <span className="badge badge-red" style={{ fontSize: '11px' }}>
-                          마감됨
-                        </span>
-                      ) : (
-                        <span className="badge badge-gold" style={{ fontSize: '11px' }}>
-                          마감 {dlStr}
-                        </span>
-                      )}
-                    </div>
+                  {/* 상단 액센트 그라데이션 라인 (진행중인 투표에만 표시) */}
+                  {!isPast && (
+                    <div 
+                      style={{ 
+                        height: '3.5px', 
+                        width: '100%', 
+                        background: 'linear-gradient(90deg, #007aff 0%, #34c759 100%)' 
+                      }} 
+                    />
+                  )}
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {/* Hero Chips */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
-                          📅 {e.date} ({eventDayName})
-                        </span>
-                        <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
-                          ⏰ {e.startTime} ~ {e.endTime}
-                        </span>
-                        <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
-                          📍 {e.location || '테니스장'}
+                  <div style={{ padding: isPast ? '14px 16px' : '12px 16px 14px 16px' }}>
+                    {/* Row 1: 아이콘 & 타이틀 & 날짜 */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          background: isPast ? '#e2e8f0' : '#e0f2fe',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '19px',
+                          flexShrink: 0
+                        }}>
+                          {isPast ? '🏁' : '📝'}
+                        </div>
+                        <span style={{ 
+                          fontSize: '15.5px', 
+                          fontWeight: 800, 
+                          color: isPast ? '#334155' : '#0f172a',
+                          letterSpacing: '-0.02em'
+                        }}>
+                          {e.title}
                         </span>
                       </div>
 
-                      {/* Attendee Badges */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                        <span className="badge badge-blue" style={{ fontSize: '11px' }}>
-                          참석 {attCount}명
-                        </span>
-                        <span className="badge badge-red" style={{ fontSize: '11px' }}>
-                          불참 {absCount}명
-                        </span>
-                        <span className="badge" style={{ backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '11px' }}>
-                          미정 {unkCount}명
-                        </span>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: 800,
+                        color: isPast ? '#475569' : '#0066ff',
+                        letterSpacing: '-0.01em',
+                        flexShrink: 0
+                      }}>
+                        {e.date} ({eventDayName})
                       </div>
                     </div>
-                  </div>
 
-                  {/* 우측 카드 클릭 안내 쉐브론 */}
-                  <div style={{ display: 'flex', alignItems: 'center', color: 'var(--txt3)', fontSize: '22px', paddingLeft: '8px', flexShrink: 0, fontWeight: 300 }}>
-                    ›
+                    {/* Row 2: 시간 & 장소 */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '12.5px', color: '#475569', fontWeight: 600 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>⏰</span>
+                        <span>{e.startTime} ~ {e.endTime}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>📍</span>
+                        <span>{e.location || '그린테니스장'}</span>
+                      </div>
+                    </div>
+
+                    {/* Row 3: 투표 현황 & 마감 상태 */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {isPast ? (
+                          <>
+                            <span style={{ color: '#334155', fontWeight: 700 }}>참석: {attCount}명</span>
+                            <span style={{ color: '#64748b', fontWeight: 600 }}>불참: {absCount}명</span>
+                            <span style={{ color: '#94a3b8', fontWeight: 500 }}>미정: {unkCount}명</span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ color: '#0066ff', fontWeight: 700 }}>참석: {attCount}명</span>
+                            <span style={{ color: '#ef4444', fontWeight: 700 }}>불참: {absCount}명</span>
+                            <span style={{ color: '#94a3b8', fontWeight: 500 }}>미정: {unkCount}명</span>
+                          </>
+                        )}
+                      </div>
+
+                      <div style={{ flexShrink: 0 }}>
+                        {isPast ? (
+                          <span style={{ color: '#64748b', fontWeight: 600, fontSize: '12px' }}>종료됨</span>
+                        ) : isClosed ? (
+                          <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '12.5px' }}>마감됨</span>
+                        ) : (
+                          <span style={{ color: '#ea580c', fontWeight: 800, fontSize: '12.5px' }}>마감 : {dlStr}</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
