@@ -217,73 +217,74 @@ export default function MembersPage() {
             </div>
           </div>
 
-          {/* ── 2. 서브 탭 전환 버튼 (회원 명단 관리 / 코트비 & 최적 인원 산출기) ── */}
-          <div style={{
-            display: 'flex',
-            gap: '8px',
-            marginBottom: '20px',
-            background: 'rgba(0, 0, 0, 0.05)',
-            padding: '5px',
-            borderRadius: 'var(--radius-full)',
-            width: 'fit-content',
-            maxWidth: '100%',
-            overflowX: 'auto',
-            WebkitOverflowScrolling: 'touch',
-            boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.06)'
-          }}>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('members')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '10px 20px',
-                borderRadius: 'var(--radius-full)',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                background: activeSubTab === 'members' ? '#ffffff' : 'transparent',
-                color: activeSubTab === 'members' ? 'var(--ios-blue)' : 'var(--txt2)',
-                boxShadow: activeSubTab === 'members' ? '0 3px 10px rgba(0, 122, 255, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <MembersIcon size={16} color={activeSubTab === 'members' ? 'var(--ios-blue)' : 'var(--txt2)'} active={activeSubTab === 'members'} />
-              <span>회원 명단 관리</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('finance')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '10px 20px',
-                borderRadius: 'var(--radius-full)',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                background: activeSubTab === 'finance' ? '#ffffff' : 'transparent',
-                color: activeSubTab === 'finance' ? 'var(--ios-blue)' : 'var(--txt2)',
-                boxShadow: activeSubTab === 'finance' ? '0 3px 10px rgba(0, 122, 255, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              🏟️ 코트비 & 최적 인원 산출기
-            </button>
-          </div>
+          {/* ── 2. 서브 탭 전환 버튼 (운영자 전용: 회원 명단 관리 / 코트비 & 최적 인원 산출기) ── */}
+          {isAdmin && (
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '20px',
+              background: 'rgba(0, 0, 0, 0.05)',
+              padding: '5px',
+              borderRadius: 'var(--radius-full)',
+              width: 'fit-content',
+              maxWidth: '100%',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.06)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('members')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '10px 20px',
+                  borderRadius: 'var(--radius-full)',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  background: activeSubTab === 'members' ? '#ffffff' : 'transparent',
+                  color: activeSubTab === 'members' ? 'var(--ios-blue)' : 'var(--txt2)',
+                  boxShadow: activeSubTab === 'members' ? '0 3px 10px rgba(0, 122, 255, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <MembersIcon size={16} color={activeSubTab === 'members' ? 'var(--ios-blue)' : 'var(--txt2)'} active={activeSubTab === 'members'} />
+                <span>회원 명단 관리</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('finance')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '10px 20px',
+                  borderRadius: 'var(--radius-full)',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  background: activeSubTab === 'finance' ? '#ffffff' : 'transparent',
+                  color: activeSubTab === 'finance' ? 'var(--ios-blue)' : 'var(--txt2)',
+                  boxShadow: activeSubTab === 'finance' ? '0 3px 10px rgba(0, 122, 255, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                🏟️ 코트비 & 최적 인원 산출기
+              </button>
+            </div>
+          )}
 
-          {/* ── 3. 회원 명단 탭 ── */}
-          {activeSubTab === 'members' && (
+          {/* ── 3. 회원 명단 탭 (일반 사용자는 기본 표시, 운영자는 members 탭일 때 표시) ── */}
+          {(!isAdmin || activeSubTab === 'members') && (
             <>
-
               {isAdmin && (
                 <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -328,8 +329,8 @@ export default function MembersPage() {
             </>
           )}
 
-          {/* ── 4. 코트비 & 최적 인원 산출기 탭 ── */}
-          {activeSubTab === 'finance' && (
+          {/* ── 4. 코트비 & 최적 인원 산출기 탭 (운영자 전용) ── */}
+          {isAdmin && activeSubTab === 'finance' && (
             <FinanceCalculator
               members={members}
               isAdmin={isAdmin}
