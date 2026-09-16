@@ -283,48 +283,6 @@ export default function MembersPage() {
           {/* ── 3. 회원 명단 탭 ── */}
           {activeSubTab === 'members' && (
             <>
-              {!isAdmin && (
-                <div className="card" style={{
-                  marginBottom: '20px',
-                  padding: '16px 20px',
-                  background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: '14px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '14px',
-                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.08)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '220px', flex: 1 }}>
-                    <span style={{ fontSize: '28px' }}>🔐</span>
-                    <div>
-                      <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '14.5px' }}>운영자(관리자) 로그인 안내</div>
-                      <div style={{ fontSize: '12.5px', color: '#2563eb', marginTop: '2px', lineHeight: 1.4 }}>
-                        신규 회원 등록, 정보(NTRP/직책) 수정, 회원 삭제 및 회비 설정은 <strong>운영자 로그인 후</strong> 이용할 수 있습니다.
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    style={{
-                      padding: '9px 18px',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      borderRadius: '10px',
-                      backgroundColor: '#2563eb',
-                      borderColor: '#2563eb',
-                      whiteSpace: 'nowrap',
-                      boxShadow: '0 3px 8px rgba(37, 99, 235, 0.25)',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => router.push('/login')}
-                  >
-                    🔐 운영자 로그인하기 👉
-                  </button>
-                </div>
-              )}
 
               {isAdmin && (
                 <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
