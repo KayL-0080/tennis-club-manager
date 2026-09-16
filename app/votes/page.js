@@ -256,29 +256,16 @@ export default function VotesPage() {
       }
     }
 
-    const isInitialVote = currentStatus === undefined;
-    const prevChanges = selectedEvent.voteChanges?.[memberId] || 0;
-
-    if (!isAdmin && !isInitialVote && prevChanges >= 1) {
-      alert('일반 사용자는 최초 투표 이후 1회만 변경 가능합니다.');
-      return;
-    }
-
     const newAttendees = { ...(selectedEvent.attendees || {}) };
     newAttendees[memberId] = status;
 
-    const newVoteChanges = { ...(selectedEvent.voteChanges || {}) };
-    if (!isInitialVote) {
-      newVoteChanges[memberId] = prevChanges + 1;
-    }
-
-    setSelectedEvent({ ...selectedEvent, attendees: newAttendees, voteChanges: newVoteChanges });
+    setSelectedEvent({ ...selectedEvent, attendees: newAttendees });
     
     // Optimistically update list
-    setEvents(prev => prev.map(e => e.id === selectedEvent.id ? { ...e, attendees: newAttendees, voteChanges: newVoteChanges } : e));
+    setEvents(prev => prev.map(e => e.id === selectedEvent.id ? { ...e, attendees: newAttendees } : e));
     
-    // Save to DB (using updateEvent to update both fields)
-    await updateEvent('shared', selectedEvent.id, { attendees: newAttendees, voteChanges: newVoteChanges });
+    // Save to DB
+    await updateEvent('shared', selectedEvent.id, { attendees: newAttendees });
   };
 
   const saveEdit = async () => {
@@ -409,9 +396,6 @@ export default function VotesPage() {
           <div>
             <h1 className={styles.title}>🗓️ 참석 투표</h1>
             <p className={styles.sub}>다가오는 정기 모임 일정을 확인하고 참석 여부를 투표하세요</p>
-            <p style={{ color: 'var(--ios-red)', fontSize: '13px', marginTop: '6px', fontWeight: '700' }}>
-              ※ 일반 사용자는 최초 투표 이후 1회 추가 변경만 가능합니다.
-            </p>
           </div>
           <div className="votes-controls-bar">
             <div className="votes-month-select-wrap">
