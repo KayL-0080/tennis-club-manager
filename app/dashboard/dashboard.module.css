@@ -508,6 +508,10 @@
     gap: 8px;
   }
 
+  .heroActions > button:only-child {
+    grid-column: 1 / -1;
+  }
+
   .heroBtn {
     width: 100%;
     padding: 10px 8px;

@@ -315,14 +315,16 @@ export default function Dashboard() {
                   <span>대진표 만들기</span>
                 </button>
               )}
-              <button 
-                className={`btn btn-secondary ${styles.heroBtn}`} 
-                onClick={() => router.push('/posters')}
-                title="회원모집/게스트/코트양도 카드 이미지 제작"
-              >
-                <span>🎨</span>
-                <span>이미지 제작</span>
-              </button>
+              {isAdmin && (
+                <button 
+                  className={`btn btn-secondary ${styles.heroBtn}`} 
+                  onClick={() => router.push('/posters')}
+                  title="회원모집/게스트/코트양도 카드 이미지 제작"
+                >
+                  <span>🎨</span>
+                  <span>이미지 제작</span>
+                </button>
+              )}
             </div>
           </div>
         </section>
