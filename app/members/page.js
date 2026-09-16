@@ -7,7 +7,7 @@ import {
   getClubSettings, updateClubSettings
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
-import { PageHeaderIcon, MembersIcon } from '@/components/Icons';
+import { PageHeaderIcon, MembersIcon, LockIcon } from '@/components/Icons';
 import MembersTab from '@/components/tabs/MembersTab';
 import FinanceCalculator from '@/components/FinanceCalculator';
 import styles from '../dashboard/dashboard.module.css';
@@ -147,10 +147,22 @@ export default function MembersPage() {
               </span>
             ) : (
               <button
+                type="button"
                 className="btn btn-primary btn-sm"
                 onClick={() => router.push('/login')}
+                title="운영자 로그인"
+                aria-label="운영자 로그인"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '34px',
+                  height: '32px',
+                  padding: 0,
+                  borderRadius: '10px'
+                }}
               >
-                🔐 운영자 로그인
+                <LockIcon size={15} color="#ffffff" />
               </button>
             )}
             <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>대시보드</button>

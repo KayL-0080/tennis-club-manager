@@ -333,3 +333,24 @@ export function NoticeIcon({ size = 18, color = '#2563eb', className = '', style
   );
 }
 
+export function LockIcon({ size = 15, color = 'currentColor', className = '', style = {} }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke={color} 
+      strokeWidth="2.2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+    >
+      <rect x="3" y="11" width="18" height="11" rx="2.5" ry="2.5" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
+
+

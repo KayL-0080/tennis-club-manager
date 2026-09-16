@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import ManualModal from './ManualModal';
 import InstallAppModal from './InstallAppModal';
-import { HomeIcon, StatsIcon, VoteIcon, TrophyIcon, MembersIcon, ManualIcon, InstallIcon } from './Icons';
+import { HomeIcon, StatsIcon, VoteIcon, TrophyIcon, MembersIcon, ManualIcon, InstallIcon, LockIcon } from './Icons';
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
@@ -220,11 +220,13 @@ export default function Navbar() {
               </div>
             ) : (
               <button 
+                type="button"
                 className="btn btn-secondary btn-sm" 
-                style={{ width: '100%', fontSize: '11px', opacity: 0.8 }}
+                style={{ width: '100%', fontSize: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                 onClick={() => router.push('/login')}
               >
-                🔐 운영자 로그인
+                <LockIcon size={14} />
+                <span>운영자 로그인</span>
               </button>
             )}
           </div>
@@ -246,19 +248,26 @@ export default function Navbar() {
               </div>
             ) : (
               <button
+                type="button"
                 className="btn btn-primary btn-sm"
                 style={{ 
-                  fontSize: '11px', 
-                  padding: '4px 10px', 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '32px',
                   height: '28px', 
-                  whiteSpace: 'nowrap',
-                  fontWeight: 'bold',
+                  padding: 0,
                   backgroundColor: '#2563eb',
-                  borderColor: '#2563eb'
+                  borderColor: '#2563eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
+                  cursor: 'pointer'
                 }}
                 onClick={() => router.push('/login')}
+                title="운영자 로그인"
+                aria-label="운영자 로그인"
               >
-                🔐 운영자 로그인
+                <LockIcon size={15} color="#ffffff" />
               </button>
             )}
           </div>
