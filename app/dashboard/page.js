@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getSchedules, createSchedule, deleteSchedule, getMembers, initDefaultMembers, getEvents, getTournaments } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import SettingsTab from '@/components/tabs/SettingsTab';
+import { HomeIcon, StatsIcon, TrophyIcon, MembersIcon } from '@/components/Icons';
 import styles from './dashboard.module.css';
 
 const formatDateToYMD = (d = new Date()) => {
@@ -274,11 +275,11 @@ export default function Dashboard() {
               <p className={styles.heroSub}>NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리</p>
               <div className={styles.heroChips}>
                 <span className={styles.heroChip}>
-                  <span className={styles.heroChipIcon}>👥</span>
+                  <span className={styles.heroChipIcon}><MembersIcon size={15} active color="#0284c7" /></span>
                   <span className={styles.heroChipText}>등록 회원 <strong>{members.length}</strong>명</span>
                 </span>
                 <span className={styles.heroChip}>
-                  <span className={styles.heroChipIcon}>🎾</span>
+                  <span className={styles.heroChipIcon}><HomeIcon size={15} active color="#16a34a" /></span>
                   <span className={styles.heroChipText}>등록 대진표 <strong>{schedules.length}</strong>개</span>
                 </span>
                 <span 
@@ -287,7 +288,7 @@ export default function Dashboard() {
                   style={{ cursor: 'pointer' }}
                   title="정기 대회 관리 화면으로 이동"
                 >
-                  <span className={styles.heroChipIcon}>🏆</span>
+                  <span className={styles.heroChipIcon}><TrophyIcon size={15} active color="#d97706" /></span>
                   <span className={styles.heroChipText}>
                     정기 대회{' '}
                     <strong style={{ color: tournamentStatus === '진행중' ? '#16a34a' : tournamentStatus === '진행 없음' ? 'var(--txt3)' : 'inherit' }}>
@@ -302,7 +303,7 @@ export default function Dashboard() {
                 className={`btn ${activeTab === 'list' ? 'btn-primary' : 'btn-secondary'} ${styles.heroBtn}`} 
                 onClick={() => setActiveTab('list')}
               >
-                <span>📊</span>
+                <HomeIcon size={16} active={activeTab === 'list'} />
                 <span>대진표 목록</span>
               </button>
               {isAdmin && (

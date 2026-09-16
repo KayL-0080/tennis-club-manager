@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import ManualModal from './ManualModal';
 import InstallAppModal from './InstallAppModal';
+import { HomeIcon, StatsIcon, VoteIcon, TrophyIcon, MembersIcon, ManualIcon, InstallIcon } from './Icons';
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
@@ -90,12 +91,12 @@ export default function Navbar() {
   };
 
   const menuItems = [
-    { name: '🎾 대진표 목록', path: '/dashboard' },
-    { name: '📊 통계 대시보드', path: '/stats' },
-    { name: '🗓️ 참석 투표', path: '/votes' },
-    { name: '🏆 정기 대회', path: '/tournaments' },
-    { name: '👥 회원 관리', path: '/members' },
-    { name: '📖 이용 매뉴얼', path: '/manual' },
+    { name: '대진표 목록', path: '/dashboard', Icon: HomeIcon },
+    { name: '통계 대시보드', path: '/stats', Icon: StatsIcon },
+    { name: '참석 투표', path: '/votes', Icon: VoteIcon },
+    { name: '정기 대회', path: '/tournaments', Icon: TrophyIcon },
+    { name: '회원 관리', path: '/members', Icon: MembersIcon },
+    { name: '이용 매뉴얼', path: '/manual', Icon: ManualIcon },
   ];
 
   return (
@@ -137,7 +138,7 @@ export default function Navbar() {
                 className={styles.headerActionBtn}
                 title="사용자 & 운영자 이용 매뉴얼"
               >
-                <span style={{ fontSize: '12px' }}>📖</span>
+                <ManualIcon size={13} color="#1e293b" />
                 <span>매뉴얼</span>
               </button>
 
@@ -147,7 +148,7 @@ export default function Navbar() {
                 className={`${styles.headerActionBtn} ${styles.headerInstallBtn}`}
                 title="모바일 홈 화면에 바로가기 앱 추가"
               >
-                <span style={{ fontSize: '12px' }}>📲</span>
+                <InstallIcon size={13} color="#15803d" />
                 <span>홈화면추가</span>
               </button>
             </div>
@@ -157,6 +158,7 @@ export default function Navbar() {
           <div className={styles.desktopMenu}>
             {menuItems.map((item) => {
               const active = pathname === item.path || pathname.startsWith(item.path + '/');
+              const ItemIcon = item.Icon;
               return (
                 <button
                   key={item.path}
@@ -168,11 +170,15 @@ export default function Navbar() {
                     borderRadius: 'var(--radius-full)', 
                     fontSize: '13px', 
                     margin: '3px 0',
-                    fontWeight: active ? '700' : '500'
+                    fontWeight: active ? '700' : '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '9px'
                   }}
                   onClick={() => router.push(item.path)}
                 >
-                  {item.name}
+                  <ItemIcon active={active} size={17} />
+                  <span>{item.name}</span>
                 </button>
               );
             })}
@@ -262,23 +268,33 @@ export default function Navbar() {
       {/* Mobile Bottom Tab */}
       <div className={`no-print ${styles.mobileBottomTab}`}>
         <button className={`${styles.tabBtn} ${pathname === '/dashboard' ? styles.active : ''}`} onClick={() => router.push('/dashboard')}>
-          <div className={styles.tabIcon}>🎾</div>
+          <div className={styles.tabIcon}>
+            <HomeIcon active={pathname === '/dashboard'} size={23} />
+          </div>
           <span>홈</span>
         </button>
         <button className={`${styles.tabBtn} ${pathname.startsWith('/stats') ? styles.active : ''}`} onClick={() => router.push('/stats')}>
-          <div className={styles.tabIcon}>📊</div>
+          <div className={styles.tabIcon}>
+            <StatsIcon active={pathname.startsWith('/stats')} size={23} />
+          </div>
           <span>통계</span>
         </button>
         <button className={`${styles.tabBtn} ${pathname.startsWith('/votes') ? styles.active : ''}`} onClick={() => router.push('/votes')}>
-          <div className={styles.tabIcon}>🗓️</div>
+          <div className={styles.tabIcon}>
+            <VoteIcon active={pathname.startsWith('/votes')} size={23} />
+          </div>
           <span>투표</span>
         </button>
         <button className={`${styles.tabBtn} ${pathname.startsWith('/tournaments') ? styles.active : ''}`} onClick={() => router.push('/tournaments')}>
-          <div className={styles.tabIcon}>🏆</div>
+          <div className={styles.tabIcon}>
+            <TrophyIcon active={pathname.startsWith('/tournaments')} size={23} />
+          </div>
           <span>대회</span>
         </button>
         <button className={`${styles.tabBtn} ${pathname.startsWith('/members') ? styles.active : ''}`} onClick={() => router.push('/members')}>
-          <div className={styles.tabIcon}>👥</div>
+          <div className={styles.tabIcon}>
+            <MembersIcon active={pathname.startsWith('/members')} size={23} />
+          </div>
           <span>회원</span>
         </button>
       </div>

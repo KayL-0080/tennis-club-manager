@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getMembers, getSchedules, getTournaments, initDefaultMembers, getRankingRules, updateRankingRules } from '@/lib/firestore';
 import { computeGlobalStandings } from '@/lib/scheduler';
 import Navbar from '@/components/Navbar';
+import { PageHeaderIcon, TrophyIcon, StatsIcon } from '@/components/Icons';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function StatsPage() {
@@ -205,7 +206,10 @@ export default function StatsPage() {
       <main className={styles.main}>
         <div className={styles.header}>
           <div>
-            <h1 className={styles.title}>📊 통계 대시보드</h1>
+            <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center' }}>
+              <PageHeaderIcon type="stats" />
+              <span>통계 대시보드</span>
+            </h1>
             <p className={styles.sub}>조회 기간 동안의 클럽 정기 모임 및 분기 대회 결과를 통합 집계합니다.</p>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -734,7 +738,10 @@ export default function StatsPage() {
         {top3.length > 0 && (
           <div style={{ marginBottom: '22px' }}>
             <div className="section-head" style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.98rem', fontWeight: 800 }}>🏆 명예의 전당 (Top 3)</span>
+              <span style={{ fontSize: '0.98rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <TrophyIcon size={18} color="#d97706" active />
+                <span>명예의 전당 (Top 3)</span>
+              </span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
               {top3.map((s, idx) => (
@@ -807,8 +814,9 @@ export default function StatsPage() {
         <div className="card" style={{ padding: '18px 20px', borderRadius: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
-                📋 전체 순위표
+              <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <StatsIcon size={18} color="#2563eb" active />
+                <span>전체 순위표</span>
               </h2>
               <span style={{ fontSize: '11.5px', color: 'var(--ios-blue)', backgroundColor: 'rgba(0, 122, 255, 0.08)', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
                 총 {filteredStandings.length}명

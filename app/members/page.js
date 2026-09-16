@@ -7,6 +7,7 @@ import {
   getClubSettings, updateClubSettings
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
+import { PageHeaderIcon, MembersIcon } from '@/components/Icons';
 import MembersTab from '@/components/tabs/MembersTab';
 import FinanceCalculator from '@/components/FinanceCalculator';
 import styles from '../dashboard/dashboard.module.css';
@@ -133,7 +134,10 @@ export default function MembersPage() {
       <main className={styles.main}>
         <div className={styles.header}>
           <div>
-            <h1 className={styles.title}>👥 회원 관리</h1>
+            <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <PageHeaderIcon type="members" />
+              <span>회원 관리</span>
+            </h1>
             <p className={styles.sub}>클럽 정회원/준회원/게스트 명단과 회비 납부 현황을 관리합니다.</p>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -236,7 +240,8 @@ export default function MembersPage() {
                 whiteSpace: 'nowrap'
               }}
             >
-              👥 회원 명단 관리
+              <MembersIcon size={16} color={activeSubTab === 'members' ? 'var(--ios-blue)' : 'var(--txt2)'} active={activeSubTab === 'members'} />
+              <span>회원 명단 관리</span>
             </button>
             <button
               type="button"

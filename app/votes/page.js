@@ -7,6 +7,7 @@ import {
   getMeetingRules, updateMeetingRules
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
+import { PageHeaderIcon, VoteIcon } from '@/components/Icons';
 import styles from '../dashboard/dashboard.module.css';
 
 const formatDateToYMD = (d = new Date()) => {
@@ -394,7 +395,10 @@ export default function VotesPage() {
       <main className={styles.main}>
         <div className={styles.header}>
           <div>
-            <h1 className={styles.title}>🗓️ 참석 투표</h1>
+            <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <PageHeaderIcon type="votes" />
+              <span>참석 투표</span>
+            </h1>
             <p className={styles.sub}>다가오는 정기 모임 일정을 확인하고 참석 여부를 투표하세요</p>
           </div>
           <div className="votes-controls-bar">
@@ -508,7 +512,7 @@ export default function VotesPage() {
                           fontSize: '19px',
                           flexShrink: 0
                         }}>
-                          {isPast ? '🏁' : '📝'}
+                          {isPast ? '🏁' : <VoteIcon size={20} color="#0284c7" active />}
                         </div>
                         <span style={{ 
                           fontSize: '15.5px', 

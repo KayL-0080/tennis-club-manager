@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getTournaments, createTournament, deleteTournament, getEvents, getMembers } from '@/lib/firestore';
 import { generateTournamentResultShareText } from '@/lib/tournamentUtils';
 import Navbar from '@/components/Navbar';
+import { PageHeaderIcon, TrophyIcon } from '@/components/Icons';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function TournamentsPage() {
@@ -108,7 +109,10 @@ export default function TournamentsPage() {
       <main className={styles.main}>
         <div className={styles.header}>
           <div>
-            <h1 className={styles.title}>🏆 정기 대회 관리</h1>
+            <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <PageHeaderIcon type="tournaments" />
+              <span>정기 대회 관리</span>
+            </h1>
             <p className={styles.sub}>동호회 자체 대회를 개설하고 팀/개인전 대진표를 관리합니다.</p>
           </div>
           {isAdmin && (
@@ -121,7 +125,9 @@ export default function TournamentsPage() {
         <div className={styles.list}>
           {tournaments.length === 0 ? (
             <div className="card" style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--txt2)' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🏆</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+                <TrophyIcon size={44} color="#94a3b8" />
+              </div>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--txt)', marginBottom: '6px' }}>아직 개설된 정기 대회가 없습니다</h3>
               <p style={{ fontSize: '0.85rem' }}>새 대회 생성 버튼을 눌러 첫 번째 토너먼트를 개설해 보세요.</p>
             </div>
@@ -142,8 +148,9 @@ export default function TournamentsPage() {
                 onClick={() => router.push('/tournaments/' + t.id)}
               >
                 <div>
-                  <h3 style={{ margin: '0 0 10px 0', fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--txt)' }}>
-                    🏆 {t.title}
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <TrophyIcon size={18} color="#d97706" active />
+                    <span>{t.title}</span>
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
