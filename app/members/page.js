@@ -7,14 +7,16 @@ import {
   getClubSettings, updateClubSettings
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
-import { PageHeaderIcon, MembersIcon, LockIcon } from '@/components/Icons';
+import { PageHeaderIcon, MembersIcon, LockIcon, IconClipboardList } from '@/components/Icons';
 import MembersTab from '@/components/tabs/MembersTab';
 import FinanceCalculator from '@/components/FinanceCalculator';
+import RoleDutiesModal from '@/components/RoleDutiesModal';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function MembersPage() {
   const { isAdmin } = useAuth();
   const router = useRouter();
+  const [showRolesModal, setShowRolesModal] = useState(false);
   const [members, setMembers] = useState([]);
   const [currentClub, setCurrentClub] = useState(null);
   const [fetching, setFetching] = useState(true);
@@ -140,7 +142,29 @@ export default function MembersPage() {
             </h1>
             <p className={styles.sub}>클럽 정회원/준회원/게스트 명단과 회비 납부 현황을 관리합니다.</p>
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 700,
+                fontSize: '12.5px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                backgroundColor: '#ffffff',
+                borderColor: '#bfdbfe',
+                color: '#1d4ed8',
+                boxShadow: '0 1px 3px rgba(29, 78, 216, 0.08)'
+              }}
+              onClick={() => setShowRolesModal(true)}
+              title="운영진 5대 직책별 주요 업무 및 협업 체계 가이드 보기"
+            >
+              <IconClipboardList size={15} color="#1d4ed8" />
+              <span>직책별 주요 업무</span>
+            </button>
             {isAdmin ? (
               <span className="badge badge-blue" style={{ fontSize: '12px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 👑 운영자 모드
@@ -325,6 +349,7 @@ export default function MembersPage() {
                 isAdmin={isAdmin}
                 currentClub={currentClub}
                 onBulkUpdateFeeStatus={handleBulkFeeUpdate}
+                onOpenRolesModal={() => setShowRolesModal(true)}
               />
             </>
           )}
@@ -341,6 +366,12 @@ export default function MembersPage() {
 
         </div>
       </main>
+
+      {/* ── 직책별 주요 업무 가이드 모달 ── */}
+      <RoleDutiesModal
+        isOpen={showRolesModal}
+        onClose={() => setShowRolesModal(false)}
+      />
     </div>
   );
 }

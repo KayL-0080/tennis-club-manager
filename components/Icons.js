@@ -374,5 +374,51 @@ export function LogoutIcon({ size = 15, color = 'currentColor', className = '', 
   );
 }
 
+export function IconClipboardList({ size = 18, color = 'currentColor', className = '', style = {} }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke={color} 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+    >
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <path d="M12 11h4" />
+      <path d="M12 16h4" />
+      <path d="M8 11h.01" />
+      <path d="M8 16h.01" />
+    </svg>
+  );
+}
+export const ClipboardListIcon = IconClipboardList;
+
+export function IconChevronDown({ size = 18, color = 'currentColor', className = '', style = {} }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke={color} 
+      strokeWidth="2.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+export const ChevronDownIcon = IconChevronDown;
+
+
 
 

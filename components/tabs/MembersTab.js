@@ -1,17 +1,17 @@
 // components/tabs/MembersTab.js — 전체 회원 관리
 'use client';
 import { useState } from 'react';
-import { UserPlusIcon, CheckCircleIcon, RefreshIcon, NoticeIcon } from '@/components/Icons';
+import { UserPlusIcon, CheckCircleIcon, RefreshIcon, NoticeIcon, IconClipboardList } from '@/components/Icons';
 import styles from './tabs.module.css';
 
 const NTRP_OPTIONS = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
-const ROLE_OPTIONS = ['회장', '부회장', '총무', '경기이사', '정회원', '준회원', '게스트'];
+const ROLE_OPTIONS = ['회장', '부회장', '총무', '경기이사', '운영이사', '행사담당', '정회원', '준회원', '게스트'];
 
-export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDelete, isAdmin, currentClub, onBulkUpdateFeeStatus }) {
+export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDelete, isAdmin, currentClub, onBulkUpdateFeeStatus, onOpenRolesModal }) {
 
   const sortedMembers = [...members].sort((a, b) => {
     // 1. 특정 직책 상단 고정 및 준회원/게스트 하단 배치
-    const rolePriority = { '회장': 1, '부회장': 2, '총무': 3, '경기이사': 4, '정회원': 10, '준회원': 998, '게스트': 999 };
+    const rolePriority = { '회장': 1, '부회장': 2, '총무': 3, '경기이사': 4, '운영이사': 5, '행사담당': 6, '정회원': 10, '준회원': 998, '게스트': 999 };
     const pA = rolePriority[a.role] || 99;
     const pB = rolePriority[b.role] || 99;
     if (pA !== pB) return pA - pB;
@@ -89,7 +89,18 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
               총 {members.length}명 (남 {members.filter(m => m.gender === 'M').length} / 여 {members.filter(m => m.gender === 'F').length})
             </span>
           </div>
-          <span className={styles.sectionNote}>(전체 회원 명부 — 정기대회 및 모임 참가자 기준)</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className={styles.btnRoleDuties}
+              onClick={onOpenRolesModal}
+              title="운영진 5대 직책별 주요 업무 및 협업 체계 가이드 보기"
+            >
+              <IconClipboardList size={16} color="#1d4ed8" />
+              <span>직책별 주요 업무</span>
+            </button>
+            <span className={styles.sectionNote}>(전체 회원 명부 — 정기대회 및 모임 참가자 기준)</span>
+          </div>
         </div>
 
         <div className="table-wrap">
