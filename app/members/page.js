@@ -379,8 +379,6 @@ export default function MembersPage() {
                 isAdmin={isAdmin}
                 currentClub={currentClub}
                 onBulkUpdateFeeStatus={handleBulkFeeUpdate}
-                onOpenRolesModal={() => setShowRolesModal(true)}
-                onOpenRulesModal={() => setShowRulesModal(true)}
               />
             </>
           )}
