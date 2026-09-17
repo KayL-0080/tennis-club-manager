@@ -419,6 +419,23 @@ export function IconChevronDown({ size = 18, color = 'currentColor', className =
 }
 export const ChevronDownIcon = IconChevronDown;
 
-
-
-
+export function IconBookOpen({ size = 18, color = 'currentColor', className = '', style = {} }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke={color} 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+    >
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </svg>
+  );
+}
+export const BookOpenIcon = IconBookOpen;

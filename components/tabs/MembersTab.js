@@ -1,13 +1,13 @@
 // components/tabs/MembersTab.js — 전체 회원 관리
 'use client';
 import { useState } from 'react';
-import { UserPlusIcon, CheckCircleIcon, RefreshIcon, NoticeIcon, IconClipboardList } from '@/components/Icons';
+import { UserPlusIcon, CheckCircleIcon, RefreshIcon, NoticeIcon, IconClipboardList, IconBookOpen } from '@/components/Icons';
 import styles from './tabs.module.css';
 
 const NTRP_OPTIONS = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
 const ROLE_OPTIONS = ['회장', '부회장', '총무', '경기이사', '운영이사', '행사담당', '정회원', '준회원', '게스트'];
 
-export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDelete, isAdmin, currentClub, onBulkUpdateFeeStatus, onOpenRolesModal }) {
+export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDelete, isAdmin, currentClub, onBulkUpdateFeeStatus, onOpenRolesModal, onOpenRulesModal }) {
 
   const sortedMembers = [...members].sort((a, b) => {
     // 1. 특정 직책 상단 고정 및 준회원/게스트 하단 배치
@@ -98,6 +98,15 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
             >
               <IconClipboardList size={16} color="#1d4ed8" />
               <span>직책별 주요 업무</span>
+            </button>
+            <button
+              type="button"
+              className={styles.btnRoleDuties}
+              onClick={onOpenRulesModal}
+              title="테친회 동호회 공식 회칙 및 역대 개정 이력 보기"
+            >
+              <IconBookOpen size={16} color="#1d4ed8" />
+              <span>동호회 회칙</span>
             </button>
             <span className={styles.sectionNote}>(전체 회원 명부 — 정기대회 및 모임 참가자 기준)</span>
           </div>
