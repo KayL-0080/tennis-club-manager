@@ -113,7 +113,7 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
                 <th style={{ minWidth: 80, textAlign: 'center' }}>생년</th>
                 <th style={{ minWidth: 100, textAlign: 'center' }}>테니스 시작</th>
                 {isAdmin && <th style={{ minWidth: 75, textAlign: 'center' }}>NTRP</th>}
-                <th style={{ minWidth: 90, textAlign: 'center' }}>회비 납부</th>
+                {isAdmin && <th style={{ minWidth: 90, textAlign: 'center' }}>회비 납부</th>}
                 {isAdmin && <th style={{ width: 60, textAlign: 'center' }}>관리</th>}
               </tr>
             </thead>
@@ -121,49 +121,84 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
               {sortedMembers.map(p => (
                 <tr key={p.id}>
                   <td>
-                    <input className="input input-sm" type="text" value={p.name} style={{ width: 95, fontWeight: 700 }}
-                      disabled={!isAdmin}
-                      onChange={e => onUpdateLocal(p.id, { name: e.target.value })}
-                      onBlur={e => onSave(p.id, { name: e.target.value })} />
+                    {isAdmin ? (
+                      <input className="input input-sm" type="text" value={p.name} style={{ width: 95, fontWeight: 700 }}
+                        disabled={!isAdmin}
+                        onChange={e => onUpdateLocal(p.id, { name: e.target.value })}
+                        onBlur={e => onSave(p.id, { name: e.target.value })} />
+                    ) : (
+                      <strong style={{ color: 'var(--txt)', fontSize: '13.5px' }}>{p.name}</strong>
+                    )}
                   </td>
                   <td>
-                    <select className="select input-sm" value={p.role || '정회원'} style={{ width: 90, fontWeight: 600 }}
-                      disabled={!isAdmin}
-                      onChange={e => { onUpdateLocal(p.id, { role: e.target.value }); onSave(p.id, { role: e.target.value }); }}>
-                      {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    {isAdmin ? (
+                      <select className="select input-sm" value={p.role || '정회원'} style={{ width: 90, fontWeight: 600 }}
+                        disabled={!isAdmin}
+                        onChange={e => { onUpdateLocal(p.id, { role: e.target.value }); onSave(p.id, { role: e.target.value }); }}>
+                        {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    ) : (
+                      <span className="badge" style={{
+                        background: p.role === '회장' || p.role === '부회장' ? '#eff6ff' : p.role === '총무' ? '#f0fdf4' : p.role === '고문' ? '#faf5ff' : '#f8fafc',
+                        color: p.role === '회장' || p.role === '부회장' ? '#1d4ed8' : p.role === '총무' ? '#15803d' : p.role === '고문' ? '#7e22ce' : '#475569',
+                        border: `1px solid ${p.role === '회장' || p.role === '부회장' ? '#bfdbfe' : p.role === '총무' ? '#bbf7d0' : p.role === '고문' ? '#e9d5ff' : '#cbd5e1'}`,
+                        fontWeight: 600,
+                        fontSize: '12px',
+                        padding: '3px 8px'
+                      }}>
+                        {p.role || '정회원'}
+                      </span>
+                    )}
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <select className="select input-sm" value={p.gender} style={{ width: 60, textAlign: 'center', fontWeight: 600, color: p.gender === 'F' ? '#e11d48' : '#2563eb' }}
-                      disabled={!isAdmin}
-                      onChange={e => { onUpdateLocal(p.id, { gender: e.target.value }); onSave(p.id, { gender: e.target.value }); }}>
-                      <option value="M">남</option>
-                      <option value="F">여</option>
-                    </select>
+                    {isAdmin ? (
+                      <select className="select input-sm" value={p.gender} style={{ width: 60, textAlign: 'center', fontWeight: 600, color: p.gender === 'F' ? '#e11d48' : '#2563eb' }}
+                        disabled={!isAdmin}
+                        onChange={e => { onUpdateLocal(p.id, { gender: e.target.value }); onSave(p.id, { gender: e.target.value }); }}>
+                        <option value="M">남</option>
+                        <option value="F">여</option>
+                      </select>
+                    ) : (
+                      <span style={{ fontWeight: 700, fontSize: '13px', color: p.gender === 'F' ? '#e11d48' : '#2563eb' }}>
+                        {p.gender === 'F' ? '여' : '남'}
+                      </span>
+                    )}
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <input 
-                      className="input input-sm" 
-                      type="text" 
-                      value={p.birthYear || ''} 
-                      placeholder="예: 1988"
-                      style={{ width: 80, textAlign: 'center' }}
-                      disabled={!isAdmin}
-                      onChange={e => onUpdateLocal(p.id, { birthYear: e.target.value })}
-                      onBlur={e => onSave(p.id, { birthYear: e.target.value })} 
-                    />
+                    {isAdmin ? (
+                      <input 
+                        className="input input-sm" 
+                        type="text" 
+                        value={p.birthYear || ''} 
+                        placeholder="예: 1988"
+                        style={{ width: 80, textAlign: 'center' }}
+                        disabled={!isAdmin}
+                        onChange={e => onUpdateLocal(p.id, { birthYear: e.target.value })}
+                        onBlur={e => onSave(p.id, { birthYear: e.target.value })} 
+                      />
+                    ) : (
+                      <span style={{ fontSize: '13px', color: p.birthYear ? 'var(--txt)' : 'var(--txt3)' }}>
+                        {p.birthYear || '-'}
+                      </span>
+                    )}
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <input 
-                      className="input input-sm" 
-                      type="text" 
-                      value={p.tennisStartedAt || ''} 
-                      placeholder="예: 2021.05"
-                      style={{ width: 95, textAlign: 'center' }}
-                      disabled={!isAdmin}
-                      onChange={e => onUpdateLocal(p.id, { tennisStartedAt: e.target.value })}
-                      onBlur={e => onSave(p.id, { tennisStartedAt: e.target.value })} 
-                    />
+                    {isAdmin ? (
+                      <input 
+                        className="input input-sm" 
+                        type="text" 
+                        value={p.tennisStartedAt || ''} 
+                        placeholder="예: 2021.05"
+                        style={{ width: 95, textAlign: 'center' }}
+                        disabled={!isAdmin}
+                        onChange={e => onUpdateLocal(p.id, { tennisStartedAt: e.target.value })}
+                        onBlur={e => onSave(p.id, { tennisStartedAt: e.target.value })} 
+                      />
+                    ) : (
+                      <span style={{ fontSize: '13px', color: p.tennisStartedAt ? 'var(--txt)' : 'var(--txt3)' }}>
+                        {p.tennisStartedAt || '-'}
+                      </span>
+                    )}
                   </td>
                   {isAdmin && (
                     <td style={{ textAlign: 'center' }}>
@@ -174,28 +209,30 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
                       </select>
                     </td>
                   )}
-                  <td style={{ textAlign: 'center' }}>
-                    <select 
-                      className="select input-sm" 
-                      value={p.feePaid ? 'true' : 'false'} 
-                      style={{ 
-                        width: 86, 
-                        textAlign: 'center', 
-                        fontWeight: 700,
-                        color: p.feePaid ? '#15803d' : '#dc2626',
-                        backgroundColor: p.feePaid ? 'rgba(22, 163, 74, 0.08)' : 'rgba(220, 38, 38, 0.08)',
-                        borderColor: p.feePaid ? 'rgba(22, 163, 74, 0.3)' : 'rgba(220, 38, 38, 0.3)'
-                      }}
-                      disabled={!isAdmin}
-                      onChange={e => { 
-                        const val = e.target.value === 'true';
-                        onUpdateLocal(p.id, { feePaid: val }); 
-                        onSave(p.id, { feePaid: val }); 
-                      }}>
-                      <option value="false">미납</option>
-                      <option value="true">납부완료</option>
-                    </select>
-                  </td>
+                  {isAdmin && (
+                    <td style={{ textAlign: 'center' }}>
+                      <select 
+                        className="select input-sm" 
+                        value={p.feePaid ? 'true' : 'false'} 
+                        style={{ 
+                          width: 86, 
+                          textAlign: 'center', 
+                          fontWeight: 700,
+                          color: p.feePaid ? '#15803d' : '#dc2626',
+                          backgroundColor: p.feePaid ? 'rgba(22, 163, 74, 0.08)' : 'rgba(220, 38, 38, 0.08)',
+                          borderColor: p.feePaid ? 'rgba(22, 163, 74, 0.3)' : 'rgba(220, 38, 38, 0.3)'
+                        }}
+                        disabled={!isAdmin}
+                        onChange={e => { 
+                          const val = e.target.value === 'true';
+                          onUpdateLocal(p.id, { feePaid: val }); 
+                          onSave(p.id, { feePaid: val }); 
+                        }}>
+                        <option value="false">미납</option>
+                        <option value="true">납부완료</option>
+                      </select>
+                    </td>
+                  )}
                   {isAdmin && (
                     <td style={{ textAlign: 'center' }}>
                       <button className="btn btn-danger btn-sm" style={{ padding: '3px 8px', fontSize: '11px' }} onClick={() => onDelete(p.id)} type="button">삭제</button>
@@ -269,7 +306,7 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
             gap: '8px'
           }}>
             <span style={{ fontSize: '12.5px', color: 'var(--txt3)', fontWeight: 600 }}>
-              💡 회원 추가 및 회비 상태 변경은 클럽 운영자(관리자) 로그인 후 이용할 수 있습니다.
+              💡 회원 정보 수정 및 신규 등록은 클럽 운영자(관리자) 로그인 후 이용할 수 있습니다.
             </span>
           </div>
         )}

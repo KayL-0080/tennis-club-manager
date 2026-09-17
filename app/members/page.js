@@ -140,7 +140,9 @@ export default function MembersPage() {
               <PageHeaderIcon type="members" />
               <span>회원 관리</span>
             </h1>
-            <p className={styles.sub}>클럽 정회원/준회원/게스트 명단과 회비 납부 현황을 관리합니다.</p>
+            <p className={styles.sub}>
+              {isAdmin ? '클럽 정회원/준회원/게스트 명단과 회비 납부 현황을 관리합니다.' : '클럽 정회원/준회원/게스트 회원 명부입니다.'}
+            </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
@@ -234,9 +236,11 @@ export default function MembersPage() {
                     🙋 게스트 {guestCount}명
                   </span>
                 )}
-                <span className="badge" style={{ background: unpaidCount === 0 ? '#f0fdf4' : '#fef2f2', color: unpaidCount === 0 ? '#15803d' : '#b91c1c', border: `1px solid ${unpaidCount === 0 ? '#bbf7d0' : '#fecaca'}`, padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}>
-                  {unpaidCount === 0 ? '✅ 회비 전원 완납' : `💰 미납 ${unpaidCount}명`}
-                </span>
+                {isAdmin && (
+                  <span className="badge" style={{ background: unpaidCount === 0 ? '#f0fdf4' : '#fef2f2', color: unpaidCount === 0 ? '#15803d' : '#b91c1c', border: `1px solid ${unpaidCount === 0 ? '#bbf7d0' : '#fecaca'}`, padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}>
+                    {unpaidCount === 0 ? '✅ 회비 전원 완납' : `💰 미납 ${unpaidCount}명`}
+                  </span>
+                )}
               </div>
             </div>
           </div>
