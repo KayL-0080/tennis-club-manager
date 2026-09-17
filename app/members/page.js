@@ -169,28 +169,30 @@ export default function MembersPage() {
               <IconClipboardList size={15} color="#1d4ed8" />
               <span>직책별 주요 업무</span>
             </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontWeight: 700,
-                fontSize: '12.5px',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                backgroundColor: '#ffffff',
-                borderColor: '#bfdbfe',
-                color: '#1d4ed8',
-                boxShadow: '0 1px 3px rgba(29, 78, 216, 0.08)'
-              }}
-              onClick={() => setShowRulesModal(true)}
-              title="테친회 동호회 공식 회칙 및 역대 개정 이력 보기"
-            >
-              <IconBookOpen size={15} color="#1d4ed8" />
-              <span>동호회 회칙</span>
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  backgroundColor: '#ffffff',
+                  borderColor: '#bfdbfe',
+                  color: '#1d4ed8',
+                  boxShadow: '0 1px 3px rgba(29, 78, 216, 0.08)'
+                }}
+                onClick={() => setShowRulesModal(true)}
+                title="테친회 동호회 공식 회칙 및 역대 개정 이력 보기"
+              >
+                <IconBookOpen size={15} color="#1d4ed8" />
+                <span>동호회 회칙</span>
+              </button>
+            )}
             {isAdmin ? (
               <span className="badge badge-blue" style={{ fontSize: '12px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 👑 운영자 모드
@@ -402,12 +404,14 @@ export default function MembersPage() {
         onClose={() => setShowRolesModal(false)}
       />
 
-      {/* ── 동호회 회칙 및 개정 이력 관리 모달 ── */}
-      <ClubBylawsModal
-        isOpen={showRulesModal}
-        onClose={() => setShowRulesModal(false)}
-        isAdmin={isAdmin}
-      />
+      {/* ── 동호회 회칙 및 개정 이력 관리 모달 (운영자 전용) ── */}
+      {isAdmin && (
+        <ClubBylawsModal
+          isOpen={showRulesModal}
+          onClose={() => setShowRulesModal(false)}
+          isAdmin={isAdmin}
+        />
+      )}
     </div>
   );
 }

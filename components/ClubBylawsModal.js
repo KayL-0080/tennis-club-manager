@@ -434,7 +434,7 @@ ${historyItem.contentSnapshot || bylaws.content}`;
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !isAdmin) return null;
 
   return (
     <div
