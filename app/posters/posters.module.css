@@ -27,10 +27,10 @@
   line-height: 1.5;
 }
 
-/* 상단 3개 모드 전환 탭 (반응형 3분할 캡슐 탭) */
+/* 상단 4개 모드 전환 탭 (반응형 캡슐 탭) */
 .modeTabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   margin-bottom: 24px;
   background: rgba(241, 245, 249, 0.85);
@@ -46,18 +46,18 @@
 
 .tabBtn {
   width: 100%;
-  padding: 11px 10px;
+  padding: 11px 8px;
   border: none;
   background: transparent;
   color: var(--txt2);
-  font-size: clamp(0.76rem, 2.8vw, 0.92rem);
+  font-size: clamp(0.74rem, 2.5vw, 0.9rem);
   font-weight: 700;
   border-radius: var(--radius-full, 9999px);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
 }
@@ -74,16 +74,18 @@
   border: 1px solid rgba(0, 122, 255, 0.15);
 }
 
-@media (max-width: 480px) {
+@media (max-width: 680px) {
   .modeTabs {
-    gap: 4px;
-    padding: 4px;
-    margin-bottom: 18px;
+    grid-template-columns: repeat(2, 1fr);
+    border-radius: 16px;
+    gap: 6px;
+    padding: 6px;
+    margin-bottom: 20px;
   }
   .tabBtn {
-    padding: 9px 4px;
-    gap: 4px;
-    font-size: 0.8rem;
+    border-radius: 12px;
+    padding: 10px 6px;
+    font-size: 0.82rem;
   }
 }
 
@@ -475,6 +477,41 @@
   background: #fff7ed;
   color: #ea580c;
   border: 1px solid #fed7aa;
+}
+
+.badgeFee {
+  background: #fefce8;
+  color: #b45309;
+  border: 1px solid #fef08a;
+}
+
+.syncMemberBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.15) 100%);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.08);
+}
+
+.syncMemberBtn:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(217, 119, 6, 0.25) 100%);
+  border-color: #d97706;
+  color: #92400e;
+  transform: translateY(-1px);
+}
+
+.syncMemberBtn:active {
+  transform: translateY(0);
 }
 
 .historySummaryGrid {

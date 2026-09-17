@@ -319,7 +319,7 @@ export default function Dashboard() {
                 <button 
                   className={`btn btn-secondary ${styles.heroBtn}`} 
                   onClick={() => router.push('/posters')}
-                  title="회원모집/게스트/코트양도 카드 이미지 제작"
+                  title="회원모집/게스트/코트양도/회비안내 홍보 이미지 제작"
                 >
                   <span>🎨</span>
                   <span>이미지 제작</span>

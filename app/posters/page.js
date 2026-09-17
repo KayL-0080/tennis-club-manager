@@ -1,8 +1,8 @@
-// app/posters/page.js — 테니스 홍보 이미지 제작소 (회원모집 / 게스트모집 / 코트양도)
+// app/posters/page.js — 테니스 홍보 이미지 제작소 (회원모집 / 게스트모집 / 코트양도 / 회비안내)
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Navbar from '@/components/Navbar';
-import { getClubSettings } from '@/lib/firestore';
+import { getClubSettings, getMembers } from '@/lib/firestore';
 import {
   renderCardToCanvas,
   exportCanvasAsBlob,
@@ -67,11 +67,32 @@ const DEFAULT_TEMPLATES = [
       kakaoId: 'court_transfer',
       notes: '입금 즉시 예약 번호 및 명의 변경 안내 드립니다.'
     }
+  },
+  {
+    id: 'tpl_default_fee',
+    title: '2026년 정기 회비 납부 안내 (기본 템플릿)',
+    category: 'fee',
+    createdAt: '2026. 09. 17 12:00',
+    bgType: 'hard',
+    aspectRatio: '1:1',
+    formData: {
+      title: '2026년 9월 정기 회비 납부 안내',
+      period: '2026년 9월 정기분',
+      feeAmount: '월 30,000원',
+      bankAccount: '카카오뱅크 3333-01-1234567',
+      accountHolder: '홍길동 (총무)',
+      dueDate: '2026.09.25 (금) 24:00까지',
+      target: '클럽 정회원 전원',
+      unpaidList: '',
+      contact: '총무 010-1234-5678',
+      kakaoId: 'tennis_treasurer',
+      notes: '입금자명은 반드시 [회원 본인 실명]으로 송금해주세요.'
+    }
   }
 ];
 
 export default function PostersPage() {
-  const [activeTab, setActiveTab] = useState('member'); // 'member' | 'guest' | 'court'
+  const [activeTab, setActiveTab] = useState('member'); // 'member' | 'guest' | 'court' | 'fee'
   const [aspectRatio, setAspectRatio] = useState('1:1'); // '1:1' | '4:5' | '9:16'
   const [bgType, setBgType] = useState('hard'); // 'hard' | 'grass' | 'clay' | 'custom'
   const [customImage, setCustomImage] = useState(null);
@@ -85,10 +106,11 @@ export default function PostersPage() {
   // 템플릿 저장 및 이력 관리 상태
   const [savedHistory, setSavedHistory] = useState([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [historyFilter, setHistoryFilter] = useState('ALL'); // 'ALL' | 'member' | 'guest' | 'court'
+  const [historyFilter, setHistoryFilter] = useState('ALL'); // 'ALL' | 'member' | 'guest' | 'court' | 'fee'
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+  const [isSyncingFee, setIsSyncingFee] = useState(false);
 
   // 토스트 알림 표시
   const showToast = (msg) => {
@@ -134,8 +156,34 @@ export default function PostersPage() {
     notes: '입금 즉시 예약 번호 및 명의 변경 안내 드립니다.'
   });
 
+  // 4. 동호회 회비 안내 폼 상태
+  const [feeData, setFeeData] = useState({
+    title: '2026년 9월 정기 회비 납부 안내',
+    period: '2026년 9월 정기분',
+    feeAmount: '월 30,000원',
+    bankAccount: '카카오뱅크 3333-01-1234567',
+    accountHolder: '홍길동 (총무)',
+    dueDate: '2026.09.25 (금) 24:00까지',
+    target: '클럽 정회원 전원',
+    unpaidList: '',
+    contact: '총무 010-1234-5678',
+    kakaoId: 'tennis_treasurer',
+    notes: '입금자명은 반드시 [회원 본인 실명]으로 송금해주세요.'
+  });
+
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // URL 쿼리 파라미터 감지 (예: /posters?tab=fee)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab && ['member', 'guest', 'court', 'fee'].includes(tab)) {
+        setActiveTab(tab);
+      }
+    }
+  }, []);
 
   // 로컬 저장소에서 템플릿 이력 불러오기
   useEffect(() => {
@@ -157,14 +205,13 @@ export default function PostersPage() {
     }
   }, []);
 
-  // 클럽 기본 설정 로드
+  // 클럽 기본 설정 로드 및 회비 정보 자동 매핑
   useEffect(() => {
     (async () => {
       try {
         const settings = await getClubSettings();
         if (settings) {
           setClubSettings(settings);
-          const clubName = settings.clubName || '테친회';
           if (settings.place) {
             setMemberData(prev => ({ ...prev, place: settings.place }));
             setGuestData(prev => ({ ...prev, place: settings.place }));
@@ -174,6 +221,16 @@ export default function PostersPage() {
             setMemberData(prev => ({ ...prev, contact: settings.contact }));
             setGuestData(prev => ({ ...prev, contact: settings.contact }));
             setCourtData(prev => ({ ...prev, contact: settings.contact }));
+            setFeeData(prev => ({ ...prev, contact: settings.contact }));
+          }
+          // 클럽 회비 설정 반영
+          if (settings.feeAmount || settings.bankAccount || settings.accountHolder) {
+            setFeeData(prev => ({
+              ...prev,
+              feeAmount: settings.feeAmount ? `${settings.feeCycle || '월'} ${settings.feeAmount}원` : prev.feeAmount,
+              bankAccount: settings.bankAccount || prev.bankAccount,
+              accountHolder: settings.accountHolder || prev.accountHolder
+            }));
           }
         }
       } catch (err) {
@@ -182,12 +239,68 @@ export default function PostersPage() {
     })();
   }, []);
 
+  // 클럽 설정 및 회원명부 미납자 원클릭 동기화
+  const handleSyncClubDues = async () => {
+    setIsSyncingFee(true);
+    try {
+      const [settings, mbrs] = await Promise.all([
+        getClubSettings(),
+        getMembers('shared').catch(() => [])
+      ]);
+
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const quarter = Math.ceil(month / 3);
+
+      let updatedData = { ...feeData };
+      if (settings) {
+        if (settings.feeAmount) {
+          updatedData.feeAmount = `${settings.feeCycle || '월'} ${settings.feeAmount}원`;
+        }
+        if (settings.bankAccount) updatedData.bankAccount = settings.bankAccount;
+        if (settings.accountHolder) updatedData.accountHolder = settings.accountHolder;
+        if (settings.contact) updatedData.contact = settings.contact;
+        if (settings.feeCycle) {
+          if (settings.feeCycle === '분기납') {
+            updatedData.period = `${now.getFullYear()}년 ${quarter}분기 정기분`;
+            updatedData.title = `${now.getFullYear()}년 ${quarter}분기 정기 회비 납부 안내`;
+          } else if (settings.feeCycle === '연납') {
+            updatedData.period = `${now.getFullYear()}년도 연회비`;
+            updatedData.title = `${now.getFullYear()}년도 연회비 납부 안내`;
+          } else {
+            updatedData.period = `${now.getFullYear()}년 ${month}월 정기분`;
+            updatedData.title = `${now.getFullYear()}년 ${month}월 정기 회비 납부 안내`;
+          }
+        }
+      }
+
+      if (Array.isArray(mbrs) && mbrs.length > 0) {
+        const unpaid = mbrs.filter(m => !m.feePaid);
+        if (unpaid.length > 0) {
+          const names = unpaid.map(m => m.name).join(', ');
+          updatedData.unpaidList = `${names} (총 ${unpaid.length}명 미납)`;
+        } else {
+          updatedData.unpaidList = '전원 완납 완료 (미납자 없음)';
+        }
+      }
+
+      setFeeData(updatedData);
+      showToast('🔄 클럽 설정 및 미납자 정보를 성공적으로 동기화했습니다!');
+    } catch (e) {
+      console.error('Failed to sync club dues:', e);
+      alert('회원 및 회비 정보를 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setIsSyncingFee(false);
+    }
+  };
+
   // 활성 탭 데이터 반환
   const getCurrentData = useCallback(() => {
     if (activeTab === 'member') return memberData;
     if (activeTab === 'guest') return guestData;
-    return courtData;
-  }, [activeTab, memberData, guestData, courtData]);
+    if (activeTab === 'court') return courtData;
+    return feeData;
+  }, [activeTab, memberData, guestData, courtData, feeData]);
 
   // 실시간 캔버스 렌더링
   const updateCanvas = useCallback(() => {
@@ -236,8 +349,14 @@ export default function PostersPage() {
         if (current.includes(text)) return prev;
         return { ...prev, [field]: current ? `${current}, ${text}` : text };
       });
-    } else {
+    } else if (activeTab === 'court') {
       setCourtData(prev => {
+        const current = prev[field] || '';
+        if (current.includes(text)) return prev;
+        return { ...prev, [field]: current ? `${current}, ${text}` : text };
+      });
+    } else {
+      setFeeData(prev => {
         const current = prev[field] || '';
         if (current.includes(text)) return prev;
         return { ...prev, [field]: current ? `${current}, ${text}` : text };
@@ -253,7 +372,7 @@ export default function PostersPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     const dateStr = new Date().toLocaleDateString('en-CA').replace(/-/g, '');
-    const tabName = activeTab === 'member' ? '회원모집' : activeTab === 'guest' ? '게스트모집' : '코트양도';
+    const tabName = activeTab === 'member' ? '회원모집' : activeTab === 'guest' ? '게스트모집' : activeTab === 'court' ? '코트양도' : '회비안내';
     link.download = `테니스_${tabName}_${dateStr}.png`;
     link.href = url;
     link.click();
@@ -285,7 +404,7 @@ export default function PostersPage() {
     if (!canvasRef.current) return;
     const blob = await exportCanvasAsBlob(canvasRef.current);
     if (!blob) return;
-    const tabName = activeTab === 'member' ? '회원모집' : activeTab === 'guest' ? '게스트모집' : '코트양도';
+    const tabName = activeTab === 'member' ? '회원모집' : activeTab === 'guest' ? '게스트모집' : activeTab === 'court' ? '코트양도' : '회비안내';
     const file = new File([blob], `tennis_${activeTab}.png`, { type: 'image/png' });
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -317,7 +436,8 @@ export default function PostersPage() {
     let defaultTitle = '';
     if (activeTab === 'member') defaultTitle = memberData.title || '신규 회원 모집 포스터';
     else if (activeTab === 'guest') defaultTitle = guestData.title || '게스트 모집 포스터';
-    else defaultTitle = courtData.title || '코트 양도 포스터';
+    else if (activeTab === 'court') defaultTitle = courtData.title || '코트 양도 포스터';
+    else defaultTitle = feeData.title || '정기 회비 납부 안내 포스터';
     setSaveTemplateName(defaultTitle);
     setShowSaveModal(true);
   };
@@ -336,7 +456,8 @@ export default function PostersPage() {
     let currentFormData = {};
     if (activeTab === 'member') currentFormData = { ...memberData };
     else if (activeTab === 'guest') currentFormData = { ...guestData };
-    else currentFormData = { ...courtData };
+    else if (activeTab === 'court') currentFormData = { ...courtData };
+    else currentFormData = { ...feeData };
 
     const newTemplate = {
       id: 'tpl_' + Date.now(),
@@ -368,6 +489,8 @@ export default function PostersPage() {
       setGuestData(item.formData);
     } else if (item.category === 'court') {
       setCourtData(item.formData);
+    } else if (item.category === 'fee') {
+      setFeeData(item.formData);
     }
 
     if (item.bgType) setBgType(item.bgType);
@@ -441,6 +564,14 @@ export default function PostersPage() {
             <span>⚡</span>
             <span>코트 양도</span>
           </button>
+          <button
+            type="button"
+            className={`${styles.tabBtn} ${activeTab === 'fee' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('fee')}
+          >
+            <span>💰</span>
+            <span>회비 안내</span>
+          </button>
         </div>
 
         {/* 2열 메인 레이아웃 (폼 + 라이브 프리뷰) */}
@@ -454,6 +585,7 @@ export default function PostersPage() {
                   {activeTab === 'member' && '신규 회원 모집 정보 입력'}
                   {activeTab === 'guest' && '게스트 모집 정보 입력'}
                   {activeTab === 'court' && '코트 양도 정보 입력'}
+                  {activeTab === 'fee' && '동호회 회비 납부 안내 정보 입력'}
                 </span>
               </h2>
               <div className={styles.headerActions}>
@@ -861,6 +993,177 @@ export default function PostersPage() {
                 </div>
               </>
             )}
+
+            {/* 4. 동호회 회비 안내 필드들 */}
+            {activeTab === 'fee' && (
+              <>
+                {/* 원클릭 동호회 회원명부 및 회비 설정 실시간 연동 버튼 */}
+                <button
+                  type="button"
+                  className={styles.syncMemberBtn}
+                  onClick={handleSyncClubDues}
+                  disabled={isSyncingFee}
+                  title="클럽 회비 설정과 회원 명부의 실시간 미납자 명단을 자동으로 가져옵니다"
+                >
+                  <span>{isSyncingFee ? '⏳' : '🔄'}</span>
+                  <span>{isSyncingFee ? '회원 명부 동기화 중...' : '클럽 회비 설정 및 미납자 명단 자동 불러오기'}</span>
+                </button>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>포스터 제목</label>
+                  <input
+                    className="input"
+                    value={feeData.title}
+                    onChange={e => setFeeData({ ...feeData, title: e.target.value })}
+                    placeholder="예: 2026년 9월 정기 회비 납부 안내"
+                  />
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>납부 대상 주기 / 기간</label>
+                  <input
+                    className="input"
+                    value={feeData.period}
+                    onChange={e => setFeeData({ ...feeData, period: e.target.value })}
+                    placeholder="예: 2026년 9월 정기분 또는 3분기"
+                  />
+                  <div className={styles.chipGroup}>
+                    {['9월 정기분', '10월 정기분', '3분기 정기회비', '4분기 정기회비', '2026년도 연회비', '정기대회 참가비', '특별 찬조금'].map(t => (
+                      <button key={t} type="button" className={styles.presetChip} onClick={() => setFeeData(prev => ({ ...prev, period: t }))}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className={styles.fieldGroup}>
+                    <label className={styles.label}>회비 납부 금액</label>
+                    <input
+                      className="input"
+                      value={feeData.feeAmount}
+                      onChange={e => setFeeData({ ...feeData, feeAmount: e.target.value })}
+                      placeholder="예: 월 30,000원 / 분기 90,000원"
+                    />
+                    <div className={styles.chipGroup}>
+                      {['월 20,000원', '월 30,000원', '월 40,000원', '분기 90,000원', '연 300,000원'].map(t => (
+                        <button key={t} type="button" className={styles.presetChip} onClick={() => setFeeData(prev => ({ ...prev, feeAmount: t }))}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className={styles.fieldGroup}>
+                    <label className={styles.label}>납부 대상</label>
+                    <input
+                      className="input"
+                      value={feeData.target}
+                      onChange={e => setFeeData({ ...feeData, target: e.target.value })}
+                      placeholder="예: 클럽 정회원 전원"
+                    />
+                    <div className={styles.chipGroup}>
+                      {['클럽 정회원 전원', '정회원 및 준회원', '대회 참가자 전원'].map(t => (
+                        <button key={t} type="button" className={styles.presetChip} onClick={() => setFeeData(prev => ({ ...prev, target: t }))}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '12px' }}>
+                  <div className={styles.fieldGroup}>
+                    <label className={styles.label}>입금 계좌 번호 (은행 포함)</label>
+                    <input
+                      className="input"
+                      value={feeData.bankAccount}
+                      onChange={e => setFeeData({ ...feeData, bankAccount: e.target.value })}
+                      placeholder="예: 카카오뱅크 3333-01-1234567"
+                    />
+                  </div>
+
+                  <div className={styles.fieldGroup}>
+                    <label className={styles.label}>예금주</label>
+                    <input
+                      className="input"
+                      value={feeData.accountHolder}
+                      onChange={e => setFeeData({ ...feeData, accountHolder: e.target.value })}
+                      placeholder="예: 홍길동 (총무)"
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>납부 마감 일시</label>
+                  <input
+                    className="input"
+                    value={feeData.dueDate}
+                    onChange={e => setFeeData({ ...feeData, dueDate: e.target.value })}
+                    placeholder="예: 2026.09.25 (금) 24:00까지"
+                  />
+                  <div className={styles.chipGroup}>
+                    {['당월 25일까지', '당월 말일까지', '이번 주 일요일까지', '정기 모임 전날까지', '수시 납부'].map(t => (
+                      <button key={t} type="button" className={styles.presetChip} onClick={() => setFeeData(prev => ({ ...prev, dueDate: t }))}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>
+                    <span>미납 안내 / 대상자 명단</span>
+                    <span className={styles.labelSub}>미입력 시 카드에 미표시</span>
+                  </label>
+                  <input
+                    className="input"
+                    value={feeData.unpaidList}
+                    onChange={e => setFeeData({ ...feeData, unpaidList: e.target.value })}
+                    placeholder="예: 김철수, 이영희 (2명 미납) — 위 동기화 버튼 클릭 시 자동 채움"
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className={styles.fieldGroup}>
+                    <label className={styles.label}>문의 연락처</label>
+                    <input
+                      className="input"
+                      value={feeData.contact}
+                      onChange={e => setFeeData({ ...feeData, contact: e.target.value })}
+                      placeholder="예: 총무 010-XXXX-XXXX"
+                    />
+                  </div>
+                  <div className={styles.fieldGroup}>
+                    <label className={styles.label}>카카오톡 ID / 오픈채팅</label>
+                    <input
+                      className="input"
+                      value={feeData.kakaoId}
+                      onChange={e => setFeeData({ ...feeData, kakaoId: e.target.value })}
+                      placeholder="예: tennis_treasurer"
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>비고 및 전달 사항</label>
+                  <textarea
+                    className="input"
+                    style={{ height: '70px', resize: 'vertical' }}
+                    value={feeData.notes}
+                    onChange={e => setFeeData({ ...feeData, notes: e.target.value })}
+                    placeholder="예: 입금자명은 반드시 본인 성명으로 입금 부탁드립니다."
+                  />
+                  <div className={styles.chipGroup}>
+                    {['본인 성명 입금 필수', '입금 후 단톡방 확인', '영수증/출납내역 공개', '미납 시 경기 제한', '빠른 납부 감사'].map(t => (
+                      <button key={t} type="button" className={styles.presetChip} onClick={() => handleAddPreset('notes', t)}>
+                        + {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* 우측 실시간 카드 미리보기 및 다운로드 패널 */}
@@ -987,7 +1290,7 @@ export default function PostersPage() {
               </button>
             </div>
             <p style={{ fontSize: '13px', color: 'var(--txt2)', marginBottom: '14px', lineHeight: 1.5 }}>
-              현재 선택된 모드(<strong>{activeTab === 'member' ? '신규회원모집' : activeTab === 'guest' ? '게스트모집' : '코트양도'}</strong>),
+              현재 선택된 모드(<strong>{activeTab === 'member' ? '신규회원모집' : activeTab === 'guest' ? '게스트모집' : activeTab === 'court' ? '코트양도' : '회비안내'}</strong>),
               배경 스타일, 이미지 비율 및 입력한 모든 항목이 저장됩니다. 나중에 언제든지 다시 불러올 수 있습니다.
             </p>
             <div className={styles.fieldGroup} style={{ marginBottom: '16px' }}>
@@ -1051,7 +1354,8 @@ export default function PostersPage() {
                 { key: 'ALL', label: '전체' },
                 { key: 'member', label: '👥 회원모집' },
                 { key: 'guest', label: '🎾 게스트모집' },
-                { key: 'court', label: '⚡ 코트양도' }
+                { key: 'court', label: '⚡ 코트양도' },
+                { key: 'fee', label: '💰 회비안내' }
               ].map(f => (
                 <button
                   key={f.key}
@@ -1081,17 +1385,21 @@ export default function PostersPage() {
                         ? styles.badgeMember
                         : item.category === 'guest'
                         ? styles.badgeGuest
-                        : styles.badgeCourt;
+                        : item.category === 'court'
+                        ? styles.badgeCourt
+                        : styles.badgeFee;
                     const catLabel =
                       item.category === 'member'
                         ? '회원모집'
                         : item.category === 'guest'
                         ? '게스트모집'
-                        : '코트양도';
+                        : item.category === 'court'
+                        ? '코트양도'
+                        : '회비안내';
 
-                    const place = item.formData?.place || '-';
-                    const schedule = item.formData?.dateTime || item.formData?.schedule || (item.formData?.date ? `${item.formData?.date} ${item.formData?.time || ''}` : '-');
-                    const fee = item.formData?.monthlyFee || item.formData?.cost || item.formData?.price || '-';
+                    const place = item.formData?.place || item.formData?.bankAccount || '-';
+                    const schedule = item.formData?.dateTime || item.formData?.schedule || (item.formData?.date ? `${item.formData?.date} ${item.formData?.time || ''}` : item.formData?.period || item.formData?.dueDate || '-');
+                    const fee = item.formData?.monthlyFee || item.formData?.cost || item.formData?.price || item.formData?.feeAmount || '-';
                     const contact = item.formData?.contact || item.formData?.kakaoId || '-';
 
                     return (

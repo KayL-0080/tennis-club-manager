@@ -291,6 +291,16 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
                   <NoticeIcon size={16} color="#1d4ed8" />
                   <span>미납자 독촉 글 생성</span>
                 </button>
+                <button 
+                  type="button"
+                  className={styles.btnFeeNotice} 
+                  style={{ backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a' }}
+                  onClick={() => window.location.href = '/posters?tab=fee'}
+                  title="회비 안내 카드 이미지 제작 화면으로 이동"
+                >
+                  <span>🎨</span>
+                  <span>회비 카드 이미지 제작</span>
+                </button>
               </div>
             </div>
           </div>
@@ -430,12 +440,22 @@ export default function MembersTab({ members, onUpdateLocal, onSave, onAdd, onDe
               value={reminderText}
               onChange={(e) => setReminderText(e.target.value)}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '20px' }}>
-              <button className="btn btn-secondary" onClick={() => setShowReminderModal(false)}>닫기</button>
-              <button className="btn btn-primary" onClick={() => {
-                navigator.clipboard.writeText(reminderText);
-                alert('공지 문구가 클립보드에 복사되었습니다.');
-              }}>📋 문구 복사하기</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '20px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a', fontWeight: 700 }}
+                onClick={() => window.location.href = '/posters?tab=fee'}
+              >
+                🎨 회비 카드 이미지 제작하기
+              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowReminderModal(false)}>닫기</button>
+                <button className="btn btn-primary btn-sm" onClick={() => {
+                  navigator.clipboard.writeText(reminderText);
+                  alert('공지 문구가 클립보드에 복사되었습니다.');
+                }}>📋 문구 복사하기</button>
+              </div>
             </div>
           </div>
         </div>
