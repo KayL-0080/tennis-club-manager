@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getMembers, getEvents, getEvent, createEvent, updateEventAttendees, updateEvent, deleteEvent,
-  getMeetingRules, updateMeetingRules
+  getMeetingRules, updateMeetingRules, updateEventMemberAttendance, subscribeEvents
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import { PageHeaderIcon, VoteIcon } from '@/components/Icons';
@@ -140,6 +140,11 @@ export default function VotesPage() {
 
       const sortedEvts = evts.sort((a, b) => (a.date > b.date ? 1 : -1));
       setEvents(sortedEvts);
+      setSelectedEvent(prev => {
+        if (!prev?.id) return prev;
+        const fresh = sortedEvts.find(e => e.id === prev.id);
+        return fresh || prev;
+      });
 
       // 캐시 저장
       try {
@@ -162,7 +167,8 @@ export default function VotesPage() {
               const matchingRules = rules.filter(r => r.enabled !== false && Number(r.day) === day);
               for (const rule of matchingRules) {
                 const dateStr = d.toLocaleDateString('en-CA');
-                if (!evts.find(e => e.date === dateStr && (e.title === rule.title || !rule.title))) {
+                // 해당 일자에 이미 등록된 일정이 있으면 중복 생성하지 않음 (대회나 변경된 제목 일정 보호)
+                if (!evts.find(e => e.date === dateStr)) {
                   toCreate.push({
                     date: dateStr,
                     title: rule.title || `정기 모임 (${rule.dayName || DAY_SHORT[day]})`,
@@ -237,12 +243,30 @@ export default function VotesPage() {
     loadData();
   }, [loadData]);
 
+  // Firestore 실시간 리스너 (onSnapshot): 다른 사용자가 투표할 때 실시간으로 즉시 반영
+  useEffect(() => {
+    const unsubscribe = subscribeEvents('shared', (freshEvents) => {
+      const sorted = freshEvents.sort((a, b) => (a.date > b.date ? 1 : -1));
+      setEvents(sorted);
+      setSelectedEvent(prev => {
+        if (!prev?.id) return prev;
+        const fresh = sorted.find(e => e.id === prev.id);
+        return fresh || prev;
+      });
+      try {
+        localStorage.setItem('tcm_cached_events', JSON.stringify(sorted));
+      } catch (e) {
+        console.warn('Cache save error:', e);
+      }
+      setFetching(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const handleToggleAttendance = async (memberId, status) => {
     if (!selectedEvent) return;
     
-    const currentStatus = selectedEvent.attendees?.[memberId];
-    if (currentStatus === status) return; // No change
-
     // Check deadline (일반 사용자는 마감 이후 변경 불가, 운영진은 마감 이후에도 언제든 수정 가능)
     if (selectedEvent.date) {
       const [y, m, d] = selectedEvent.date.split('-');
@@ -257,16 +281,29 @@ export default function VotesPage() {
       }
     }
 
-    const newAttendees = { ...(selectedEvent.attendees || {}) };
-    newAttendees[memberId] = status;
+    const eventId = selectedEvent.id;
+    const currentStatus = selectedEvent.attendees?.[memberId] || '?';
+    if (currentStatus === status) return; // No change
 
-    setSelectedEvent({ ...selectedEvent, attendees: newAttendees });
-    
-    // Optimistically update list
-    setEvents(prev => prev.map(e => e.id === selectedEvent.id ? { ...e, attendees: newAttendees } : e));
-    
-    // Save to DB
-    await updateEvent('shared', selectedEvent.id, { attendees: newAttendees });
+    // 1. 낙관적 로컬 상태 업데이트: 오직 해당 회원(memberId)의 상태만 갱신
+    const newAttendees = { ...(selectedEvent.attendees || {}), [memberId]: status };
+
+    setSelectedEvent(prev => (prev && prev.id === eventId ? { ...prev, attendees: newAttendees } : prev));
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendees: newAttendees } : e));
+
+    // 2. Firestore 원자적 갱신(Atomic update):
+    // attendees 전체 객체를 덮어쓰지 않고 `attendees.<memberId>` 단일 필드만 수정하여 타 회원 투표 유실 원천 방지
+    try {
+      await updateEventMemberAttendance('shared', eventId, memberId, status);
+    } catch (err) {
+      console.error('Failed to update attendance atomically:', err);
+      try {
+        await updateEvent('shared', eventId, { [`attendees.${memberId}`]: status });
+      } catch (fallbackErr) {
+        console.error('Fallback attendance update error:', fallbackErr);
+        alert('투표 반영 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      }
+    }
   };
 
   const saveEdit = async () => {
@@ -297,7 +334,7 @@ export default function VotesPage() {
     closeModal();
   };
 
-  // URL 쿼리 파라미터(?id=... 또는 ?eventId=...)로 접속 시 해당 모임 투표 모달 자동 오픈
+  // URL 쿼리 파라미터(?id=... 또는 ?eventId=...)로 접속 시 해당 모임 투표 모달 자동 오픈 및 실시간 동기화
   useEffect(() => {
     if (typeof window === 'undefined' || events.length === 0) return;
     const params = new URLSearchParams(window.location.search);
@@ -305,39 +342,46 @@ export default function VotesPage() {
     const targetDate = params.get('date');
 
     if (targetId) {
-      if (selectedEvent && selectedEvent.id === targetId) return;
       const target = events.find(e => e.id === targetId);
       if (target) {
         if (target.date) {
           const monthStr = target.date.substring(0, 7);
           setSelectedMonth(prev => (prev === 'ALL' ? prev : monthStr));
         }
-        openModal(target, false);
+        if (!selectedEvent || selectedEvent.id !== targetId) {
+          openModal(target, false);
+        } else if (selectedEvent && selectedEvent !== target) {
+          setSelectedEvent(target);
+        }
       }
     } else if (targetDate) {
-      if (selectedEvent && selectedEvent.date === targetDate) return;
       const target = events.find(e => e.date === targetDate);
       if (target) {
         setSelectedMonth(prev => (prev === 'ALL' ? prev : targetDate.substring(0, 7)));
-        openModal(target, false);
+        if (!selectedEvent || selectedEvent.date !== targetDate) {
+          openModal(target, false);
+        } else if (selectedEvent && selectedEvent !== target) {
+          setSelectedEvent(target);
+        }
       }
     }
   }, [events, selectedEvent, openModal]);
 
   const handleShare = () => {
-    if (!selectedEvent) return;
+    const currentEvt = (selectedEvent?.id ? events.find(e => e.id === selectedEvent.id) : null) || selectedEvent;
+    if (!currentEvt) return;
     
-    const attendees = members.filter(m => selectedEvent.attendees?.[m.id] === 'Y').map(m => m.name);
-    const absentees = members.filter(m => selectedEvent.attendees?.[m.id] === 'N').map(m => m.name);
-    const unknowns = members.filter(m => !selectedEvent.attendees?.[m.id] || selectedEvent.attendees?.[m.id] === '?').map(m => m.name);
+    const attendees = members.filter(m => currentEvt.attendees?.[m.id] === 'Y').map(m => m.name);
+    const absentees = members.filter(m => currentEvt.attendees?.[m.id] === 'N').map(m => m.name);
+    const unknowns = members.filter(m => !currentEvt.attendees?.[m.id] || currentEvt.attendees?.[m.id] === '?').map(m => m.name);
 
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
-    const shareUrl = `${origin}/votes?id=${selectedEvent.id}`;
+    const shareUrl = `${origin}/votes?id=${currentEvt.id}`;
 
-    const text = `[투표 현황] ${selectedEvent.title}
-📅 ${selectedEvent.date}
-⏰ ${selectedEvent.startTime} ~ ${selectedEvent.endTime}
-📍 ${selectedEvent.location}
+    const text = `[투표 현황] ${currentEvt.title}
+📅 ${currentEvt.date}
+⏰ ${currentEvt.startTime} ~ ${currentEvt.endTime}
+📍 ${currentEvt.location}
 
 ✅ 참석 (${attendees.length}명): ${attendees.length ? attendees.join(', ') : '없음'}
 ❌ 불참 (${absentees.length}명): ${absentees.length ? absentees.join(', ') : '없음'}
@@ -788,124 +832,123 @@ export default function VotesPage() {
                 </div>
               </div>
             ) : selectedEvent ? (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-                    <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--navy)', marginBottom: '4px', wordBreak: 'keep-all' }}>
-                      {selectedEvent.title}
-                    </h2>
-                    <p style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--navy)', wordBreak: 'keep-all', marginBottom: '8px' }}>
-                      {selectedEvent.date} ({dayNames[new Date(selectedEvent.date.split('-')[0], selectedEvent.date.split('-')[1] - 1, selectedEvent.date.split('-')[2]).getDay()]})
-                    </p>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', wordBreak: 'keep-all' }}>
-                      ⏰ {selectedEvent.startTime} ~ {selectedEvent.endTime} <br/> 📍 {selectedEvent.location}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
-                    {isAdmin && (
-                      <>
-                        <button className="btn btn-secondary btn-sm" onClick={() => setIsEditing(true)}>수정</button>
-                        <button className="btn btn-danger btn-sm" onClick={removeEvent}>삭제</button>
-                      </>
-                    )}
-                    <button className="modal-close" onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)', marginLeft: '4px' }}>&times;</button>
-                  </div>
-                </div>
+              (() => {
+                const activeEvent = events.find(e => e.id === selectedEvent.id) || selectedEvent;
+                const activeAttendees = activeEvent.attendees || {};
+                const [y, m, d] = (activeEvent.date || '').split('-');
+                const deadline = new Date(y, m - 1, d);
+                deadline.setDate(deadline.getDate() - 1);
+                deadline.setHours(18, 0, 0, 0);
+                const isClosed = new Date() > deadline;
 
-                <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--bg)', borderRadius: '8px', fontSize: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <strong>✅ 참석</strong>
-                    <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>
-                      {Object.values(selectedEvent.attendees || {}).filter(v => v === 'Y').length}명
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <strong>❌ 불참</strong>
-                    <span style={{ color: '#e53e3e', fontWeight: 'bold' }}>
-                      {Object.values(selectedEvent.attendees || {}).filter(v => v === 'N').length}명
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <strong>❓ 미정</strong>
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>
-                      {members.length - Object.values(selectedEvent.attendees || {}).filter(v => v === 'Y' || v === 'N').length}명
-                    </span>
-                  </div>
-                </div>
+                return (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                        <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--navy)', marginBottom: '4px', wordBreak: 'keep-all' }}>
+                          {activeEvent.title}
+                        </h2>
+                        <p style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--navy)', wordBreak: 'keep-all', marginBottom: '8px' }}>
+                          {activeEvent.date} ({dayNames[new Date(y, m - 1, d).getDay()]})
+                        </p>
+                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', wordBreak: 'keep-all' }}>
+                          ⏰ {activeEvent.startTime} ~ {activeEvent.endTime} <br/> 📍 {activeEvent.location}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+                        {isAdmin && (
+                          <>
+                            <button className="btn btn-secondary btn-sm" onClick={() => setIsEditing(true)}>수정</button>
+                            <button className="btn btn-danger btn-sm" onClick={removeEvent}>삭제</button>
+                          </>
+                        )}
+                        <button className="modal-close" onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)', marginLeft: '4px' }}>&times;</button>
+                      </div>
+                    </div>
 
-                <div style={{ flex: '1 1 auto', overflowY: 'auto', overflowX: 'hidden', paddingRight: '2px', margin: '0 -4px', paddingLeft: '4px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>투표 명단</span>
-                    {(() => {
-                      const [y, m, d] = selectedEvent.date.split('-');
-                      const deadline = new Date(y, m - 1, d);
-                      deadline.setDate(deadline.getDate() - 1);
-                      deadline.setHours(18, 0, 0, 0);
-                      const isClosed = new Date() > deadline;
-                      if (!isClosed) return null;
-                      return (
-                        <span style={{ color: isAdmin ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12.5px', fontWeight: 600 }}>
-                          {isAdmin ? '마감됨 (운영진 수정 가능)' : '투표 마감됨'}
+                    <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--bg)', borderRadius: '8px', fontSize: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <strong>✅ 참석</strong>
+                        <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>
+                          {Object.values(activeAttendees).filter(v => v === 'Y').length}명
                         </span>
-                      );
-                    })()}
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {members.map(m => {
-                      const status = selectedEvent.attendees?.[m.id] || '?';
-                      const [y, mm, d] = selectedEvent.date.split('-');
-                      const deadline = new Date(y, mm - 1, d);
-                      deadline.setDate(deadline.getDate() - 1);
-                      deadline.setHours(18, 0, 0, 0);
-                      const isClosed = new Date() > deadline;
-                      const isVoteDisabled = !isAdmin && isClosed;
-                      
-                      return (
-                        <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', gap: '6px' }}>
-                          <span style={{ fontWeight: '600', fontSize: '13.5px', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
-                          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                            <button 
-                              className={`btn btn-sm ${status === 'Y' ? 'btn-primary' : 'btn-secondary'}`}
-                              style={{ opacity: status === 'Y' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
-                              disabled={isVoteDisabled}
-                              onClick={() => handleToggleAttendance(m.id, 'Y')}
-                            >참석</button>
-                            <button 
-                              className={`btn btn-sm ${status === 'N' ? 'btn-danger' : 'btn-secondary'}`}
-                              style={{ opacity: status === 'N' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
-                              disabled={isVoteDisabled}
-                              onClick={() => handleToggleAttendance(m.id, 'N')}
-                            >불참</button>
-                            <button 
-                              className={`btn btn-sm ${status === '?' ? '' : 'btn-secondary'}`}
-                              style={{ opacity: status === '?' ? 1 : 0.6, background: status === '?' ? '#e2e8f0' : undefined, color: status === '?' ? '#1e293b' : undefined, padding: '4px 10px', fontSize: '12px' }}
-                              disabled={isVoteDisabled}
-                              onClick={() => handleToggleAttendance(m.id, '?')}
-                            >미정</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                
-                <div style={{ 
-                  marginTop: '16px', 
-                  paddingTop: '12px',
-                  borderTop: '1px solid rgba(0, 0, 0, 0.08)', 
-                  display: 'flex', 
-                  justifyContent: 'flex-end', 
-                  gap: '8px',
-                  background: 'rgba(255, 255, 255, 0.95)',
-                  backdropFilter: 'blur(10px)',
-                  position: 'sticky',
-                  bottom: 0,
-                  zIndex: 10
-                }}>
-                  <button className="btn btn-secondary" style={{ padding: '10px 18px', fontWeight: 700, fontSize: '0.9rem' }} onClick={handleShare}>📤 공유하기</button>
-                  <button className="btn btn-primary" style={{ padding: '10px 22px', fontWeight: 700, fontSize: '0.9rem' }} onClick={closeModal}>닫기</button>
-                </div>
-              </>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <strong>❌ 불참</strong>
+                        <span style={{ color: '#e53e3e', fontWeight: 'bold' }}>
+                          {Object.values(activeAttendees).filter(v => v === 'N').length}명
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <strong>❓ 미정</strong>
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                          {members.length - Object.values(activeAttendees).filter(v => v === 'Y' || v === 'N').length}명
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ flex: '1 1 auto', overflowY: 'auto', overflowX: 'hidden', paddingRight: '2px', margin: '0 -4px', paddingLeft: '4px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>투표 명단</span>
+                        {isClosed && (
+                          <span style={{ color: isAdmin ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12.5px', fontWeight: 600 }}>
+                            {isAdmin ? '마감됨 (운영진 수정 가능)' : '투표 마감됨'}
+                          </span>
+                        )}
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {members.map(m => {
+                          const status = activeAttendees[m.id] || '?';
+                          const isVoteDisabled = !isAdmin && isClosed;
+                          
+                          return (
+                            <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', gap: '6px' }}>
+                              <span style={{ fontWeight: '600', fontSize: '13.5px', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
+                              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                <button 
+                                  className={`btn btn-sm ${status === 'Y' ? 'btn-primary' : 'btn-secondary'}`}
+                                  style={{ opacity: status === 'Y' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
+                                  disabled={isVoteDisabled}
+                                  onClick={() => handleToggleAttendance(m.id, 'Y')}
+                                >참석</button>
+                                <button 
+                                  className={`btn btn-sm ${status === 'N' ? 'btn-danger' : 'btn-secondary'}`}
+                                  style={{ opacity: status === 'N' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
+                                  disabled={isVoteDisabled}
+                                  onClick={() => handleToggleAttendance(m.id, 'N')}
+                                >불참</button>
+                                <button 
+                                  className={`btn btn-sm ${status === '?' ? '' : 'btn-secondary'}`}
+                                  style={{ opacity: status === '?' ? 1 : 0.6, background: status === '?' ? '#e2e8f0' : undefined, color: status === '?' ? '#1e293b' : undefined, padding: '4px 10px', fontSize: '12px' }}
+                                  disabled={isVoteDisabled}
+                                  onClick={() => handleToggleAttendance(m.id, '?')}
+                                >미정</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    <div style={{ 
+                      marginTop: '16px', 
+                      paddingTop: '12px',
+                      borderTop: '1px solid rgba(0, 0, 0, 0.08)', 
+                      display: 'flex', 
+                      justifyContent: 'flex-end', 
+                      gap: '8px',
+                      background: 'rgba(255, 255, 255, 0.95)',
+                      backdropFilter: 'blur(10px)',
+                      position: 'sticky',
+                      bottom: 0,
+                      zIndex: 10
+                    }}>
+                      <button className="btn btn-secondary" style={{ padding: '10px 18px', fontWeight: 700, fontSize: '0.9rem' }} onClick={handleShare}>📤 공유하기</button>
+                      <button className="btn btn-primary" style={{ padding: '10px 22px', fontWeight: 700, fontSize: '0.9rem' }} onClick={closeModal}>닫기</button>
+                    </div>
+                  </>
+                );
+              })()
             ) : null}
 
           </div>
