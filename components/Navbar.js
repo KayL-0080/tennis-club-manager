@@ -96,7 +96,6 @@ export default function Navbar() {
     { name: '참석 투표', path: '/votes', Icon: VoteIcon },
     { name: '정기 대회', path: '/tournaments', Icon: TrophyIcon },
     { name: '회원 관리', path: '/members', Icon: MembersIcon },
-    { name: '이용 매뉴얼', path: '/manual', Icon: ManualIcon },
   ];
 
   return (
