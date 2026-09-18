@@ -64,6 +64,14 @@ export default function FinanceCalculator({
     currentClub?.discountRate !== undefined ? String(currentClub.discountRate) : '0'
   );
 
+  // ── 운영진 회비 감면 / 면제 옵션 (0%~100%) ──
+  const [execDiscountRate, setExecDiscountRate] = useState(
+    currentClub?.execDiscountRate !== undefined ? String(currentClub.execDiscountRate) : '0'
+  );
+  const [execCountOverride, setExecCountOverride] = useState(
+    currentClub?.execCountOverride !== undefined ? String(currentClub.execCountOverride) : ''
+  );
+
   // 기본 52주 배분 (1~12월: 총 52주)
   const defaultMonthWeeks = { 1: 4, 2: 4, 3: 5, 4: 4, 5: 4, 6: 4, 7: 5, 8: 4, 9: 4, 10: 5, 11: 4, 12: 5 };
   const [monthWeeks, setMonthWeeks] = useState(
@@ -93,6 +101,8 @@ export default function FinanceCalculator({
       if (currentClub.sessionsPerWeek !== undefined) setSessionsPerWeek(Number(currentClub.sessionsPerWeek));
       if (currentClub.discountRate !== undefined) setDiscountRate(String(currentClub.discountRate));
       if (currentClub.monthWeeks) setMonthWeeks(currentClub.monthWeeks);
+      if (currentClub.execDiscountRate !== undefined) setExecDiscountRate(String(currentClub.execDiscountRate));
+      if (currentClub.execCountOverride !== undefined) setExecCountOverride(String(currentClub.execCountOverride));
     }
   }, [currentClub]);
 
@@ -204,17 +214,52 @@ export default function FinanceCalculator({
   if (feeCycle === '연납') perMemberMonthlyFee = Math.round(rawFee / 12);
   if (perMemberMonthlyFee <= 0) perMemberMonthlyFee = 30000;
 
-  const bepCount = Math.ceil(totalMonthlyExpense / perMemberMonthlyFee);
-  const recommendedOptimalCount = Math.ceil((totalMonthlyExpense * 1.15) / perMemberMonthlyFee);
+  // ── 운영진 회비 감면 계산 ──
+  const EXEC_ROLES = ['회장', '부회장', '총무', '경기이사', '운영이사'];
+  const execMembers = regularMembers.filter(m => EXEC_ROLES.includes(m.role));
+  const parsedExecDiscountRate = Math.min(100, Math.max(0, parseNum(execDiscountRate, 0)));
+
+  // 운영진 1인당 월 납부 회비 및 1인당 감면 혜택액
+  const execMonthlyFee = Math.round(perMemberMonthlyFee * (1 - parsedExecDiscountRate / 100));
+  const execDiscountPerPerson = perMemberMonthlyFee - execMonthlyFee;
+
+  // 적용 대상 운영진 수: 수동 지정값이 있으면 우선, 없으면 등록된 5대 직책 인원수, 직책 배정 전이면 기본 5명 (감면 설정 시)
+  const parsedOverrideCount = execCountOverride !== '' && execCountOverride !== null && execCountOverride !== undefined
+    ? Math.max(0, parseNum(execCountOverride, 0))
+    : null;
+  const appliedExecCount = parsedOverrideCount !== null
+    ? parsedOverrideCount
+    : (execMembers.length > 0 ? execMembers.length : (parsedExecDiscountRate > 0 ? Math.min(regularMembers.length || 5, 5) : 0));
+
+  // 월간 운영진 감면 총액
+  const totalExecDiscountMonthly = appliedExecCount * execDiscountPerPerson;
+
+  // 현재 클럽 수입 계산 (운영진 감면액 반영)
+  const currentRegularCount = regularMembers.length;
+  const currentExecCount = Math.min(currentRegularCount, appliedExecCount);
+  const currentGeneralCount = Math.max(0, currentRegularCount - currentExecCount);
+  const currentTotalRevenue = (currentGeneralCount * perMemberMonthlyFee) + (currentExecCount * execMonthlyFee);
+  const currentMonthlyBalance = currentTotalRevenue - totalMonthlyExpense;
+
+  // 손익분기 최소 인원 (BEP): 운영진 수입을 제외한 남은 고정 지출을 충당하는 일반 회원 수 + 운영진 수
+  const execBaseRevenue = appliedExecCount * execMonthlyFee;
+  const bepRemainingExpense = Math.max(0, totalMonthlyExpense - execBaseRevenue);
+  const bepGeneralNeeded = Math.ceil(bepRemainingExpense / perMemberMonthlyFee);
+  const bepCount = appliedExecCount + bepGeneralNeeded;
+
+  // 권장 최적 회원 수 (15% 예비비/적립금 포함): 운영진 감면 반영
+  const targetExpenseWithReserve = totalMonthlyExpense * 1.15;
+  const optRemainingExpense = Math.max(0, targetExpenseWithReserve - execBaseRevenue);
+  const optGeneralNeeded = Math.ceil(optRemainingExpense / perMemberMonthlyFee);
+  const recommendedOptimalCount = appliedExecCount + optGeneralNeeded;
 
   const courtCapacityMin = courtCount * 4;
   const courtCapacityMax = courtCount * 6;
 
-  const currentRegularCount = regularMembers.length;
-  const currentTotalRevenue = currentRegularCount * perMemberMonthlyFee;
-  const currentMonthlyBalance = currentTotalRevenue - totalMonthlyExpense;
-
-  const simRevenue = simulatedCount * perMemberMonthlyFee;
+  // 인원 변동 시뮬레이터 수지 (가상 회원 중 운영진 감면 우선 적용)
+  const simExecCount = Math.min(simulatedCount, appliedExecCount);
+  const simGeneralCount = Math.max(0, simulatedCount - simExecCount);
+  const simRevenue = (simGeneralCount * perMemberMonthlyFee) + (simExecCount * execMonthlyFee);
   const simBalance = simRevenue - totalMonthlyExpense;
 
   const handleSaveAll = async () => {
@@ -236,7 +281,9 @@ export default function FinanceCalculator({
         hoursPerSession: parsedHours,
         sessionsPerWeek: parsedSessions,
         discountRate: parsedDiscountRate,
-        monthWeeks
+        monthWeeks,
+        execDiscountRate: parsedExecDiscountRate,
+        execCountOverride: execCountOverride !== '' ? parseNum(execCountOverride, 0) : ''
       });
       alert('코트비 및 재정 설정이 성공적으로 저장되었습니다.');
     } catch (e) {
@@ -1055,6 +1102,263 @@ export default function FinanceCalculator({
         </div>
       </div>
 
+      {/* ── 2-1. 운영진 회비 감면 / 면제 옵션 설정 카드 ── */}
+      <div className="card" style={{
+        padding: '20px',
+        background: 'linear-gradient(135deg, rgba(254, 243, 199, 0.4) 0%, rgba(254, 249, 195, 0.25) 100%)',
+        border: '1.5px solid #fde68a',
+        borderRadius: '16px'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '22px' }}>👑</span>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: '#92400e' }}>
+                운영진 회비 감면 / 면제 옵션
+              </h3>
+              <p style={{ fontSize: '12.5px', color: '#78350f', margin: '2px 0 0 0' }}>
+                동호회 봉사 및 헌신에 따른 운영진 회비 면제(100%) 또는 감면율을 설정하고 재정 수지에 즉시 반영합니다.
+              </p>
+            </div>
+          </div>
+          {parsedExecDiscountRate > 0 && (
+            <span className="badge" style={{
+              background: parsedExecDiscountRate === 100 ? '#fee2e2' : '#fef3c7',
+              color: parsedExecDiscountRate === 100 ? '#b91c1c' : '#b45309',
+              border: `1px solid ${parsedExecDiscountRate === 100 ? '#fca5a5' : '#fcd34d'}`,
+              fontWeight: 800,
+              fontSize: '12px',
+              padding: '4px 10px'
+            }}>
+              {parsedExecDiscountRate === 100 ? '🏆 전액 면제 적용 중' : `🎁 ${parsedExecDiscountRate}% 감면 적용 중`}
+            </span>
+          )}
+        </div>
+
+        {/* 감면율 설정 컨트롤러 & 프리셋 버튼 */}
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid #fde68a',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '16px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+            <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#451a03' }}>
+              🎯 감면율 선택 및 입력:
+            </span>
+            {isAdmin && (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {[
+                  { label: '🛡️ 0% (전액 납부)', val: 0 },
+                  { label: '🎁 30% 감면', val: 30 },
+                  { label: '⭐ 50% 감면 (반액)', val: 50 },
+                  { label: '🏆 100% 면제 (전액)', val: 100 }
+                ].map(p => (
+                  <button
+                    key={p.val}
+                    type="button"
+                    onClick={() => setExecDiscountRate(String(p.val))}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      border: parsedExecDiscountRate === p.val ? '1.5px solid #d97706' : '1px solid #e2e8f0',
+                      background: parsedExecDiscountRate === p.val ? '#fef3c7' : '#f8fafc',
+                      color: parsedExecDiscountRate === p.val ? '#92400e' : '#64748b'
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 슬라이더 & 숫자 입력 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '180px' }}>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={parsedExecDiscountRate}
+                disabled={!isAdmin}
+                onChange={e => setExecDiscountRate(e.target.value)}
+                style={{ width: '100%', accentColor: '#d97706', cursor: isAdmin ? 'pointer' : 'default' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#92400e', marginTop: '2px' }}>
+                <span>0% (일반회원과 동일)</span>
+                <span>30%</span>
+                <span>50% (절반)</span>
+                <span>70%</span>
+                <span>100% (전액 면제)</span>
+              </div>
+            </div>
+
+            {isAdmin ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  className="input input-sm"
+                  style={{ width: '70px', fontWeight: 800, fontSize: '15px', textAlign: 'right', color: '#b45309' }}
+                  value={execDiscountRate}
+                  onChange={e => setExecDiscountRate(e.target.value)}
+                />
+                <span style={{ fontWeight: 700, fontSize: '14px', color: '#78350f' }}>%</span>
+              </div>
+            ) : (
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#b45309' }}>
+                {parsedExecDiscountRate}%
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 운영진 명단 및 적용 인원 수 */}
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid #fde68a',
+          borderRadius: '12px',
+          padding: '14px 16px',
+          marginBottom: '16px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#451a03' }}>
+                👥 감면 대상 운영진 직책 (회장·부회장·총무·경기이사·운영이사):
+              </span>
+              <span className="badge badge-gold" style={{ fontSize: '11px', padding: '1px 7px' }}>
+                {execMembers.length > 0 ? `등록 ${execMembers.length}명` : `등록 0명 (가상 ${appliedExecCount}명 기준)`}
+              </span>
+            </div>
+
+            {isAdmin && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#78350f' }}>
+                <span>산출 적용 인원 직접 지정:</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="20"
+                  className="input input-sm"
+                  placeholder={String(execMembers.length || 5)}
+                  style={{ width: '55px', padding: '2px 6px', textAlign: 'center', fontWeight: 700 }}
+                  value={execCountOverride}
+                  onChange={e => setExecCountOverride(e.target.value)}
+                />
+                <span>명</span>
+                {execCountOverride !== '' && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '10.5px', padding: '2px 6px', height: 'auto' }}
+                    onClick={() => setExecCountOverride('')}
+                    title="실제 등록된 운영진 수로 자동 연동"
+                  >
+                    자동연동
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 등록된 운영진 태그 리스트 */}
+          {execMembers.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+              {execMembers.map(m => (
+                <span
+                  key={m.id || m.name}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 10px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    color: '#1e40af'
+                  }}
+                >
+                  <span>{m.role === '회장' ? '👑' : m.role === '부회장' ? '🥈' : m.role === '총무' ? '💼' : m.role === '경기이사' ? '🎾' : '📋'}</span>
+                  <span>{m.role}: <strong>{m.name}</strong></span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: '11.5px', color: '#b45309', marginTop: '4px', lineHeight: 1.5 }}>
+              ℹ️ 현재 회원 명부에 5대 운영진 직책이 지정된 회원이 없습니다. 회원 명부에서 직책을 부여하면 자동 연동되며, 현재는 표준 운영진 정원 <strong>{appliedExecCount}명</strong>을 기준으로 시뮬레이션 산출합니다.
+            </div>
+          )}
+        </div>
+
+        {/* 4대 영향 지표 요약 바 */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '12px'
+        }}>
+          {/* 1. 일반 회원 회비 */}
+          <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#ffffff', border: '1px solid #fef3c7' }}>
+            <span style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>일반 회원 회비 (월)</span>
+            <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--txt)', marginTop: '2px' }}>
+              {perMemberMonthlyFee.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 600 }}>원</span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>정상 기준액 (감면 0%)</div>
+          </div>
+
+          {/* 2. 운영진 적용 회비 */}
+          <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#ffffff', border: '1px solid #fef3c7' }}>
+            <span style={{ fontSize: '11.5px', color: '#b45309', fontWeight: 700 }}>👑 운영진 회비 (1인당)</span>
+            <div style={{ fontSize: '17px', fontWeight: 900, color: parsedExecDiscountRate === 100 ? '#16a34a' : '#d97706', marginTop: '2px' }}>
+              {parsedExecDiscountRate === 100 ? '0 원 (면제)' : `${execMonthlyFee.toLocaleString()} 원`}
+            </div>
+            {parsedExecDiscountRate > 0 ? (
+              <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 600 }}>
+                1인당 -{execDiscountPerPerson.toLocaleString()}원 감면 ({parsedExecDiscountRate}%)
+              </div>
+            ) : (
+              <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>감면 미적용 (전액 납부)</div>
+            )}
+          </div>
+
+          {/* 3. 적용 운영진 수 */}
+          <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#ffffff', border: '1px solid #fef3c7' }}>
+            <span style={{ fontSize: '11.5px', color: '#b45309', fontWeight: 700 }}>감면 적용 운영진 인원</span>
+            <div style={{ fontSize: '17px', fontWeight: 900, color: '#451a03', marginTop: '2px' }}>
+              {appliedExecCount} <span style={{ fontSize: '12px', fontWeight: 600 }}>명</span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>
+              {parsedOverrideCount !== null ? '직접 지정 인원' : (execMembers.length > 0 ? '등록된 운영진 전원' : '표준 정원 기준')}
+            </div>
+          </div>
+
+          {/* 4. 월간 총 감면 지원액 */}
+          <div style={{
+            padding: '12px',
+            borderRadius: '10px',
+            backgroundColor: parsedExecDiscountRate > 0 ? '#fef2f2' : '#ffffff',
+            border: parsedExecDiscountRate > 0 ? '1.5px solid #fca5a5' : '1px solid #fef3c7'
+          }}>
+            <span style={{ fontSize: '11.5px', color: parsedExecDiscountRate > 0 ? '#b91c1c' : 'var(--txt3)', fontWeight: 700 }}>
+              💸 월간 운영진 감면 총액
+            </span>
+            <div style={{ fontSize: '17px', fontWeight: 900, color: parsedExecDiscountRate > 0 ? '#dc2626' : 'var(--txt)', marginTop: '2px' }}>
+              -{totalExecDiscountMonthly.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 600 }}>원/월</span>
+            </div>
+            <div style={{ fontSize: '11px', color: parsedExecDiscountRate > 0 ? '#991b1b' : 'var(--txt3)' }}>
+              {parsedExecDiscountRate > 0 ? `연간 -${(totalExecDiscountMonthly * 12).toLocaleString()}원 동호회 재정 지원` : '감면액 없음'}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── 3. 동호회 최적 인원 산출 및 비교 분석 결과 카드 ── */}
       <div className="card" style={{
         padding: '24px',
@@ -1090,6 +1394,19 @@ export default function FinanceCalculator({
             <div style={{ fontSize: '12px', color: 'var(--txt2)', marginTop: '4px', lineHeight: 1.4 }}>
               적자 없이 월 고정 지출({totalMonthlyExpense.toLocaleString()}원)을 충당하는 데 필요한 최소 인원입니다.
             </div>
+            {parsedExecDiscountRate > 0 && (
+              <div style={{
+                marginTop: '8px',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                background: '#eff6ff',
+                fontSize: '11px',
+                color: '#1d4ed8',
+                fontWeight: 600
+              }}>
+                ※ 운영진 {appliedExecCount}명({parsedExecDiscountRate}% 감면) + 일반 회원 {bepGeneralNeeded}명
+              </div>
+            )}
           </div>
 
           {/* 지표 2: 권장 최적 회원 수 */}
@@ -1123,6 +1440,19 @@ export default function FinanceCalculator({
             <div style={{ fontSize: '12px', color: 'var(--txt2)', marginTop: '4px', lineHeight: 1.4 }}>
               매월 15%의 여유 예비비/대회비(약 {Math.round(totalMonthlyExpense * 0.15).toLocaleString()}원)를 적립하는 이상적인 규모입니다.
             </div>
+            {parsedExecDiscountRate > 0 && (
+              <div style={{
+                marginTop: '8px',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                background: '#eff6ff',
+                fontSize: '11px',
+                color: '#1d4ed8',
+                fontWeight: 600
+              }}>
+                ※ 운영진 {appliedExecCount}명({parsedExecDiscountRate}% 감면) + 일반 회원 {optGeneralNeeded}명
+              </div>
+            )}
           </div>
 
           {/* 지표 3: 코트 면수 기준 적정 운동 인원 */}
@@ -1177,11 +1507,21 @@ export default function FinanceCalculator({
               marginTop: '4px',
               lineHeight: 1.5
             }}>
-              현재 정회원 <strong>{currentRegularCount}명</strong> (월 회비 수입 약 {currentTotalRevenue.toLocaleString()}원) 기준으로,
-              월 총 지출({totalMonthlyExpense.toLocaleString()}원) 대비 
+              현재 정회원 <strong>{currentRegularCount}명</strong>
+              {parsedExecDiscountRate > 0 ? (
+                <span> (일반 {currentGeneralCount}명 + 운영진 {currentExecCount}명 {parsedExecDiscountRate}% 감면, 실 수입 약 <strong>{currentTotalRevenue.toLocaleString()}원</strong>)</span>
+              ) : (
+                <span> (월 회비 수입 약 {currentTotalRevenue.toLocaleString()}원)</span>
+              )}
+              기준으로, 월 총 지출({totalMonthlyExpense.toLocaleString()}원) 대비 
               매월 <strong style={{ textDecoration: 'underline' }}>
                 {Math.abs(currentMonthlyBalance).toLocaleString()}원 {currentMonthlyBalance >= 0 ? '흑자(잉여금 적립)' : '적자(자금 부족)'}
               </strong> 상태입니다.
+              {parsedExecDiscountRate > 0 && (
+                <div style={{ fontSize: '11.5px', color: currentMonthlyBalance >= 0 ? '#166534' : '#991b1b', marginTop: '3px' }}>
+                  👑 운영진 회비 감면 지원액: 매월 <strong>{totalExecDiscountMonthly.toLocaleString()}원</strong>(1인당 {execDiscountPerPerson.toLocaleString()}원) 반영됨
+                </div>
+              )}
               {currentMonthlyBalance < 0 && (
                 <span style={{ display: 'block', marginTop: '2px' }}>
                   👉 손익분기를 맞추려면 <strong>{Math.max(0, bepCount - currentRegularCount)}명</strong> 추가 충원 또는 월 회비 약 {Math.ceil(totalMonthlyExpense / (currentRegularCount || 1) - perMemberMonthlyFee).toLocaleString()}원 인상이 권장됩니다.
@@ -1265,6 +1605,11 @@ export default function FinanceCalculator({
               <div style={{ fontSize: '16px', fontWeight: 800, color: '#0369a1' }}>
                 {simRevenue.toLocaleString()}원
               </div>
+              {parsedExecDiscountRate > 0 && (
+                <div style={{ fontSize: '10.5px', color: 'var(--txt2)', marginTop: '2px' }}>
+                  일반 {simGeneralCount}명({(simGeneralCount * perMemberMonthlyFee).toLocaleString()}원) + 운영진 {simExecCount}명({(simExecCount * execMonthlyFee).toLocaleString()}원)
+                </div>
+              )}
             </div>
             <div>
               <div style={{ fontSize: '11.5px', color: 'var(--txt3)' }}>월간 고정 총 지출</div>
