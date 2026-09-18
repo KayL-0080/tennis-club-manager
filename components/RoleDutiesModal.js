@@ -18,19 +18,81 @@ export const ROLE_DUTIES_DATA = [
     badgeColor: '#1e40af',
     iconBg: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
     coreRole: '클럽 대표 및 총괄',
-    description: '동호회를 대내외적으로 대표하며, 클럽의 전반적인 방향성 및 운영 체계를 총괄합니다.',
+    description: '동호회를 대내외적으로 대표하며, 클럽의 전반적인 운영 방향성과 장기 발전 계획을 총괄 지휘합니다.',
     tasks: [
-      '동호회 총괄 운영 및 연간 일정 수립',
-      '회칙 제·개정, 코트 대관 시간 조정 및 부족 회비 각출 등 중요 안건 최종 결정·공지',
-      '회원 간 갈등 중재, 신입 회원 웰컴 멘토 지정 및 매너 관리'
+      '동호회 총괄 운영 및 연간 주요 일정·사업 계획 최종 수립',
+      '회칙 제·개정, 코트 대관 및 특별 예산 승인 등 주요 안건 최종 결정 및 공지',
+      '정기총회 및 임시총회 소집·주재',
+      '회원 간 갈등 중재, 신입 회원 웰컴 멘토 지정 및 클럽 매너 관리 총괄'
     ],
     collaborations: [
+      {
+        partner: '부회장',
+        type: '회장단 상시 협의 및 권한 위임',
+        partnerColor: '#3730a3',
+        partnerBg: '#e0e7ff',
+        detail: '클럽 주요 정책 사전 협의, 대외 교류전 및 대형 행사 추진 역할 분담'
+      },
       {
         partner: '전체 운영진',
         type: '최종 의결 및 총괄 조율',
         partnerColor: '#1e40af',
         partnerBg: '#dbeafe',
-        detail: '클럽 주요 현안 최종 의결 및 운영진 전체 업무 총괄 조율'
+        detail: '운영위원회 주요 안건 최종 의결 및 운영진 전체 업무 총괄 조율'
+      }
+    ]
+  },
+  {
+    id: 'vice_president',
+    role: '부회장',
+    shortName: '부회장',
+    emoji: '🥈',
+    badge: '🥈 회장 보좌·총괄 지원',
+    themeColor: '#4f46e5',
+    headerBg: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+    headerBgActive: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)',
+    borderColor: '#a5b4fc',
+    badgeBg: '#e0e7ff',
+    badgeColor: '#3730a3',
+    iconBg: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+    coreRole: '회장 보좌, 대내외 협력 및 행사 총괄',
+    description: '회장을 보좌하고 유고 시 직무를 대행하며, 타 클럽과의 친선 교류전 추진, 클럽 대회 및 총회 등 주요 행사 기획, 회원 간 소통과 화합을 총괄 지원합니다.',
+    tasks: [
+      '회장 보좌 및 회장 유고 시 클럽 대표 직무 대행',
+      '타 클럽과의 친선 교류전 추진 및 지역 연합회 등 대외 협력 소통 창구 총괄',
+      '분기별 정기대회(월례대회, 청백전, 왕중왕전), 야유회(MT) 및 총회 등 특별 행사 기획·진행 총괄',
+      '행사 상품·트로피 선정 및 찬조금/찬조물품 접수 관리',
+      '신입 회원 적응 지원, 회원 건의사항 수렴 및 클럽 내 화합과 결속력 도모',
+      '운영위원회 안건 사전 조율 및 각 직책(총무·경기·운영) 간 유기적 협업 체계 지원'
+    ],
+    collaborations: [
+      {
+        partner: '회장',
+        type: '대표 직무 보좌 및 대행',
+        partnerColor: '#1e40af',
+        partnerBg: '#dbeafe',
+        detail: '클럽 중장기 운영 방향 수립 및 회장 유고 시 대표 권한 대행 협업'
+      },
+      {
+        partner: '경기이사',
+        type: '대회 기획 및 경기 운영 연계',
+        partnerColor: '#ea580c',
+        partnerBg: '#ffedd5',
+        detail: '친선 교류전 및 정기대회 기획(부회장)과 대진표 편성·룰 집행(경기이사) 협업'
+      },
+      {
+        partner: '운영이사',
+        type: '행사 코트 대관 및 비품 조율',
+        partnerColor: '#7c3aed',
+        partnerBg: '#ede9fe',
+        detail: '대외 교류전 및 연간 행사 진행을 위한 전용 코트 대관 확보 및 비품 지원'
+      },
+      {
+        partner: '총무',
+        type: '행사 예산 수립 및 찬조금 정산',
+        partnerColor: '#059669',
+        partnerBg: '#d1fae5',
+        detail: '대회 및 행사 예산 수립, 찬조금 관리 및 사후 정산 보고 협력'
       }
     ]
   },
@@ -57,18 +119,25 @@ export const ROLE_DUTIES_DATA = [
     ],
     collaborations: [
       {
-        partner: '회장',
-        type: '결산 보고',
+        partner: '회장단',
+        type: '결산 보고 및 예산 협의',
         partnerColor: '#1e40af',
         partnerBg: '#dbeafe',
-        detail: '월별 회계 결산 내역 및 예산 집행 현황 정기 보고'
+        detail: '월별 회계 결산 내역 보고 및 분기별 주요 사업 예산 집행 협의'
       },
       {
         partner: '운영이사',
         type: '물품 구매 예산 집행',
-        partnerColor: '#6d28d9',
+        partnerColor: '#7c3aed',
         partnerBg: '#ede9fe',
         detail: '시합구/구급약품 등 비품 구매 및 코트비 지출 예산 집행 연계'
+      },
+      {
+        partner: '부회장',
+        type: '행사 예산 집행',
+        partnerColor: '#3730a3',
+        partnerBg: '#e0e7ff',
+        detail: '친선대회/교류전 행사비 및 뒤풀이 비용 정산 연계'
       }
     ]
   },
@@ -95,11 +164,11 @@ export const ROLE_DUTIES_DATA = [
     ],
     collaborations: [
       {
-        partner: '행사담당',
-        type: '대회 대진표 및 경기 집행 전담',
-        partnerColor: '#be123c',
-        partnerBg: '#ffe4e6',
-        detail: '분기/친선 대회 대진표 구성 및 현장 경기 진행 룰 집행'
+        partner: '부회장',
+        type: '대회 기획 및 경기 집행 전담',
+        partnerColor: '#3730a3',
+        partnerBg: '#e0e7ff',
+        detail: '분기/친선 교류 대회 기획(부회장)과 대진표 구성 및 현장 경기 룰 집행(경기이사) 협업'
       }
     ]
   },
@@ -128,55 +197,16 @@ export const ROLE_DUTIES_DATA = [
       {
         partner: '총무',
         type: '코트비/용품비 지출 연계',
-        partnerColor: '#047857',
+        partnerColor: '#059669',
         partnerBg: '#d1fae5',
         detail: '코트 대관비 및 시합구/비품 구입 비용 정산 연계'
       },
       {
-        partner: '행사담당',
-        type: '행사 코트 대관 지원',
-        partnerColor: '#be123c',
-        partnerBg: '#ffe4e6',
-        detail: '정기 대회 및 특별 이벤트 진행을 위한 전용 코트 대관 확보'
-      }
-    ]
-  },
-  {
-    id: 'event_director',
-    role: '행사담당',
-    shortName: '행사담당',
-    emoji: '🎉',
-    badge: '🎉 이벤트·친목',
-    themeColor: '#e11d48',
-    headerBg: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
-    headerBgActive: 'linear-gradient(135deg, #ffe4e6 0%, #fecdd3 100%)',
-    borderColor: '#fda4af',
-    badgeBg: '#ffe4e6',
-    badgeColor: '#9f1239',
-    iconBg: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)',
-    coreRole: '이벤트·친목 기획 총괄',
-    description: '동호회의 결속력과 즐거움을 더하는 각종 대회 기획, 장외 행사 및 회원 친목을 도모합니다.',
-    tasks: [
-      '분기별 친선 대회, 청백전, 왕중왕전 기획 및 공지(팜플렛/전단지 등)',
-      '대회 우승·참가·행운상 상품 선정/구매 및 찬조자 답례품/감사 라벨 준비',
-      '개·폐회식 및 시상식 진행/사회',
-      '정기모임/대회 뒤풀이 장소 섭외, 야유회(MT)·송년회 등 장외 친목 추진',
-      '행사 당일 다과 세팅 및 활동 사진·영상 아카이빙'
-    ],
-    collaborations: [
-      {
-        partner: '경기이사',
-        type: '행사 기획(행사)과 경기 룰(경기) 분담',
-        partnerColor: '#c2410c',
-        partnerBg: '#ffedd5',
-        detail: '행사 기획 및 무대 진행(행사담당)과 경기 대진표 및 룰 운영(경기이사) 협업'
-      },
-      {
-        partner: '총무',
-        type: '행사 예산 집행 및 정산',
-        partnerColor: '#047857',
-        partnerBg: '#d1fae5',
-        detail: '행사 상품/다과 구매 예산 수립 및 찬조금/지출 정산 처리'
+        partner: '부회장',
+        type: '교류전/행사 코트 대관 지원',
+        partnerColor: '#3730a3',
+        partnerBg: '#e0e7ff',
+        detail: '대외 친선 교류전 및 특별 행사 진행을 위한 전용 코트 대관 확보 지원'
       }
     ]
   }
@@ -189,10 +219,10 @@ export default function RoleDutiesModal({ isOpen, onClose }) {
   // 각 직책별 펼침/접힘 상태 (초기: 전체 모두 펼침 상태로 하여 사용자가 즉시 모든 내용을 확인할 수 있게 지원)
   const [openRoles, setOpenRoles] = useState({
     president: true,
+    vice_president: true,
     treasurer: true,
     match_director: true,
-    operations_director: true,
-    event_director: true
+    operations_director: true
   });
 
   const scrollRef = useRef(null);
