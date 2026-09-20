@@ -106,6 +106,10 @@ export default function Dashboard() {
   useEffect(() => { load(); }, [load]);
 
   const handleScheduleGenerated = async (schedRounds, genStats) => {
+    if (!isAdmin) {
+      alert('대진표 생성 권한이 없습니다 (운영진 전용).');
+      return;
+    }
     setCreating(true);
     try {
       const r = schedRounds.length;
@@ -153,6 +157,10 @@ export default function Dashboard() {
   };
 
   const handleScheduleManual = async (schedRounds) => {
+    if (!isAdmin) {
+      alert('대진표 생성 권한이 없습니다 (운영진 전용).');
+      return;
+    }
     setCreating(true);
     try {
       const r = schedRounds.length;
@@ -555,7 +563,7 @@ export default function Dashboard() {
               )}
             </div>
           )
-        ) : (
+        ) : isAdmin ? (
           <div style={{ marginTop: '20px' }}>
             <SettingsTab
               events={events}
@@ -580,7 +588,7 @@ export default function Dashboard() {
               onReloadMembers={load}
             />
           </div>
-        )}
+        ) : null}
       </main>
     </div>
   );

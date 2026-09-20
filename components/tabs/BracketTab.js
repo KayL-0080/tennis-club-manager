@@ -202,7 +202,7 @@ export default function BracketTab({
 
   /* ── 이벤트 핸들러 (입력 즉시 자동 저장 및 실시간 동기화) ── */
   const onPlayerSelect = (ri, ci, team, slot, value) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !isAdmin) return;
     if (value) {
       const currentMatch = schedule[ri]?.[ci];
       const playerName = byId[value]?.name || '선수';
@@ -921,7 +921,8 @@ export default function BracketTab({
                                     return (
                                       <select
                                         key={slot}
-                                        disabled={isReadOnly}
+                                        disabled={isReadOnly || !isAdmin}
+                                        title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
                                         className={`${styles.playerSel} ${styles.bgTeamA}`}
                                         style={{
                                           width: '100%',
@@ -988,7 +989,8 @@ export default function BracketTab({
                                     return (
                                       <select
                                         key={slot}
-                                        disabled={isReadOnly}
+                                        disabled={isReadOnly || !isAdmin}
+                                        title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
                                         className={`${styles.playerSel} ${styles.bgTeamB}`}
                                         style={{
                                           width: '100%',
@@ -1093,7 +1095,8 @@ export default function BracketTab({
                                 return (
                                   <select 
                                     key={slot} 
-                                    disabled={isReadOnly}
+                                    disabled={isReadOnly || !isAdmin}
+                                    title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
                                     className={`${styles.playerSel} ${styles.bgTeamA}`}
                                     style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
                                     value={pId || ''}
@@ -1129,7 +1132,8 @@ export default function BracketTab({
                                 return (
                                   <select 
                                     key={slot} 
-                                    disabled={isReadOnly}
+                                    disabled={isReadOnly || !isAdmin}
+                                    title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
                                     className={`${styles.playerSel} ${styles.bgTeamB}`}
                                     style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
                                     value={pId || ''}

@@ -108,7 +108,8 @@ export default function EditorPage({ params }) {
     if (!id) return;
     setSaving(true);
 
-    const currentSchedule = overrides.schedule !== undefined ? overrides.schedule : schedule;
+    // 대진표 선수/경기 배정 수정 권한은 운영진 전용 (일반 회원은 스코어 입력만 반영)
+    const currentSchedule = (!isAdmin && schedule) ? schedule : (overrides.schedule !== undefined ? overrides.schedule : schedule);
     const currentScores = overrides.scores !== undefined ? overrides.scores : scores;
     
     // Auto-save history entry for current bracket
@@ -198,7 +199,7 @@ export default function EditorPage({ params }) {
             </div>
             
             <div className={styles.titleStatus}>
-              {isPastMatch && (
+              {isPastMatch ? (
                 <span 
                   className={styles.pastMatchBadge}
                   style={{ 
@@ -209,7 +210,19 @@ export default function EditorPage({ params }) {
                 >
                   {isReadOnly ? '🔒 종료된 경기 (읽기 전용)' : '⚙️ 종료된 경기 (관리자 모드)'}
                 </span>
-              )}
+              ) : !isAdmin ? (
+                <span 
+                  className={styles.pastMatchBadge}
+                  style={{ 
+                    backgroundColor: '#f8fafc',
+                    color: '#64748b',
+                    border: '1px solid #e2e8f0',
+                  }}
+                  title="대진표 선수 수정은 운영진만 가능합니다. 점수 입력은 가능합니다."
+                >
+                  🔒 선수 수정: 운영진 전용 (스코어 입력 가능)
+                </span>
+              ) : null}
               <span className={styles.saveLabel}>
                 {saving ? <span className="spinner" style={{ width: 14, height: 14 }} /> : saveLabel}
               </span>

@@ -255,6 +255,9 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   };
 
   const handleUpdateMatchSlot = (courtId, courtName, setIdx, field, val) => {
+    if (['playerA1', 'playerA2', 'playerB1', 'playerB2', 'teamAId', 'teamBId'].includes(field) && !isAdmin) {
+      return;
+    }
     let parsedVal = val !== '' ? val : null;
     if (field === 'scoreA' || field === 'scoreB') {
       parsedVal = val !== '' ? Math.max(0, Math.min(maxGames, parseInt(val))) : null;
@@ -355,6 +358,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   };
 
   const openPlayerAssignModal = (courtId, courtNum, setIdx, teamSide, teamId, p1, p2) => {
+    if (!isAdmin) return;
     if (!teamId) {
       alert('먼저 조(팀)을 선택해 주세요.');
       return;
@@ -373,6 +377,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   };
 
   const handleUpdateTeamPlayers = (courtId, courtName, setIdx, teamSide, p1, p2) => {
+    if (!isAdmin) return;
     const p1Field = teamSide === 'A' ? 'playerA1' : 'playerB1';
     const p2Field = teamSide === 'A' ? 'playerA2' : 'playerB2';
 
@@ -2605,7 +2610,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                     {/* Players Container & Modal Trigger */}
                                     <div 
                                       onClick={() => {
-                                        if (m.teamAId) {
+                                        if (isAdmin && m.teamAId) {
                                           openPlayerAssignModal(courtId, courtNum, setIdx, 'A', m.teamAId, m.playerA1, m.playerA2);
                                         }
                                       }}
@@ -2618,12 +2623,12 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                         border: (isPlayerA1Conflicting || isPlayerA2Conflicting) ? '1.5px solid #ef4444' : '1px solid #e2e8f0', 
                                         borderRadius: '6px', 
                                         padding: '4px 6px', 
-                                        cursor: m.teamAId ? 'pointer' : 'default',
+                                        cursor: (isAdmin && m.teamAId) ? 'pointer' : 'default',
                                         boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
                                         minHeight: '44px',
                                         justifyContent: 'center'
                                       }}
-                                      title={m.teamAId ? "클릭하여 출전 선수 지정 또는 변경" : ""}
+                                      title={isAdmin ? (m.teamAId ? "클릭하여 출전 선수 지정 또는 변경" : "") : "선수 배정은 운영진만 가능합니다"}
                                     >
                                       {(m.playerA1 || m.playerA2) ? (
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', flexWrap: 'wrap', width: '100%' }}>
@@ -2769,7 +2774,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                     {/* Players Container & Modal Trigger */}
                                     <div 
                                       onClick={() => {
-                                        if (m.teamBId) {
+                                        if (isAdmin && m.teamBId) {
                                           openPlayerAssignModal(courtId, courtNum, setIdx, 'B', m.teamBId, m.playerB1, m.playerB2);
                                         }
                                       }}
@@ -2782,12 +2787,12 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                         border: (isPlayerB1Conflicting || isPlayerB2Conflicting) ? '1.5px solid #ef4444' : '1px solid #e2e8f0', 
                                         borderRadius: '6px', 
                                         padding: '4px 6px', 
-                                        cursor: m.teamBId ? 'pointer' : 'default',
+                                        cursor: (isAdmin && m.teamBId) ? 'pointer' : 'default',
                                         boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
                                         minHeight: '44px',
                                         justifyContent: 'center'
                                       }}
-                                      title={m.teamBId ? "클릭하여 출전 선수 지정 또는 변경" : ""}
+                                      title={isAdmin ? (m.teamBId ? "클릭하여 출전 선수 지정 또는 변경" : "") : "선수 배정은 운영진만 가능합니다"}
                                     >
                                       {(m.playerB1 || m.playerB2) ? (
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', flexWrap: 'wrap', width: '100%' }}>

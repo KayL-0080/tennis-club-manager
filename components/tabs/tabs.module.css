@@ -246,11 +246,11 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.18);
 }
 .playerSel:disabled {
-  opacity: 0.9;
+  opacity: 1;
   cursor: not-allowed;
-  background-color: rgba(241, 245, 249, 0.9) !important;
-  border-color: rgba(203, 213, 225, 0.7) !important;
-  color: #64748b;
+  background-color: rgba(248, 250, 252, 0.95);
+  border-color: rgba(203, 213, 225, 0.7);
+  font-weight: 700;
 }
 
 .bgTeamA {
@@ -258,10 +258,23 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   border-color: rgba(37, 99, 235, 0.3) !important;
   color: #1d4ed8;
 }
+.playerSel.bgTeamA:disabled {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+  border-color: rgba(37, 99, 235, 0.25) !important;
+  color: #1d4ed8 !important;
+  -webkit-text-fill-color: #1d4ed8 !important;
+}
+
 .bgTeamB {
   background-color: rgba(225, 29, 72, 0.08) !important;
   border-color: rgba(225, 29, 72, 0.3) !important;
   color: #be123c;
+}
+.playerSel.bgTeamB:disabled {
+  background-color: rgba(225, 29, 72, 0.08) !important;
+  border-color: rgba(225, 29, 72, 0.25) !important;
+  color: #be123c !important;
+  -webkit-text-fill-color: #be123c !important;
 }
 .playerSel option { background: #fff; color: var(--txt); }
 
