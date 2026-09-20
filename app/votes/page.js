@@ -17,6 +17,39 @@ const formatDateToYMD = (d = new Date()) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+const formatVoteTime = (isoString) => {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${yyyy}.${mm}.${dd} ${hh}:${min}`;
+  } catch {
+    return '';
+  }
+};
+
+const formatVoteTimeFull = (isoString) => {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+  } catch {
+    return '';
+  }
+};
+
 export default function VotesPage() {
   const { isAdmin } = useAuth();
   const router = useRouter();
@@ -32,6 +65,10 @@ export default function VotesPage() {
   const [showNonVoters, setShowNonVoters] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => formatDateToYMD().substring(0, 7));
   
+  // Member List Filter & Sort in Vote Modal
+  const [memberFilter, setMemberFilter] = useState('ALL'); // 'ALL' | 'Y' | 'N' | '?'
+  const [sortMode, setSortMode] = useState('default');     // 'default' | 'latest'
+
   // Reminder Modal State
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderText, setReminderText] = useState('');
@@ -74,6 +111,8 @@ export default function VotesPage() {
     setSelectedEvent(null);
     setIsEditing(false);
     setShowSettingsModal(false);
+    setMemberFilter('ALL');
+    setSortMode('default');
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', '/votes');
     }
@@ -285,20 +324,26 @@ export default function VotesPage() {
     const currentStatus = selectedEvent.attendees?.[memberId] || '?';
     if (currentStatus === status) return; // No change
 
-    // 1. 낙관적 로컬 상태 업데이트: 오직 해당 회원(memberId)의 상태만 갱신
-    const newAttendees = { ...(selectedEvent.attendees || {}), [memberId]: status };
+    const now = new Date().toISOString();
 
-    setSelectedEvent(prev => (prev && prev.id === eventId ? { ...prev, attendees: newAttendees } : prev));
-    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendees: newAttendees } : e));
+    // 1. 낙관적 로컬 상태 업데이트: 오직 해당 회원(memberId)의 상태 및 일시만 갱신
+    const newAttendees = { ...(selectedEvent.attendees || {}), [memberId]: status };
+    const newTimestamps = { ...(selectedEvent.attendanceTimestamps || {}), [memberId]: now };
+
+    setSelectedEvent(prev => (prev && prev.id === eventId ? { ...prev, attendees: newAttendees, attendanceTimestamps: newTimestamps } : prev));
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendees: newAttendees, attendanceTimestamps: newTimestamps } : e));
 
     // 2. Firestore 원자적 갱신(Atomic update):
-    // attendees 전체 객체를 덮어쓰지 않고 `attendees.<memberId>` 단일 필드만 수정하여 타 회원 투표 유실 원천 방지
+    // attendees 전체 객체를 덮어쓰지 않고 `attendees.<memberId>` 및 `attendanceTimestamps.<memberId>` 단일 필드만 수정하여 타 회원 투표 유실 원천 방지
     try {
-      await updateEventMemberAttendance('shared', eventId, memberId, status);
+      await updateEventMemberAttendance('shared', eventId, memberId, status, now);
     } catch (err) {
       console.error('Failed to update attendance atomically:', err);
       try {
-        await updateEvent('shared', eventId, { [`attendees.${memberId}`]: status });
+        await updateEvent('shared', eventId, { 
+          [`attendees.${memberId}`]: status,
+          [`attendanceTimestamps.${memberId}`]: now
+        });
       } catch (fallbackErr) {
         console.error('Fallback attendance update error:', fallbackErr);
         alert('투표 반영 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
@@ -835,11 +880,36 @@ export default function VotesPage() {
               (() => {
                 const activeEvent = events.find(e => e.id === selectedEvent.id) || selectedEvent;
                 const activeAttendees = activeEvent.attendees || {};
+                const activeTimestamps = activeEvent.attendanceTimestamps || {};
                 const [y, m, d] = (activeEvent.date || '').split('-');
                 const deadline = new Date(y, m - 1, d);
                 deadline.setDate(deadline.getDate() - 1);
                 deadline.setHours(18, 0, 0, 0);
                 const isClosed = new Date() > deadline;
+
+                const attCount = Object.values(activeAttendees).filter(v => v === 'Y').length;
+                const absCount = Object.values(activeAttendees).filter(v => v === 'N').length;
+                const unkCount = members.length - Object.values(activeAttendees).filter(v => v === 'Y' || v === 'N').length;
+
+                // Filter members by status
+                let displayedMembers = members.filter(mem => {
+                  if (memberFilter === 'ALL') return true;
+                  const s = activeAttendees[mem.id] || '?';
+                  if (memberFilter === 'Y') return s === 'Y';
+                  if (memberFilter === 'N') return s === 'N';
+                  if (memberFilter === '?') return s === '?' || !activeAttendees[mem.id];
+                  return true;
+                });
+
+                // Sort members
+                if (sortMode === 'latest') {
+                  displayedMembers = [...displayedMembers].sort((a, b) => {
+                    const timeA = activeTimestamps[a.id] ? new Date(activeTimestamps[a.id]).getTime() : 0;
+                    const timeB = activeTimestamps[b.id] ? new Date(activeTimestamps[b.id]).getTime() : 0;
+                    if (timeA !== timeB) return timeB - timeA;
+                    return a.name.localeCompare(b.name, 'ko');
+                  });
+                }
 
                 return (
                   <>
@@ -866,67 +936,198 @@ export default function VotesPage() {
                       </div>
                     </div>
 
-                    <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--bg)', borderRadius: '8px', fontSize: '14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <strong>✅ 참석</strong>
-                        <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>
-                          {Object.values(activeAttendees).filter(v => v === 'Y').length}명
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <strong>❌ 불참</strong>
-                        <span style={{ color: '#e53e3e', fontWeight: 'bold' }}>
-                          {Object.values(activeAttendees).filter(v => v === 'N').length}명
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <strong>❓ 미정</strong>
-                        <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>
-                          {members.length - Object.values(activeAttendees).filter(v => v === 'Y' || v === 'N').length}명
-                        </span>
+                    {/* 투표 현황 요약 및 원클릭 필터 탭 */}
+                    <div style={{ marginBottom: '14px', padding: '10px', background: 'var(--bg)', borderRadius: '10px', fontSize: '13px', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', textAlign: 'center' }}>
+                        <div 
+                          onClick={() => setMemberFilter(prev => prev === 'Y' ? 'ALL' : 'Y')}
+                          style={{ 
+                            padding: '8px 4px', 
+                            borderRadius: '8px', 
+                            cursor: 'pointer',
+                            backgroundColor: memberFilter === 'Y' ? 'rgba(34, 197, 94, 0.18)' : 'rgba(34, 197, 94, 0.08)',
+                            border: memberFilter === 'Y' ? '1.5px solid #16a34a' : '1px solid transparent',
+                            transition: 'all 0.15s'
+                          }}
+                          title="클릭하여 참석자만 보기"
+                        >
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#15803d' }}>✅ 참석</div>
+                          <div style={{ fontSize: '17px', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
+                            {attCount}명
+                          </div>
+                        </div>
+
+                        <div 
+                          onClick={() => setMemberFilter(prev => prev === 'N' ? 'ALL' : 'N')}
+                          style={{ 
+                            padding: '8px 4px', 
+                            borderRadius: '8px', 
+                            cursor: 'pointer',
+                            backgroundColor: memberFilter === 'N' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.08)',
+                            border: memberFilter === 'N' ? '1.5px solid #dc2626' : '1px solid transparent',
+                            transition: 'all 0.15s'
+                          }}
+                          title="클릭하여 불참자만 보기"
+                        >
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#b91c1c' }}>❌ 불참</div>
+                          <div style={{ fontSize: '17px', fontWeight: 800, color: '#b91c1c', marginTop: '2px' }}>
+                            {absCount}명
+                          </div>
+                        </div>
+
+                        <div 
+                          onClick={() => setMemberFilter(prev => prev === '?' ? 'ALL' : '?')}
+                          style={{ 
+                            padding: '8px 4px', 
+                            borderRadius: '8px', 
+                            cursor: 'pointer',
+                            backgroundColor: memberFilter === '?' ? '#e2e8f0' : 'rgba(100, 116, 139, 0.08)',
+                            border: memberFilter === '?' ? '1.5px solid #64748b' : '1px solid transparent',
+                            transition: 'all 0.15s'
+                          }}
+                          title="클릭하여 미정/미투표자만 보기"
+                        >
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>❓ 미정</div>
+                          <div style={{ fontSize: '17px', fontWeight: 800, color: '#475569', marginTop: '2px' }}>
+                            {unkCount}명
+                          </div>
+                        </div>
                       </div>
                     </div>
 
                     <div style={{ flex: '1 1 auto', overflowY: 'auto', overflowX: 'hidden', paddingRight: '2px', margin: '0 -4px', paddingLeft: '4px' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>투표 명단</span>
-                        {isClosed && (
-                          <span style={{ color: isAdmin ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12.5px', fontWeight: 600 }}>
-                            {isAdmin ? '마감됨 (운영진 수정 가능)' : '투표 마감됨'}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <h3 style={{ fontSize: '15.5px', fontWeight: 'bold', margin: 0 }}>
+                            투표 명단
+                          </h3>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            ({displayedMembers.length}/{members.length}명)
                           </span>
-                        )}
-                      </h3>
+                          {memberFilter !== 'ALL' && (
+                            <button 
+                              type="button"
+                              onClick={() => setMemberFilter('ALL')}
+                              style={{ fontSize: '11px', background: 'none', border: 'none', color: 'var(--ios-blue)', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                            >
+                              전체보기
+                            </button>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          {isClosed && (
+                            <span style={{ color: isAdmin ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12px', fontWeight: 600, marginRight: '4px' }}>
+                              {isAdmin ? '마감됨 (운영진 수정 가능)' : '투표 마감됨'}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${sortMode === 'default' ? 'btn-primary' : 'btn-secondary'}`}
+                            style={{ fontSize: '11.5px', padding: '3px 8px', height: '26px' }}
+                            onClick={() => setSortMode('default')}
+                          >
+                            기본순
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${sortMode === 'latest' ? 'btn-primary' : 'btn-secondary'}`}
+                            style={{ fontSize: '11.5px', padding: '3px 8px', height: '26px' }}
+                            onClick={() => setSortMode('latest')}
+                            title="최근 투표/수정한 순서대로 정렬"
+                          >
+                            🕒 최신순
+                          </button>
+                        </div>
+                      </div>
+
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {members.map(m => {
-                          const status = activeAttendees[m.id] || '?';
-                          const isVoteDisabled = !isAdmin && isClosed;
-                          
-                          return (
-                            <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', gap: '6px' }}>
-                              <span style={{ fontWeight: '600', fontSize: '13.5px', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
-                              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                                <button 
-                                  className={`btn btn-sm ${status === 'Y' ? 'btn-primary' : 'btn-secondary'}`}
-                                  style={{ opacity: status === 'Y' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
-                                  disabled={isVoteDisabled}
-                                  onClick={() => handleToggleAttendance(m.id, 'Y')}
-                                >참석</button>
-                                <button 
-                                  className={`btn btn-sm ${status === 'N' ? 'btn-danger' : 'btn-secondary'}`}
-                                  style={{ opacity: status === 'N' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
-                                  disabled={isVoteDisabled}
-                                  onClick={() => handleToggleAttendance(m.id, 'N')}
-                                >불참</button>
-                                <button 
-                                  className={`btn btn-sm ${status === '?' ? '' : 'btn-secondary'}`}
-                                  style={{ opacity: status === '?' ? 1 : 0.6, background: status === '?' ? '#e2e8f0' : undefined, color: status === '?' ? '#1e293b' : undefined, padding: '4px 10px', fontSize: '12px' }}
-                                  disabled={isVoteDisabled}
-                                  onClick={() => handleToggleAttendance(m.id, '?')}
-                                >미정</button>
+                        {displayedMembers.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                            해당 상태의 회원이 없습니다.
+                          </div>
+                        ) : (
+                          displayedMembers.map(m => {
+                            const status = activeAttendees[m.id] || '?';
+                            const isVoteDisabled = !isAdmin && isClosed;
+                            const timeIso = activeTimestamps[m.id];
+                            const timeStr = formatVoteTime(timeIso);
+                            const fullTimeStr = formatVoteTimeFull(timeIso);
+                            
+                            return (
+                              <div 
+                                key={m.id} 
+                                style={{ 
+                                  display: 'flex', 
+                                  flexWrap: 'wrap', 
+                                  justifyContent: 'space-between', 
+                                  alignItems: 'center', 
+                                  padding: '7px 10px', 
+                                  border: '1px solid var(--border)', 
+                                  borderRadius: '8px', 
+                                  gap: '6px',
+                                  backgroundColor: status === 'Y' ? 'rgba(34, 197, 94, 0.04)' : status === 'N' ? 'rgba(239, 68, 68, 0.04)' : '#ffffff'
+                                }}
+                              >
+                                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: '1 1 auto', gap: '1px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontWeight: '700', fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--txt)' }}>
+                                      {m.name}
+                                    </span>
+                                    {status === 'Y' && (
+                                      <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#15803d', fontWeight: 800 }}>
+                                        참석
+                                      </span>
+                                    )}
+                                    {status === 'N' && (
+                                      <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#b91c1c', fontWeight: 800 }}>
+                                        불참
+                                      </span>
+                                    )}
+                                    {status === '?' && timeIso && (
+                                      <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: '#f1f5f9', color: '#64748b', fontWeight: 700 }}>
+                                        미정
+                                      </span>
+                                    )}
+                                  </div>
+                                  {timeStr ? (
+                                    <span 
+                                      style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 500 }}
+                                      title={`최종 투표/수정 일시: ${fullTimeStr || timeStr}`}
+                                    >
+                                      <span style={{ fontSize: '10px', opacity: 0.8 }}>🕒</span> {timeStr}
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
+                                      미투표
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                  <button 
+                                    className={`btn btn-sm ${status === 'Y' ? 'btn-primary' : 'btn-secondary'}`}
+                                    style={{ opacity: status === 'Y' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px', fontWeight: 700 }}
+                                    disabled={isVoteDisabled}
+                                    onClick={() => handleToggleAttendance(m.id, 'Y')}
+                                  >참석</button>
+                                  <button 
+                                    className={`btn btn-sm ${status === 'N' ? 'btn-danger' : 'btn-secondary'}`}
+                                    style={{ opacity: status === 'N' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px' }}
+                                    disabled={isVoteDisabled}
+                                    onClick={() => handleToggleAttendance(m.id, 'N')}
+                                  >불참</button>
+                                  <button 
+                                    className={`btn btn-sm ${status === '?' ? '' : 'btn-secondary'}`}
+                                    style={{ opacity: status === '?' ? 1 : 0.6, background: status === '?' ? '#e2e8f0' : undefined, color: status === '?' ? '#1e293b' : undefined, padding: '4px 10px', fontSize: '12px', fontWeight: 700 }}
+                                    disabled={isVoteDisabled}
+                                    onClick={() => handleToggleAttendance(m.id, '?')}
+                                  >미정</button>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })
+                        )}
                       </div>
                     </div>
                     
