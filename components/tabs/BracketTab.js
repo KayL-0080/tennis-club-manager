@@ -2043,12 +2043,10 @@ export default function BracketTab({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)' }}>
-              {usePenalty ? '🏆 오늘 개인 순위표 & 벌칙금 현황' : '🏆 오늘 개인 순위표'}
+              🏆 오늘 개인 순위표
             </h2>
             <span className={styles.sectionNote}>
-              {usePenalty 
-                ? `(승률 → 득실차 → 다승 순 정렬 / 1패당 ${(penaltyAmount || 0).toLocaleString()}원 벌칙금 반영)`
-                : '(승률 → 득실차 → 다승 순 정렬)'}
+              (승률 → 득실차 → 다승 순 정렬)
             </span>
           </div>
           {usePenalty && penaltyAmount > 0 && (
@@ -2060,54 +2058,39 @@ export default function BracketTab({
 
         {todayRows.length === 0 ? (
           <p className="text-muted" style={{ fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
-            {usePenalty 
-              ? '아직 입력된 점수가 없습니다. 대진표에서 스코어를 입력하면 순위와 벌칙금이 자동으로 산출됩니다.'
-              : '아직 입력된 점수가 없습니다. 대진표에서 스코어를 입력하면 개인 순위가 자동으로 산출됩니다.'}
+            아직 입력된 점수가 없습니다. 대진표에서 스코어를 입력하면 개인 순위가 자동으로 산출됩니다.
           </p>
         ) : (
           <div className="table-wrap">
             <table className="table" style={{ width: '100%', textAlign: 'center' }}>
               <thead>
                 <tr>
-                  <th style={{ width: 50 }}>순위</th>
-                  <th>이름</th>
-                  <th>경기</th>
-                  <th>승</th>
-                  <th>무</th>
-                  <th>패</th>
-                  <th>승률</th>
-                  <th>득실차</th>
-                  {usePenalty ? (
-                    <>
-                      <th style={{ color: '#e11d48' }}>💸 벌칙금액</th>
-                      <th>납부상태</th>
-                    </>
-                  ) : (
-                    <>
-                      <th>경기 진행</th>
-                      <th>진행상태</th>
-                    </>
-                  )}
+                  <th style={{ width: 60, textAlign: 'center' }}>순위</th>
+                  <th style={{ textAlign: 'left', paddingLeft: '16px' }}>선수명</th>
+                  <th style={{ width: 110, textAlign: 'center' }}>경기수</th>
+                  <th style={{ width: 120, textAlign: 'center' }}>승/무/패</th>
+                  <th style={{ width: 80, textAlign: 'center' }}>승률</th>
+                  <th style={{ width: 80, textAlign: 'center' }}>득실차</th>
                 </tr>
               </thead>
               <tbody>
                 {todayRows.map((r, i) => {
-                  const penalty = (r.loss || 0) * (penaltyAmount || 0);
-                  const isPaid = !!penaltyPaidMap[r.id];
                   const assigned = playerAssignedCounts[r.id] || r.played || 0;
-                  const isDone = assigned > 0 ? r.played >= assigned : r.played > 0;
+                  const countStyle = getGameCountBadgeStyle(assigned);
                   const player = byId[r.id];
                   const isFemale = (player?.gender || r.gender) === 'F';
                   return (
                     <tr key={r.id ?? r.name}>
-                      <td>
-                        <strong>
+                      <td style={{ textAlign: 'center' }}>
+                        <strong style={{ fontSize: '13.5px' }}>
                           {i === 0 && r.played > 0 ? '🥇 1' : i === 1 && r.played > 0 ? '🥈 2' : i === 2 && r.played > 0 ? '🥉 3' : r.played > 0 ? i + 1 : '-'}
                         </strong>
                       </td>
-                      <td style={{ fontWeight: 700 }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
-                          <span>{getDisplayNameWithGuest(player || r)}</span>
+                      <td style={{ textAlign: 'left', paddingLeft: '16px' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
+                            {getDisplayNameWithGuest(player || r)}
+                          </span>
                           <span style={{
                             fontSize: '10px',
                             padding: '1px 5px',
@@ -2120,75 +2103,46 @@ export default function BracketTab({
                           </span>
                         </div>
                       </td>
-                      <td>{r.played}</td>
-                      <td><span style={{ color: '#16a34a', fontWeight: 700 }}>{r.win}</span></td>
-                      <td><span style={{ color: '#64748b' }}>{r.draw}</span></td>
-                      <td><span style={{ color: r.loss > 0 ? '#dc2626' : 'inherit', fontWeight: r.loss > 0 ? 700 : 400 }}>{r.loss}</span></td>
-                      <td>{r.played > 0 ? (r.winRate * 100).toFixed(0) + '%' : '-'}</td>
-                      <td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
+                          <span style={{
+                            fontSize: '9.5px',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            fontWeight: 800,
+                            backgroundColor: countStyle.bg,
+                            color: countStyle.text,
+                            border: `1px solid ${countStyle.border}`,
+                            lineHeight: '14px'
+                          }}>
+                            {countStyle.short}
+                          </span>
+                          <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--txt)' }}>
+                            {r.played}경기
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ color: '#16a34a', fontWeight: 700 }}>{r.win}</span>
+                        <span style={{ color: 'var(--txt3)', margin: '0 2px' }}>/</span>
+                        <span style={{ color: '#64748b' }}>{r.draw}</span>
+                        <span style={{ color: 'var(--txt3)', margin: '0 2px' }}>/</span>
+                        <span style={{ color: r.loss > 0 ? '#dc2626' : 'inherit', fontWeight: r.loss > 0 ? 700 : 400 }}>{r.loss}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {r.played > 0 ? (
+                          <strong style={{ color: r.winRate >= 0.6 ? '#16a34a' : r.winRate <= 0.3 ? '#dc2626' : 'var(--txt)' }}>
+                            {(r.winRate * 100).toFixed(0)}%
+                          </strong>
+                        ) : (
+                          <span style={{ color: 'var(--txt3)' }}>-</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
                         <strong style={{ color: r.diff > 0 ? '#16a34a' : r.diff < 0 ? '#dc2626' : 'inherit' }}>
                           {r.diff > 0 ? '+' + r.diff : r.diff}
                         </strong>
                       </td>
-                      {usePenalty ? (
-                        <>
-                          <td>
-                            {penaltyAmount > 0 ? (
-                              r.loss > 0 ? (
-                                <strong style={{ color: '#e11d48', fontSize: '13.5px' }}>
-                                  {penalty.toLocaleString()}원
-                                </strong>
-                              ) : r.played > 0 ? (
-                                <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 6px' }}>
-                                  👑 0원 (무패)
-                                </span>
-                              ) : (
-                                <span style={{ color: 'var(--txt3)' }}>-</span>
-                              )
-                            ) : (
-                              <span style={{ color: 'var(--txt3)' }}>-</span>
-                            )}
-                          </td>
-                          <td>
-                            {penaltyAmount > 0 && r.loss > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => handleTogglePayment(r.id)}
-                                disabled={!isAdmin && isReadOnly}
-                                style={{
-                                  padding: '2px 8px',
-                                  fontSize: '11px',
-                                  fontWeight: 700,
-                                  borderRadius: '6px',
-                                  border: 'none',
-                                  cursor: (!isAdmin && isReadOnly) ? 'not-allowed' : 'pointer',
-                                  backgroundColor: isPaid ? '#dcfce7' : '#fef3c7',
-                                  color: isPaid ? '#15803d' : '#b45309'
-                                }}
-                                title="클릭하여 납부 상태 변경"
-                              >
-                                {isPaid ? '✅ 완납' : '💰 미납'}
-                              </button>
-                            ) : (
-                              <span style={{ color: 'var(--txt3)', fontSize: '12px' }}>면제</span>
-                            )}
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td>
-                            <strong style={{ color: isDone ? '#16a34a' : '#0284c7' }}>{r.played}</strong>
-                            <span style={{ color: 'var(--txt3)', fontSize: '12px' }}> / {assigned}게임</span>
-                          </td>
-                          <td>
-                            {isDone ? (
-                              <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 6px', fontWeight: 700 }}>완료 ✅</span>
-                            ) : (
-                              <span className="badge badge-blue" style={{ fontSize: '11px', padding: '2px 6px', fontWeight: 700 }}>진행중 🎾</span>
-                            )}
-                          </td>
-                        </>
-                      )}
                     </tr>
                   );
                 })}
