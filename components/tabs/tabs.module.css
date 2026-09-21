@@ -805,4 +805,156 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   }
 }
 
+/* ── 1단계 경기 일시 및 시간 설정 그리드 ── */
+.step1DateTimeContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.step1InputsGrid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 12px;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.step1FormGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.step1Label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--txt2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.step1Input {
+  width: 100%;
+  height: 40px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--txt);
+  box-sizing: border-box;
+  min-width: 0;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.step1Input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+  background: #ffffff;
+}
+
+.step1DurationRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--bg);
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.step1DurationBadge {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0284c7;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.step1PresetGroup {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.step1PresetBtn {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 12px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--txt);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.step1PresetBtn:hover {
+  background: rgba(2, 132, 199, 0.08);
+  color: #0284c7;
+  border-color: #38bdf8;
+}
+
+.step1PresetBtnActive {
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 5px 12px;
+  height: 32px;
+  border-radius: 8px;
+  background: #0284c7;
+  border: 1px solid #0284c7;
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+  white-space: nowrap;
+}
+
+/* 모바일 화면 대응: 날짜 상단 전체 폭, 시작/종료 시간 2열 1:1 대칭 배치 */
+@media (max-width: 640px) {
+  .step1InputsGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .step1DateCol {
+    grid-column: 1 / -1;
+  }
+  .step1DurationRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .step1DurationBadge {
+    justify-content: center;
+  }
+  .step1PresetGroup {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    width: 100%;
+  }
+  .step1PresetBtn,
+  .step1PresetBtnActive {
+    text-align: center;
+    padding: 4px 2px;
+    width: 100%;
+    font-size: 11px;
+  }
+}
+
+
 

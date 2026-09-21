@@ -332,58 +332,72 @@ export default function SettingsTab({
           )}
         </div>
         
-        <div className={styles.settingsRow} style={{ alignItems: 'flex-end', gap: '16px' }}>
-          <div className="form-group">
-            <label className="form-label">경기 날짜</label>
-            <input className="input input-sm" type="date" value={matchDate}
-              onChange={e => setMatchDate(e.target.value)} style={{ width: 140 }} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">시작 시간</label>
-            <input className="input input-sm" type="time" value={startTime || '09:00'}
-              onChange={e => handleStartTimeChange(e.target.value)} style={{ width: 115 }} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">종료 시간</label>
-            <input className="input input-sm" type="time" value={endTime || '12:00'}
-              onChange={e => handleEndTimeChange(e.target.value)} style={{ width: 115 }} />
+        <div className={styles.step1DateTimeContainer}>
+          <div className={styles.step1InputsGrid}>
+            <div className={`${styles.step1FormGroup} ${styles.step1DateCol}`}>
+              <label className={styles.step1Label}>
+                <span>📅</span> 경기 날짜
+              </label>
+              <input
+                className={styles.step1Input}
+                type="date"
+                value={matchDate}
+                onChange={e => setMatchDate(e.target.value)}
+              />
+            </div>
+            <div className={styles.step1FormGroup}>
+              <label className={styles.step1Label}>
+                <span>⏰</span> 시작 시간
+              </label>
+              <input
+                className={styles.step1Input}
+                type="time"
+                value={startTime || '09:00'}
+                onChange={e => handleStartTimeChange(e.target.value)}
+                style={{ textAlign: 'center' }}
+              />
+            </div>
+            <div className={styles.step1FormGroup}>
+              <label className={styles.step1Label}>
+                <span>🏁</span> 종료 시간
+              </label>
+              <input
+                className={styles.step1Input}
+                type="time"
+                value={endTime || '12:00'}
+                onChange={e => handleEndTimeChange(e.target.value)}
+                style={{ textAlign: 'center' }}
+              />
+            </div>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '2px', flexWrap: 'wrap' }}>
-            <span style={{ 
-              fontSize: '13px', 
-              fontWeight: '700', 
-              padding: '6px 12px', 
-              borderRadius: '6px', 
-              background: 'var(--bg)', 
-              border: '1px solid var(--border)', 
-              color: 'var(--txt)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              ⏱️ 총 <strong>{durationInfo.text}</strong>
-            </span>
+          <div className={styles.step1DurationRow}>
+            <div className={styles.step1DurationBadge}>
+              <span>⏱️</span>
+              <span>총 <strong>{durationInfo.text}</strong></span>
+            </div>
             
             {/* 시간 빠른 프리셋 버튼 */}
-            <div style={{ display: 'flex', gap: '4px' }}>
+            <div className={styles.step1PresetGroup}>
               {[
                 { label: '2시간', h: 2, m: 0 },
                 { label: '2.5시간', h: 2, m: 30 },
                 { label: '3시간', h: 3, m: 0 },
                 { label: '4시간', h: 4, m: 0 }
-              ].map(preset => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '11px', padding: '3px 8px', height: '28px' }}
-                  onClick={() => applyDurationPreset(preset.h, preset.m)}
-                  title={`시작 시간(${startTime || '09:00'}) 기준 ${preset.label} 경기`}
-                >
-                  {preset.label}
-                </button>
-              ))}
+              ].map(preset => {
+                const isActive = preset.h === durationInfo.hours && preset.m === durationInfo.mins;
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    className={isActive ? styles.step1PresetBtnActive : styles.step1PresetBtn}
+                    onClick={() => applyDurationPreset(preset.h, preset.m)}
+                    title={`시작 시간(${startTime || '09:00'}) 기준 ${preset.label} 경기`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
