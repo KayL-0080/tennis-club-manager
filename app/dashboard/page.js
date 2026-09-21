@@ -429,8 +429,8 @@ export default function Dashboard() {
               )}
               
               {completedSchedules.length > 0 && (
-                <div style={{ marginTop: '28px' }}>
-                  <div className="card" style={{ padding: '12px 16px', marginBottom: '12px' }}>
+                <div className={styles.completedSection}>
+                  <div className={`card ${styles.completedFilterCard}`}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)', letterSpacing: '-0.02em' }}>
@@ -655,138 +655,178 @@ export default function Dashboard() {
 }
 
 function ScheduleCard({ s, members, isAdmin, onOpen, onDelete, isCompleted }) {
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
   const dateObj = s.matchDate ? new Date(s.matchDate) : (s.updatedAt?.toDate?.() ?? new Date());
-  const dateStr = dateObj.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
-  const timeStr = (s.startTime || s.endTime) ? `${s.startTime || '?'} ~ ${s.endTime || '?'}` : (!s.matchDate ? dateObj.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '');
+  const dateStr = s.matchDate || dateObj.toISOString().substring(0, 10);
+  const dayOfWeek = dayNames[new Date(dateStr).getDay()] || '';
+  const formattedDate = s.matchDate 
+    ? `${s.matchDate.replace(/-/g, '.')} (${dayOfWeek})`
+    : dateObj.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+  const timeStr = (s.startTime && s.endTime) 
+    ? `${s.startTime} ~ ${s.endTime}` 
+    : (s.startTime || s.endTime || '');
+
+  let totalMens = 0, totalWomens = 0, totalMixed = 0, totalJoint = 0, totalSingles = 0;
+  if (s.schedule) {
+    const memberMap = new Map((members || []).map(m => [m.id, m]));
+    s.schedule.forEach(round => {
+      round.forEach(m => {
+        const getPlayers = (teamIds) => (teamIds || []).map(id => memberMap.get(id)).filter(Boolean);
+        const pA = getPlayers(m.teamA);
+        const pB = getPlayers(m.teamB);
+        const allPlayers = [...pA, ...pB];
+        if (allPlayers.length === 2) {
+          totalSingles++;
+        } else if (allPlayers.length === 4) {
+          const aMales = pA.filter(p => p.gender === 'M').length;
+          const aFemales = pA.filter(p => p.gender === 'F').length;
+          const bMales = pB.filter(p => p.gender === 'M').length;
+          const bFemales = pB.filter(p => p.gender === 'F').length;
+          if (aMales === 2 && bMales === 2) totalMens++;
+          else if (aFemales === 2 && bFemales === 2) totalWomens++;
+          else if (aMales === 1 && aFemales === 1 && bMales === 1 && bFemales === 1) totalMixed++;
+          else totalJoint++;
+        } else {
+          totalJoint++;
+        }
+      });
+    });
+  } else {
+    totalMens = (s.mensDoublesCount || 0) * (s.rounds || 0);
+    totalWomens = (s.womensDoublesCount || 0) * (s.rounds || 0);
+    totalMixed = (s.mixedCount || 0) * (s.rounds || 0);
+    const isSinglesActive = s.allowSingles && s.participants && s.participants.length < s.courts * 4 && s.participants.length > 0;
+    const singlesPerRound = isSinglesActive ? Math.min(s.courts, Math.ceil((s.courts * 4 - s.participants.length) / 2)) : 0;
+    totalSingles = singlesPerRound * (s.rounds || 0);
+    const doublesPerRound = s.courts - singlesPerRound;
+    totalJoint = Math.max(0, (s.rounds || 0) * doublesPerRound - totalMens - totalWomens - totalMixed);
+  }
+
+  const hasMatches = totalMens > 0 || totalWomens > 0 || totalMixed > 0 || totalJoint > 0 || totalSingles > 0;
 
   return (
     <div 
-      className="card card-hoverable" 
-      style={{ 
-        padding: '20px 22px', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '16px',
-        position: 'relative',
-        background: isCompleted ? 'rgba(255, 255, 255, 0.65)' : 'var(--surface)',
-        gap: '14px',
-        flexWrap: 'wrap'
-      }} 
+      className={`${styles.scheduleCard} ${isCompleted ? styles.scheduleCardCompleted : ''}`} 
       onClick={onOpen}
     >
-      <div style={{ flex: '1 1 280px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-          <span style={{ fontSize: '20px' }}>{isCompleted ? '🏁' : '🎾'}</span>
-          <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.02em', color: isCompleted ? '#475569' : 'var(--txt)' }}>
+      {/* 1. Header: Icon + Title + Status Badges */}
+      <div className={styles.scheduleCardHeader}>
+        <div className={styles.scheduleCardTitleArea}>
+          <span style={{ fontSize: '18px', lineHeight: 1 }}>{isCompleted ? '🏁' : '🎾'}</span>
+          <h3 className={styles.scheduleCardTitle} title={s.title}>
             {s.title}
           </h3>
-          {isCompleted && (
-            <span className="badge" style={{ backgroundColor: '#e2e8f0', color: '#475569', fontSize: '11px' }}>
+        </div>
+        <div className={styles.scheduleCardBadges}>
+          {isCompleted ? (
+            <span className="badge" style={{ backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '11px', fontWeight: 700, padding: '2px 7px', border: '1px solid #e2e8f0' }}>
               종료
+            </span>
+          ) : (
+            <span className="badge badge-blue" style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px' }}>
+              예정
+            </span>
+          )}
+          {s.schedule ? (
+            <span className="badge badge-green" style={{ fontSize: '10.5px', fontWeight: 700, padding: '2px 6px' }}>
+              ✓ 생성됨
+            </span>
+          ) : (
+            <span className="badge badge-gold" style={{ fontSize: '10.5px', fontWeight: 700, padding: '2px 6px' }}>
+              미생성
             </span>
           )}
         </div>
+      </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {/* Hero Chips Row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
-              📅 {dateStr}
-            </span>
-            {timeStr && (
-              <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
-                ⏰ {timeStr}
-              </span>
+      {/* 2. Structured Info Box: Aligned Key-Value Rows */}
+      <div className={styles.scheduleInfoBox}>
+        <div className={styles.scheduleInfoRow}>
+          <span className={styles.scheduleInfoLabel}>📅 일시</span>
+          <span className={styles.scheduleInfoVal}>
+            {formattedDate} {timeStr ? `· ${timeStr}` : ''}
+          </span>
+        </div>
+
+        <div className={styles.scheduleInfoRow}>
+          <span className={styles.scheduleInfoLabel}>🎾 규모</span>
+          <span className={styles.scheduleInfoVal}>
+            {s.courts ?? 0}코트 · {s.rounds ?? 0}R ({s.participants?.length ?? 0}명 참가)
+          </span>
+        </div>
+
+        <div className={styles.scheduleInfoRow}>
+          <span className={styles.scheduleInfoLabel}>🏸 매치</span>
+          <div className={styles.scheduleMatchBadges}>
+            {hasMatches ? (
+              <>
+                {totalMens > 0 && <span className="badge badge-blue" style={{ fontSize: '10.5px', padding: '1px 6px', fontWeight: 700 }}>남복 {totalMens}</span>}
+                {totalWomens > 0 && <span className="badge badge-red" style={{ fontSize: '10.5px', padding: '1px 6px', fontWeight: 700 }}>여복 {totalWomens}</span>}
+                {totalMixed > 0 && <span className="badge badge-purple" style={{ fontSize: '10.5px', padding: '1px 6px', fontWeight: 700 }}>혼복 {totalMixed}</span>}
+                {totalJoint > 0 && <span className="badge badge-green" style={{ fontSize: '10.5px', padding: '1px 6px', fontWeight: 700 }}>잡복 {totalJoint}</span>}
+                {totalSingles > 0 && <span className="badge badge-gold" style={{ fontSize: '10.5px', padding: '1px 6px', fontWeight: 700 }}>단식 {totalSingles}</span>}
+              </>
+            ) : (
+              <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>-</span>
             )}
-            <span className="hero-chip" style={{ fontSize: '11px', padding: '3px 10px' }}>
-              🎾 {s.courts ?? 0}코트 · {s.rounds ?? 0}R ({s.participants?.length ?? 0}명)
-            </span>
           </div>
+        </div>
 
-          {/* Badges Row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-            {s.schedule ? (
-              <span className="badge badge-green" style={{ fontSize: '11px' }}>✓ 생성 완료</span>
-            ) : (
-              <span className="badge badge-gold" style={{ fontSize: '11px' }}>📝 미생성</span>
-            )}
+        <div className={styles.scheduleInfoRow}>
+          <span className={styles.scheduleInfoLabel}>⚖️ 규칙</span>
+          <div className={styles.scheduleInfoVal}>
             {s.usePenalty ? (
-              <span className="badge" style={{ backgroundColor: 'rgba(225, 29, 72, 0.1)', color: '#e11d48', fontSize: '11px', fontWeight: 700 }}>
-                💸 벌칙금 적용
+              <span style={{ fontSize: '11.5px', color: '#e11d48', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span>💸</span> 벌칙금 정산 적용
               </span>
             ) : (
-              <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', fontSize: '11px', fontWeight: 700 }}>
-                🛡️ 벌칙금 미적용
+              <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span>🛡️</span> 벌칙금 미적용
               </span>
             )}
-            {(() => {
-              let totalMens = 0, totalWomens = 0, totalMixed = 0, totalJoint = 0, totalSingles = 0;
-              if (s.schedule) {
-                const memberMap = new Map((members || []).map(m => [m.id, m]));
-                s.schedule.forEach(round => {
-                  round.forEach(m => {
-                    const getPlayers = (teamIds) => (teamIds || []).map(id => memberMap.get(id)).filter(Boolean);
-                    const pA = getPlayers(m.teamA);
-                    const pB = getPlayers(m.teamB);
-                    const allPlayers = [...pA, ...pB];
-                    if (allPlayers.length === 2) {
-                      totalSingles++;
-                    } else if (allPlayers.length === 4) {
-                      const aMales = pA.filter(p => p.gender === 'M').length;
-                      const aFemales = pA.filter(p => p.gender === 'F').length;
-                      const bMales = pB.filter(p => p.gender === 'M').length;
-                      const bFemales = pB.filter(p => p.gender === 'F').length;
-                      if (aMales === 2 && bMales === 2) totalMens++;
-                      else if (aFemales === 2 && bFemales === 2) totalWomens++;
-                      else if (aMales === 1 && aFemales === 1 && bMales === 1 && bFemales === 1) totalMixed++;
-                      else totalJoint++;
-                    } else {
-                      totalJoint++;
-                    }
-                  });
-                });
-              } else {
-                totalMens = (s.mensDoublesCount || 0) * (s.rounds || 0);
-                totalWomens = (s.womensDoublesCount || 0) * (s.rounds || 0);
-                totalMixed = (s.mixedCount || 0) * (s.rounds || 0);
-                const isSinglesActive = s.allowSingles && s.participants && s.participants.length < s.courts * 4 && s.participants.length > 0;
-                const singlesPerRound = isSinglesActive ? Math.min(s.courts, Math.ceil((s.courts * 4 - s.participants.length) / 2)) : 0;
-                totalSingles = singlesPerRound * (s.rounds || 0);
-                const doublesPerRound = s.courts - singlesPerRound;
-                totalJoint = Math.max(0, (s.rounds || 0) * doublesPerRound - totalMens - totalWomens - totalMixed);
-              }
-
-              return (
-                <>
-                  {totalMens > 0 && <span className="badge badge-blue" style={{ fontSize: '11px' }}>남복 {totalMens}</span>}
-                  {totalWomens > 0 && <span className="badge badge-red" style={{ fontSize: '11px' }}>여복 {totalWomens}</span>}
-                  {totalMixed > 0 && <span className="badge badge-purple" style={{ fontSize: '11px' }}>혼복 {totalMixed}</span>}
-                  {totalJoint > 0 && <span className="badge badge-green" style={{ fontSize: '11px' }}>잡복 {totalJoint}</span>}
-                  {totalSingles > 0 && <span className="badge badge-gold" style={{ fontSize: '11px' }}>단식 {totalSingles}</span>}
-                </>
-              );
-            })()}
           </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      {/* 3. Actions */}
+      <div className={styles.scheduleCardActions}>
         <button 
-          className={isCompleted ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm'} 
-          style={{ fontWeight: 700, padding: '7px 14px', fontSize: '12px' }} 
+          type="button"
+          className={`${styles.scheduleCardBtnMain} ${isCompleted ? styles.scheduleCardBtnSecondary : styles.scheduleCardBtnPrimary}`} 
           onClick={(e) => { e.stopPropagation(); onOpen(); }}
         >
-          {isCompleted ? '기록 보기' : '🎾 경기 진행 / 입력'}
+          {isCompleted ? (
+            <>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+              </svg>
+              <span>기록 보기</span>
+            </>
+          ) : (
+            <>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M6 3.5a13 13 0 0 0 0 17" />
+                <path d="M18 3.5a13 13 0 0 1 0 17" />
+              </svg>
+              <span>경기 진행 / 스코어</span>
+            </>
+          )}
         </button>
         {isAdmin && (
           <button 
-            className="btn btn-secondary btn-sm" 
-            style={{ padding: '7px 10px', fontSize: '12px', color: 'var(--txt3)' }} 
+            type="button"
+            className={styles.scheduleCardBtnDel}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            title="대진표 삭제"
           >
-            삭제
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>삭제</span>
           </button>
         )}
       </div>
