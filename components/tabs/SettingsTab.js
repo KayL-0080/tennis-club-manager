@@ -332,20 +332,24 @@ export default function SettingsTab({
           )}
         </div>
         
-        <div className={styles.step1DateTimeContainer} style={{ maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
-          <div className={styles.step1InputsGrid}>
-            <div className={`${styles.step1FormGroup} ${styles.step1DateCol}`}>
-              <label className={styles.step1Label}>
-                <span>📅</span> 경기 날짜
-              </label>
-              <input
-                className={styles.step1Input}
-                type="date"
-                value={matchDate}
-                onChange={e => setMatchDate(e.target.value)}
-              />
-            </div>
-            <div className={styles.step1FormGroup}>
+        <div className={styles.step1DateTimeContainer} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+          {/* 1. 경기 날짜 (카드 전체 폭 100%) */}
+          <div className={styles.step1FormGroup} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+            <label className={styles.step1Label}>
+              <span>📅</span> 경기 날짜
+            </label>
+            <input
+              className={styles.step1Input}
+              type="date"
+              value={matchDate}
+              onChange={e => setMatchDate(e.target.value)}
+              style={{ display: 'block', width: '100%', minWidth: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {/* 2. 시작 시간 & 종료 시간 (1:1 균등 대칭 2열) */}
+          <div className={styles.step1TimeGrid} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+            <div className={styles.step1FormGroup} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
               <label className={styles.step1Label}>
                 <span>⏰</span> 시작 시간
               </label>
@@ -354,10 +358,10 @@ export default function SettingsTab({
                 type="time"
                 value={startTime || '09:00'}
                 onChange={e => handleStartTimeChange(e.target.value)}
-                style={{ textAlign: 'center' }}
+                style={{ display: 'block', width: '100%', minWidth: '100%', maxWidth: '100%', boxSizing: 'border-box', textAlign: 'center' }}
               />
             </div>
-            <div className={styles.step1FormGroup}>
+            <div className={styles.step1FormGroup} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
               <label className={styles.step1Label}>
                 <span>🏁</span> 종료 시간
               </label>
@@ -366,7 +370,7 @@ export default function SettingsTab({
                 type="time"
                 value={endTime || '12:00'}
                 onChange={e => handleEndTimeChange(e.target.value)}
-                style={{ textAlign: 'center' }}
+                style={{ display: 'block', width: '100%', minWidth: '100%', maxWidth: '100%', boxSizing: 'border-box', textAlign: 'center' }}
               />
             </div>
           </div>
