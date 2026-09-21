@@ -146,8 +146,13 @@ export default function EditorPage({ params }) {
       setHistory(nextHistory);
     }
 
+    const currentParticipants = overrides.participants !== undefined ? overrides.participants : participants;
+    if (overrides.participants !== undefined) {
+      setParticipants(overrides.participants);
+    }
+
     const payload = {
-      title, matchDate, participants, groups, rounds, courts,
+      title, matchDate, participants: currentParticipants, groups, rounds, courts,
       mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles,
       startTime, endTime,
       schedule: currentSchedule,
@@ -243,6 +248,7 @@ export default function EditorPage({ params }) {
             schedule={schedule} setSchedule={setSchedule}
             scores={scores} setScores={setScores}
             members={members} participants={participants}
+            setParticipants={setParticipants}
             lastGenStats={lastGenStats}
             scheduleRounds={scheduleRounds} scheduleCourts={scheduleCourts}
             setScheduleRounds={setScheduleRounds} setScheduleCourts={setScheduleCourts}

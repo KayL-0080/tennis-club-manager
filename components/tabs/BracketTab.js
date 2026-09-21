@@ -2,6 +2,7 @@
 'use client';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { makeEmptyMatch, teamNtrpSum, computeTodayStandings } from '@/lib/scheduler';
+import AddMemberToBracketModal from '@/components/AddMemberToBracketModal';
 import styles from './tabs.module.css';
 
 import {
@@ -58,7 +59,8 @@ const scoreOptions = (max = 6) => {
 
 export default function BracketTab({
   schedule, setSchedule, scores, setScores,
-  members, participants, lastGenStats,
+  members, participants, setParticipants,
+  lastGenStats,
   scheduleRounds, scheduleCourts, setScheduleRounds, setScheduleCourts,
   usePenalty = true, setUsePenalty,
   penaltyAmount = 1000, setPenaltyAmount,
@@ -70,6 +72,7 @@ export default function BracketTab({
   onSave, onPrint, isAdmin, isReadOnly, isPastMatch,
 }) {
   const [playerFilter, setPlayerFilter] = useState('ALL'); // 'ALL' | 'IN_PROGRESS' | 'DONE' | 'WAITING'
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
   const byId = useMemo(() => {
     const m = {}; members.forEach(p => m[p.id] = p); return m;
@@ -206,9 +209,17 @@ export default function BracketTab({
   /* ── 이벤트 핸들러 (입력 즉시 자동 저장 및 실시간 동기화) ── */
   const onPlayerSelect = (ri, ci, team, slot, value) => {
     if (isReadOnly || !isAdmin) return;
-    if (value) {
+    let actualValue = value;
+    let isNewParticipant = false;
+
+    if (value && value.startsWith('add_')) {
+      actualValue = value.replace('add_', '');
+      isNewParticipant = true;
+    }
+
+    if (actualValue) {
       const currentMatch = schedule[ri]?.[ci];
-      const playerName = byId[value]?.name || '선수';
+      const playerName = byId[actualValue]?.name || '선수';
       const courtLabel = `${COURT_LABELS[ci] || ci + 1}코트`;
       const roundLabel = `${ri + 1}R`;
 
@@ -219,21 +230,21 @@ export default function BracketTab({
 
         if (team === 'a') {
           const otherSlot = slot === 0 ? 1 : 0;
-          if (teamA[otherSlot] === value) {
+          if (teamA[otherSlot] === actualValue) {
             alert(`[${playerName}] 선수는 현재 경기(${roundLabel} ${courtLabel})에 이미 배정되어 있습니다.`);
             return;
           }
-          if (teamB.includes(value)) {
+          if (teamB.includes(actualValue)) {
             alert(`[${playerName}] 선수는 현재 경기(${roundLabel} ${courtLabel})의 상대팀에 이미 배정되어 있습니다.`);
             return;
           }
         } else {
           const otherSlot = slot === 0 ? 1 : 0;
-          if (teamB[otherSlot] === value) {
+          if (teamB[otherSlot] === actualValue) {
             alert(`[${playerName}] 선수는 현재 경기(${roundLabel} ${courtLabel})에 이미 배정되어 있습니다.`);
             return;
           }
-          if (teamA.includes(value)) {
+          if (teamA.includes(actualValue)) {
             alert(`[${playerName}] 선수는 현재 경기(${roundLabel} ${courtLabel})의 상대팀에 이미 배정되어 있습니다.`);
             return;
           }
@@ -248,7 +259,7 @@ export default function BracketTab({
           const otherMatch = currentRound[otherCi];
           if (!otherMatch) continue;
           const otherPlayers = [...(otherMatch.teamA || []), ...(otherMatch.teamB || [])].filter(Boolean);
-          if (otherPlayers.includes(value)) {
+          if (otherPlayers.includes(actualValue)) {
             const otherCourtLabel = `${COURT_LABELS[otherCi] || otherCi + 1}코트`;
             alert(`[${playerName}] 선수는 동일 시간대(${roundLabel}, ${otherCourtLabel})에 이미 출전 중입니다.\n동일 라운드 중복 출전은 불가합니다.`);
             return;
@@ -260,12 +271,60 @@ export default function BracketTab({
     const next = schedule.map((r, rIdx) => r.map((m, cIdx) => {
       if (rIdx !== ri || cIdx !== ci) return m;
       const updated = { ...m, teamA: [...m.teamA], teamB: [...m.teamB] };
-      if (team === 'a') updated.teamA[slot] = value;
-      else updated.teamB[slot] = value;
+      if (team === 'a') updated.teamA[slot] = actualValue;
+      else updated.teamB[slot] = actualValue;
       return updated;
     }));
     setSchedule(next);
-    if (onSave) onSave({ schedule: next });
+
+    if (isNewParticipant && actualValue) {
+      const nextParticipants = [...participants, { playerId: actualValue, target: 3 }];
+      if (setParticipants) setParticipants(nextParticipants);
+      if (onSave) onSave({ schedule: next, participants: nextParticipants });
+    } else {
+      if (onSave) onSave({ schedule: next });
+    }
+  };
+
+  /* ── ➕ 정회원 대진표 현장/추가 참가 등록 핸들러 ── */
+  const handleAddParticipants = (newMemberIds, targetGames = 3) => {
+    if (isReadOnly || !isAdmin) return;
+    const toAdd = newMemberIds.filter(id => !participants.some(p => p.playerId === id));
+    if (toAdd.length === 0) return;
+    const newEntries = toAdd.map(id => ({ playerId: id, target: targetGames || 3 }));
+    const nextParticipants = [...participants, ...newEntries];
+    if (setParticipants) setParticipants(nextParticipants);
+    if (onSave) onSave({ participants: nextParticipants });
+  };
+
+  const handleRemoveParticipant = (memberId) => {
+    if (isReadOnly || !isAdmin) return;
+    const playedCount = (todayRows.find(r => r.id === memberId)?.played) || 0;
+    if (playedCount > 0) {
+      alert('이미 완료된 경기 기록이 있는 선수는 대진표 참가자에서 제외할 수 없습니다.');
+      return;
+    }
+    const assignedCount = playerAssignedCounts[memberId] || 0;
+    if (assignedCount > 0) {
+      if (!confirm(`해당 선수는 대진표에 ${assignedCount}경기 배정되어 있습니다.\n대진표 배정에서도 모두 제외하고 참가자를 삭제하시겠습니까?`)) {
+        return;
+      }
+      const nextSchedule = schedule.map(round =>
+        round.map(m => ({
+          ...m,
+          teamA: (m.teamA || []).map(id => id === memberId ? null : id),
+          teamB: (m.teamB || []).map(id => id === memberId ? null : id)
+        }))
+      );
+      const nextParticipants = participants.filter(p => p.playerId !== memberId);
+      setSchedule(nextSchedule);
+      if (setParticipants) setParticipants(nextParticipants);
+      if (onSave) onSave({ schedule: nextSchedule, participants: nextParticipants });
+      return;
+    }
+    const nextParticipants = participants.filter(p => p.playerId !== memberId);
+    if (setParticipants) setParticipants(nextParticipants);
+    if (onSave) onSave({ participants: nextParticipants });
   };
 
   const handleMaxGamesChange = (newMax) => {
@@ -375,16 +434,37 @@ export default function BracketTab({
     }
   };
 
-  /* ── 선수 선택 옵션 ── */
+  /* ── 선수 선택 옵션 (대진표 참가자 + 미참가 정회원 즉시 선택 지원) ── */
   const playerOptions = (selectedId) => {
     const list = [...entries];
     if (selectedId && !list.some(p => p.id === selectedId)) {
       const p = members.find(m => m.id === selectedId);
       if (p) list.unshift(p);
     }
+
+    // 대진표에 아직 미참가한 정회원/회원 목록
+    const nonParticipants = members.filter(m =>
+      !participants.some(pt => pt.playerId === m.id) && m.id !== selectedId
+    );
+
     return [
-      <option key="" value="">-</option>,
-      ...list.map(p => <option key={p.id} value={p.id}>{p.name}</option>),
+      <option key="empty" value="">-</option>,
+      <optgroup key="group-current" label={`── 🎾 대진표 참가자 (${list.length}명) ──`}>
+        {list.map(p => (
+          <option key={p.id} value={p.id}>
+            {p.name} ({p.gender === 'F' ? '여' : '남'}·{p.ntrp})
+          </option>
+        ))}
+      </optgroup>,
+      ...(nonParticipants.length > 0 ? [
+        <optgroup key="group-regular" label={`── ➕ 추가 정회원 (선택 시 참가 등록) ──`}>
+          {nonParticipants.map(p => (
+            <option key={`add_${p.id}`} value={`add_${p.id}`}>
+              ➕ {p.name} ({p.role || '정회원'}·{p.gender === 'F' ? '여' : '남'}·{p.ntrp})
+            </option>
+          ))}
+        </optgroup>
+      ] : [])
     ];
   };
 
@@ -709,6 +789,26 @@ export default function BracketTab({
               )}
             </div>
           </div>
+
+          {/* 참가 선수 관리 그룹 */}
+          {isAdmin && !isReadOnly && (
+            <div className={styles.toolbarGroup} style={{ justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className={styles.toolbarLabel}>선수 관리</span>
+                <span className="badge badge-blue" style={{ fontSize: '10.5px', padding: '1px 6px', fontWeight: 700 }}>
+                  참가 {participants.length}명
+                </span>
+              </div>
+              <button 
+                type="button" 
+                className="btn btn-primary btn-sm" 
+                onClick={() => setShowAddMemberModal(true)}
+                style={{ width: '100%', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              >
+                👥 정회원(추가참석) 추가
+              </button>
+            </div>
+          )}
 
           {/* 공유 그룹 */}
           <div className={styles.toolbarGroup} style={{ justifyContent: 'space-between' }}>
@@ -1277,6 +1377,16 @@ export default function BracketTab({
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {isAdmin && !isReadOnly && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowAddMemberModal(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 700, borderColor: '#e11d48', color: '#e11d48', backgroundColor: '#fff' }}
+                >
+                  👥 정회원 추가
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
@@ -1545,6 +1655,16 @@ export default function BracketTab({
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {isAdmin && !isReadOnly && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setShowAddMemberModal(true)}
+                  style={{ fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                >
+                  👥 정회원 추가
+                </button>
+              )}
               {isAdmin && setUsePenalty && (
                 <button
                   type="button"
@@ -1930,6 +2050,19 @@ export default function BracketTab({
           </div>
         </div>
       )}
+
+      {/* 4. 정회원 현장/추가 참가 등록 모달 */}
+      <AddMemberToBracketModal
+        isOpen={showAddMemberModal}
+        onClose={() => setShowAddMemberModal(false)}
+        members={members}
+        participants={participants}
+        schedule={schedule}
+        todayRows={todayRows}
+        onAddParticipants={handleAddParticipants}
+        onRemoveParticipant={handleRemoveParticipant}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }
