@@ -2065,12 +2065,11 @@ export default function BracketTab({
             <table className="table" style={{ width: '100%', textAlign: 'center' }}>
               <thead>
                 <tr>
-                  <th style={{ width: 60, textAlign: 'center' }}>순위</th>
-                  <th style={{ textAlign: 'left', paddingLeft: '16px' }}>선수명</th>
-                  <th style={{ width: 110, textAlign: 'center' }}>경기수</th>
-                  <th style={{ width: 120, textAlign: 'center' }}>승/무/패</th>
-                  <th style={{ width: 80, textAlign: 'center' }}>승률</th>
-                  <th style={{ width: 80, textAlign: 'center' }}>득실차</th>
+                  <th style={{ width: 60, textAlign: 'center', whiteSpace: 'nowrap' }}>순위</th>
+                  <th style={{ textAlign: 'left', paddingLeft: '16px', whiteSpace: 'nowrap' }}>선수명</th>
+                  <th style={{ width: 75, textAlign: 'center', whiteSpace: 'nowrap' }}>경기수</th>
+                  <th style={{ width: 110, textAlign: 'center', whiteSpace: 'nowrap' }}>승/무/패</th>
+                  <th style={{ width: 80, textAlign: 'center', whiteSpace: 'nowrap' }}>득실차</th>
                 </tr>
               </thead>
               <tbody>
@@ -2081,14 +2080,14 @@ export default function BracketTab({
                   const isFemale = (player?.gender || r.gender) === 'F';
                   return (
                     <tr key={r.id ?? r.name}>
-                      <td style={{ textAlign: 'center' }}>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <strong style={{ fontSize: '13.5px' }}>
                           {i === 0 && r.played > 0 ? '🥇 1' : i === 1 && r.played > 0 ? '🥈 2' : i === 2 && r.played > 0 ? '🥉 3' : r.played > 0 ? i + 1 : '-'}
                         </strong>
                       </td>
-                      <td style={{ textAlign: 'left', paddingLeft: '16px' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
+                      <td style={{ textAlign: 'left', paddingLeft: '16px', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)', whiteSpace: 'nowrap' }}>
                             {getDisplayNameWithGuest(player || r)}
                           </span>
                           <span style={{
@@ -2097,48 +2096,37 @@ export default function BracketTab({
                             borderRadius: '4px',
                             backgroundColor: isFemale ? 'rgba(236, 72, 153, 0.12)' : 'rgba(59, 130, 246, 0.12)',
                             color: isFemale ? '#db2777' : '#2563eb',
-                            fontWeight: 800
+                            fontWeight: 800,
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap'
                           }}>
                             {isFemale ? '여' : '남'}
                           </span>
                         </div>
                       </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
-                          <span style={{
-                            fontSize: '9.5px',
-                            padding: '1px 5px',
-                            borderRadius: '4px',
-                            fontWeight: 800,
-                            backgroundColor: countStyle.bg,
-                            color: countStyle.text,
-                            border: `1px solid ${countStyle.border}`,
-                            lineHeight: '14px'
-                          }}>
-                            {countStyle.short}
-                          </span>
-                          <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--txt)' }}>
-                            {r.played}경기
-                          </span>
-                        </div>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <span style={{
+                          fontSize: '10px',
+                          padding: '2px 7px',
+                          borderRadius: '4px',
+                          fontWeight: 800,
+                          backgroundColor: countStyle.bg,
+                          color: countStyle.text,
+                          border: `1px solid ${countStyle.border}`,
+                          lineHeight: '14px',
+                          display: 'inline-block'
+                        }}>
+                          {countStyle.short}
+                        </span>
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <span style={{ color: '#16a34a', fontWeight: 700 }}>{r.win}</span>
                         <span style={{ color: 'var(--txt3)', margin: '0 2px' }}>/</span>
                         <span style={{ color: '#64748b' }}>{r.draw}</span>
                         <span style={{ color: 'var(--txt3)', margin: '0 2px' }}>/</span>
                         <span style={{ color: r.loss > 0 ? '#dc2626' : 'inherit', fontWeight: r.loss > 0 ? 700 : 400 }}>{r.loss}</span>
                       </td>
-                      <td style={{ textAlign: 'center' }}>
-                        {r.played > 0 ? (
-                          <strong style={{ color: r.winRate >= 0.6 ? '#16a34a' : r.winRate <= 0.3 ? '#dc2626' : 'var(--txt)' }}>
-                            {(r.winRate * 100).toFixed(0)}%
-                          </strong>
-                        ) : (
-                          <span style={{ color: 'var(--txt3)' }}>-</span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <strong style={{ color: r.diff > 0 ? '#16a34a' : r.diff < 0 ? '#dc2626' : 'inherit' }}>
                           {r.diff > 0 ? '+' + r.diff : r.diff}
                         </strong>
