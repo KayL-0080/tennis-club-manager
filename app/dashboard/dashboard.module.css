@@ -62,22 +62,95 @@
 }
 
 .heroTitle {
-  font-size: clamp(1.45rem, 3.8vw, 2rem);
+  font-size: clamp(1.4rem, 3.8vw, 1.95rem);
   font-weight: 800;
   line-height: 1.25;
   letter-spacing: -0.03em;
-  background: linear-gradient(135deg, #1c1c1e 0%, var(--ios-blue) 60%, var(--ios-indigo) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #0f172a;
   margin-bottom: 8px;
 }
 
+.heroTitleBlue {
+  color: #2563eb;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 .heroSub {
-  color: var(--txt2);
+  color: #64748b;
   font-size: 0.88rem;
   font-weight: 500;
-  margin-bottom: 14px;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+/* ── STAT CARDS (Mobile / Responsive Hero Cards) ── */
+.heroStatCards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  margin: 16px 0 16px 0;
+}
+
+.heroStatCard {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 16px 10px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.heroStatCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+.heroStatCard:active {
+  transform: scale(0.98);
+}
+
+.heroStatIcon {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 7px;
+}
+
+.heroStatLabel {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 4px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.heroStatValue {
+  font-size: 16.5px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.heroStatValueSuccess {
+  color: #16a34a !important;
+}
+
+.heroStatValueMuted {
+  color: #94a3b8 !important;
 }
 
 .heroChips {
@@ -136,8 +209,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
+  width: 100%;
 }
 
 .heroBtn {
@@ -145,13 +217,42 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 9px 18px;
-  font-size: 0.88rem;
+  height: 44px;
+  padding: 0 18px;
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: -0.015em;
   white-space: nowrap;
-  border-radius: var(--radius-full);
+  border-radius: 14px;
   line-height: 1.2;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.heroBtnPrimary {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border: 1px solid #1d4ed8 !important;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.25) !important;
+}
+
+.heroBtnPrimary:hover {
+  background: #1d4ed8 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.35) !important;
+}
+
+.heroBtnSecondary {
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03) !important;
+}
+
+.heroBtnSecondary:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  transform: translateY(-1px);
 }
 
 /* ── HEADER ── */
@@ -474,19 +575,66 @@
   }
 
   .hero {
-    padding: 22px 18px;
+    padding: 22px 16px;
     margin-bottom: 20px;
+    border-radius: 24px;
+  }
+
+  .heroTag {
+    display: none !important;
   }
 
   .heroInner {
     flex-direction: column;
     align-items: stretch;
-    gap: 16px;
+    gap: 14px;
   }
 
   .heroContent {
     min-width: 0;
     width: 100%;
+  }
+
+  .heroTitle {
+    font-size: 1.45rem;
+    margin-bottom: 6px;
+    letter-spacing: -0.03em;
+  }
+
+  .heroSub {
+    font-size: 0.82rem;
+    margin-bottom: 14px;
+    line-height: 1.4;
+  }
+
+  .heroStatCards {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 12px 0 14px 0;
+  }
+
+  .heroStatCard {
+    padding: 14px 4px 12px 4px;
+    border-radius: 16px;
+  }
+
+  .heroStatIcon {
+    height: 28px;
+    margin-bottom: 6px;
+  }
+
+  .heroStatIcon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .heroStatLabel {
+    font-size: 11px;
+    margin-bottom: 3px;
+  }
+
+  .heroStatValue {
+    font-size: 15.5px;
   }
 
   .heroChips {
@@ -504,7 +652,7 @@
   .heroActions {
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
 
@@ -514,10 +662,12 @@
 
   .heroBtn {
     width: 100%;
-    padding: 10px 8px;
-    font-size: 0.8rem;
-    gap: 5px;
+    height: 44px;
+    padding: 0 10px;
+    font-size: 0.84rem;
+    gap: 6px;
     justify-content: center;
+    border-radius: 14px;
   }
 
   .desktopView {
@@ -531,28 +681,51 @@
 }
 
 @media (max-width: 480px) {
-  .heroChips {
-    display: flex;
-    flex-wrap: wrap;
+  .hero {
+    padding: 20px 14px;
   }
 
-  .heroChip {
-    font-size: 0.75rem;
-    padding: 5px 9px;
+  .heroTitle {
+    font-size: 1.35rem;
+  }
+
+  .heroSub {
+    font-size: 0.78rem;
+  }
+
+  .heroStatCards {
+    gap: 6px;
+    margin: 10px 0 12px 0;
+  }
+
+  .heroStatCard {
+    padding: 12px 3px 10px 3px;
+    border-radius: 14px;
+  }
+
+  .heroStatLabel {
+    font-size: 10.5px;
+  }
+
+  .heroStatValue {
+    font-size: 14.5px;
   }
 
   .heroActions {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 
-  .heroActions > button:first-child {
+  .heroActions > button:only-child {
     grid-column: 1 / -1;
   }
 
   .heroBtn {
     font-size: 0.82rem;
-    padding: 9px 10px;
+    padding: 0 6px;
+    height: 44px;
   }
 }
+
 
 

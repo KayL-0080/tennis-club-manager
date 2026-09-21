@@ -282,60 +282,116 @@ export default function Dashboard() {
                 />
                 <span>TENNIS CRAZY CLUB</span>
               </div>
-              <h1 className={styles.heroTitle}>테니스 매치 & 대진표 매니저</h1>
+              <h1 className={styles.heroTitle}>
+                테니스 매치 <span className={styles.heroTitleBlue}>&amp; 대진표 매니저</span>
+              </h1>
               <p className={styles.heroSub}>NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리</p>
-              <div className={styles.heroChips}>
-                <span className={styles.heroChip}>
-                  <span className={styles.heroChipIcon}><MembersIcon size={15} active color="#0284c7" /></span>
-                  <span className={styles.heroChipText}>등록 회원 <strong>{members.length}</strong>명</span>
-                </span>
-                <span className={styles.heroChip}>
-                  <span className={styles.heroChipIcon}><HomeIcon size={15} active color="#16a34a" /></span>
-                  <span className={styles.heroChipText}>등록 대진표 <strong>{schedules.length}</strong>개</span>
-                </span>
-                <span 
-                  className={styles.heroChip}
+              
+              {/* 모바일 및 반응형 3개 Stat Cards (media_1789963425923.png 기준 일치) */}
+              <div className={styles.heroStatCards}>
+                <div 
+                  className={styles.heroStatCard}
+                  onClick={() => router.push('/members')}
+                  title="등록 회원 관리로 이동"
+                >
+                  <div className={styles.heroStatIcon}>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                  </div>
+                  <span className={styles.heroStatLabel}>등록 회원</span>
+                  <span className={styles.heroStatValue}>{members.length}명</span>
+                </div>
+
+                <div 
+                  className={styles.heroStatCard}
+                  onClick={() => setActiveTab('list')}
+                  title="대진표 목록으로 이동"
+                >
+                  <div className={styles.heroStatIcon}>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M6 3.5a13 13 0 0 0 0 17" />
+                      <path d="M18 3.5a13 13 0 0 1 0 17" />
+                    </svg>
+                  </div>
+                  <span className={styles.heroStatLabel}>등록 대진표</span>
+                  <span className={styles.heroStatValue}>{schedules.length}개</span>
+                </div>
+
+                <div 
+                  className={styles.heroStatCard}
                   onClick={() => router.push('/tournaments')}
-                  style={{ cursor: 'pointer' }}
                   title="정기 대회 관리 화면으로 이동"
                 >
-                  <span className={styles.heroChipIcon}><TrophyIcon size={15} active color="#d97706" /></span>
-                  <span className={styles.heroChipText}>
-                    정기 대회{' '}
-                    <strong style={{ color: tournamentStatus === '진행중' ? '#16a34a' : tournamentStatus === '진행 없음' ? 'var(--txt3)' : 'inherit' }}>
-                      {tournamentStatus}
-                    </strong>
+                  <div className={styles.heroStatIcon}>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 9H18V12C18 15.3137 15.3137 18 12 18C8.68629 18 6 15.3137 6 12V9Z" />
+                      <path d="M6 10H4C2.89543 10 2 10.8954 2 12C2 13.1046 2.89543 14 4 14H6" />
+                      <path d="M18 10H20C21.1046 10 22 10.8954 22 12C22 13.1046 21.1046 14 20 14H18" />
+                      <path d="M12 18V21" />
+                      <path d="M8 21H16" />
+                    </svg>
+                  </div>
+                  <span className={styles.heroStatLabel}>정기 대회</span>
+                  <span className={`${styles.heroStatValue} ${tournamentStatus === '진행 없음' ? styles.heroStatValueMuted : styles.heroStatValueSuccess}`}>
+                    {tournamentStatus}
                   </span>
-                </span>
+                </div>
               </div>
-            </div>
-            <div className={styles.heroActions}>
-              <button 
-                className={`btn ${activeTab === 'list' ? 'btn-primary' : 'btn-secondary'} ${styles.heroBtn}`} 
-                onClick={() => setActiveTab('list')}
-              >
-                <HomeIcon size={16} active={activeTab === 'list'} />
-                <span>대진표 목록</span>
-              </button>
-              {isAdmin && (
-                <button 
-                  className={`btn ${activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'} ${styles.heroBtn}`} 
-                  onClick={() => setActiveTab('settings')}
-                >
-                  <span>➕</span>
-                  <span>대진표 만들기</span>
-                </button>
-              )}
-              {isAdmin && (
-                <button 
-                  className={`btn btn-secondary ${styles.heroBtn}`} 
-                  onClick={() => router.push('/posters')}
-                  title="회원모집/게스트/코트양도/회비안내 홍보 이미지 제작"
-                >
-                  <span>🎨</span>
-                  <span>이미지 제작</span>
-                </button>
-              )}
+
+              {/* 액션 버튼 그룹 */}
+              <div className={styles.heroActions}>
+                {activeTab === 'settings' && (
+                  <button 
+                    className={`btn ${styles.heroBtn} ${styles.heroBtnSecondary}`} 
+                    onClick={() => setActiveTab('list')}
+                    title="대진표 목록 화면으로 이동"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="8" y1="6" x2="21" y2="6" />
+                      <line x1="8" y1="12" x2="21" y2="12" />
+                      <line x1="8" y1="18" x2="21" y2="18" />
+                      <line x1="3" y1="6" x2="3.01" y2="6" />
+                      <line x1="3" y1="12" x2="3.01" y2="12" />
+                      <line x1="3" y1="18" x2="3.01" y2="18" />
+                    </svg>
+                    <span>대진표 목록</span>
+                  </button>
+                )}
+                {isAdmin && activeTab === 'list' && (
+                  <button 
+                    className={`btn btn-primary ${styles.heroBtn} ${styles.heroBtnPrimary}`} 
+                    onClick={() => setActiveTab('settings')}
+                    title="새 경기 대진표 만들기"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    <span>대진표 만들기</span>
+                  </button>
+                )}
+                {isAdmin && (
+                  <button 
+                    className={`btn btn-secondary ${styles.heroBtn} ${styles.heroBtnSecondary}`} 
+                    onClick={() => router.push('/posters')}
+                    title="회원모집/게스트/코트양도/회비안내 홍보 이미지 제작"
+                  >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+                      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+                      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+                      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+                      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+                    </svg>
+                    <span>이미지 제작</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </section>
