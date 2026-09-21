@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { makeEmptyMatch, teamNtrpSum, computeTodayStandings } from '@/lib/scheduler';
 import AddMemberToBracketModal from '@/components/AddMemberToBracketModal';
-import MatchPlayerSelectModal from '@/components/MatchPlayerSelectModal';
+import MatchPlayerSelectModal, { getGameCountBadgeStyle } from '@/components/MatchPlayerSelectModal';
 import styles from './tabs.module.css';
 
 import {
@@ -1153,6 +1153,8 @@ export default function BracketTab({
                                     const player = byId[pId];
                                     const isFemale = player?.gender === 'F';
                                     const isMale = player?.gender === 'M';
+                                    const pAssigned = player ? (playerAssignedCounts[pId] || 0) : 0;
+                                    const countStyle = getGameCountBadgeStyle(pAssigned);
                                     return (
                                       <button
                                         key={slot}
@@ -1184,11 +1186,26 @@ export default function BracketTab({
                                       >
                                         {player ? (
                                           <>
-                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                              {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
-                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', minWidth: 0 }}>
+                                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                              </span>
+                                              <span style={{
+                                                fontSize: '9.5px',
+                                                padding: '0 4px',
+                                                borderRadius: '4px',
+                                                fontWeight: 800,
+                                                backgroundColor: countStyle.bg,
+                                                color: countStyle.text,
+                                                border: `1px solid ${countStyle.border}`,
+                                                lineHeight: '15px',
+                                                flexShrink: 0
+                                              }}>
+                                                {countStyle.short}
+                                              </span>
+                                            </div>
                                             {isAdmin && !isReadOnly && (
-                                              <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '3px', flexShrink: 0 }}>✏️</span>
+                                              <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '2px', flexShrink: 0 }}>✏️</span>
                                             )}
                                           </>
                                         ) : (
@@ -1243,6 +1260,8 @@ export default function BracketTab({
                                     const player = byId[pId];
                                     const isFemale = player?.gender === 'F';
                                     const isMale = player?.gender === 'M';
+                                    const pAssigned = player ? (playerAssignedCounts[pId] || 0) : 0;
+                                    const countStyle = getGameCountBadgeStyle(pAssigned);
                                     return (
                                       <button
                                         key={slot}
@@ -1274,11 +1293,26 @@ export default function BracketTab({
                                       >
                                         {player ? (
                                           <>
-                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                              {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
-                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', minWidth: 0 }}>
+                                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                              </span>
+                                              <span style={{
+                                                fontSize: '9.5px',
+                                                padding: '0 4px',
+                                                borderRadius: '4px',
+                                                fontWeight: 800,
+                                                backgroundColor: countStyle.bg,
+                                                color: countStyle.text,
+                                                border: `1px solid ${countStyle.border}`,
+                                                lineHeight: '15px',
+                                                flexShrink: 0
+                                              }}>
+                                                {countStyle.short}
+                                              </span>
+                                            </div>
                                             {isAdmin && !isReadOnly && (
-                                              <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '3px', flexShrink: 0 }}>✏️</span>
+                                              <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '2px', flexShrink: 0 }}>✏️</span>
                                             )}
                                           </>
                                         ) : (
@@ -1372,6 +1406,8 @@ export default function BracketTab({
                                 const player = byId[pId];
                                 const isFemale = player?.gender === 'F';
                                 const isMale = player?.gender === 'M';
+                                const pAssigned = player ? (playerAssignedCounts[pId] || 0) : 0;
+                                const countStyle = getGameCountBadgeStyle(pAssigned);
                                 return (
                                   <button 
                                     key={slot} 
@@ -1391,8 +1427,23 @@ export default function BracketTab({
                                     onClick={() => openPlayerModal(ri, ci, 'a', slot)}
                                   >
                                     {player ? (
-                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', overflow: 'hidden', maxWidth: '100%' }}>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                        </span>
+                                        <span style={{
+                                          fontSize: '8.5px',
+                                          padding: '0 3px',
+                                          borderRadius: '3px',
+                                          fontWeight: 800,
+                                          backgroundColor: countStyle.bg,
+                                          color: countStyle.text,
+                                          border: `1px solid ${countStyle.border}`,
+                                          lineHeight: '13px',
+                                          flexShrink: 0
+                                        }}>
+                                          {countStyle.short}
+                                        </span>
                                       </span>
                                     ) : (
                                       <span style={{ fontSize: '11px', color: 'var(--txt3)', fontStyle: 'italic' }}>
@@ -1429,6 +1480,8 @@ export default function BracketTab({
                                 const player = byId[pId];
                                 const isFemale = player?.gender === 'F';
                                 const isMale = player?.gender === 'M';
+                                const pAssigned = player ? (playerAssignedCounts[pId] || 0) : 0;
+                                const countStyle = getGameCountBadgeStyle(pAssigned);
                                 return (
                                   <button 
                                     key={slot} 
@@ -1448,8 +1501,23 @@ export default function BracketTab({
                                     onClick={() => openPlayerModal(ri, ci, 'b', slot)}
                                   >
                                     {player ? (
-                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', overflow: 'hidden', maxWidth: '100%' }}>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                        </span>
+                                        <span style={{
+                                          fontSize: '8.5px',
+                                          padding: '0 3px',
+                                          borderRadius: '3px',
+                                          fontWeight: 800,
+                                          backgroundColor: countStyle.bg,
+                                          color: countStyle.text,
+                                          border: `1px solid ${countStyle.border}`,
+                                          lineHeight: '13px',
+                                          flexShrink: 0
+                                        }}>
+                                          {countStyle.short}
+                                        </span>
                                       </span>
                                     ) : (
                                       <span style={{ fontSize: '11px', color: 'var(--txt3)', fontStyle: 'italic' }}>

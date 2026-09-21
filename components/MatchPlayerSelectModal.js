@@ -30,6 +30,63 @@ const getRoleBadgeStyle = (role) => {
   }
 };
 
+export const getGameCountBadgeStyle = (count) => {
+  const num = Number(count) || 0;
+  if (num === 0) {
+    return {
+      dot: '🟢',
+      bg: '#ecfdf5',
+      border: '#a7f3d0',
+      text: '#047857',
+      accent: '#10b981',
+      title: '0경기 (미배정 · 우선 추천)',
+      short: '0G',
+    };
+  }
+  if (num === 1) {
+    return {
+      dot: '🔵',
+      bg: '#eff6ff',
+      border: '#bae6fd',
+      text: '#0284c7',
+      accent: '#3b82f6',
+      title: '1경기 배정',
+      short: '1G',
+    };
+  }
+  if (num === 2) {
+    return {
+      dot: '🟣',
+      bg: '#faf5ff',
+      border: '#d8b4fe',
+      text: '#7e22ce',
+      accent: '#a855f7',
+      title: '2경기 배정',
+      short: '2G',
+    };
+  }
+  if (num === 3) {
+    return {
+      dot: '🟠',
+      bg: '#fff7ed',
+      border: '#fed7aa',
+      text: '#c2410c',
+      accent: '#f97316',
+      title: '3경기 배정 (목표 도달)',
+      short: '3G',
+    };
+  }
+  return {
+    dot: '🔴',
+    bg: '#fff1f2',
+    border: '#fecdd3',
+    text: '#be123c',
+    accent: '#f43f5e',
+    title: `${num}경기 배정 (휴식 권장)`,
+    short: `${num}G`,
+  };
+};
+
 export default function MatchPlayerSelectModal({
   isOpen,
   onClose,
@@ -409,6 +466,8 @@ export default function MatchPlayerSelectModal({
                 const pId = currentMatch.teamA?.[sIdx];
                 const p = byId[pId];
                 const isActive = currentTeam === 'a' && currentSlot === sIdx;
+                const pCount = p ? (assignedCounts[p.id] || 0) : 0;
+                const pCountStyle = getGameCountBadgeStyle(pCount);
                 return (
                   <button
                     key={sIdx}
@@ -428,8 +487,24 @@ export default function MatchPlayerSelectModal({
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#1d4ed8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {p ? `${getDisplayNameWithGuest(p)} (${p.gender === 'F' ? '여' : '남'})` : `+ A${sIdx + 1} 빈 슬롯`}
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#1d4ed8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {p ? (
+                        <>
+                          <span>{getDisplayNameWithGuest(p)} ({p.gender === 'F' ? '여' : '남'})</span>
+                          <span style={{
+                            fontSize: '9.5px',
+                            padding: '1px 4px',
+                            borderRadius: '4px',
+                            backgroundColor: pCountStyle.bg,
+                            color: pCountStyle.text,
+                            border: `1px solid ${pCountStyle.border}`,
+                            fontWeight: 800,
+                            lineHeight: '14px'
+                          }}>
+                            {pCountStyle.short}
+                          </span>
+                        </>
+                      ) : `+ A${sIdx + 1} 빈 슬롯`}
                     </span>
                     {isActive && <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 900 }}>👉</span>}
                   </button>
@@ -451,6 +526,8 @@ export default function MatchPlayerSelectModal({
                 const pId = currentMatch.teamB?.[sIdx];
                 const p = byId[pId];
                 const isActive = currentTeam === 'b' && currentSlot === sIdx;
+                const pCount = p ? (assignedCounts[p.id] || 0) : 0;
+                const pCountStyle = getGameCountBadgeStyle(pCount);
                 return (
                   <button
                     key={sIdx}
@@ -470,8 +547,24 @@ export default function MatchPlayerSelectModal({
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#be123c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {p ? `${getDisplayNameWithGuest(p)} (${p.gender === 'F' ? '여' : '남'})` : `+ B${sIdx + 1} 빈 슬롯`}
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#be123c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {p ? (
+                        <>
+                          <span>{getDisplayNameWithGuest(p)} ({p.gender === 'F' ? '여' : '남'})</span>
+                          <span style={{
+                            fontSize: '9.5px',
+                            padding: '1px 4px',
+                            borderRadius: '4px',
+                            backgroundColor: pCountStyle.bg,
+                            color: pCountStyle.text,
+                            border: `1px solid ${pCountStyle.border}`,
+                            fontWeight: 800,
+                            lineHeight: '14px'
+                          }}>
+                            {pCountStyle.short}
+                          </span>
+                        </>
+                      ) : `+ B${sIdx + 1} 빈 슬롯`}
                     </span>
                     {isActive && <span style={{ fontSize: '10px', color: '#e11d48', fontWeight: 900 }}>👉</span>}
                   </button>
@@ -481,7 +574,7 @@ export default function MatchPlayerSelectModal({
           </div>
         </div>
 
-        {/* 2. 검색창 및 스마트 필터 칩 */}
+        {/* 2. 검색창, 스마트 필터 칩 및 경기수 색상 안내 바 */}
         <div style={{ padding: '10px 16px 8px 16px', display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid var(--border)' }}>
           {/* 실시간 검색창 */}
           <div style={{ position: 'relative', width: '100%' }}>
@@ -548,6 +641,30 @@ export default function MatchPlayerSelectModal({
               </button>
             ))}
           </div>
+
+          {/* ⭐ 경기수 구분 색상 범례 가이드 */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '6px',
+            padding: '5px 10px',
+            backgroundColor: '#f8fafc',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            flexWrap: 'wrap'
+          }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--txt2)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <span>🎨</span> 경기수별 색상:
+            </span>
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#047857', backgroundColor: '#ecfdf5', padding: '1px 6px', borderRadius: '4px', border: '1px solid #a7f3d0' }}>🟢 0경기 (우선)</span>
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#0284c7', backgroundColor: '#eff6ff', padding: '1px 6px', borderRadius: '4px', border: '1px solid #bae6fd' }}>🔵 1경기</span>
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#7e22ce', backgroundColor: '#faf5ff', padding: '1px 6px', borderRadius: '4px', border: '1px solid #d8b4fe' }}>🟣 2경기</span>
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#c2410c', backgroundColor: '#fff7ed', padding: '1px 6px', borderRadius: '4px', border: '1px solid #fed7aa' }}>🟠 3경기</span>
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#be123c', backgroundColor: '#fff1f2', padding: '1px 6px', borderRadius: '4px', border: '1px solid #fecdd3' }}>🔴 4+경기</span>
+            </div>
+          </div>
         </div>
 
         {/* 3. 선수 리스트 (현재 완료 경기 수 표기 + 즉시 배정) */}
@@ -579,6 +696,9 @@ export default function MatchPlayerSelectModal({
               const isFemale = c.gender === 'F';
               const isMale = c.gender === 'M';
 
+              // ⭐ 경기수에 따른 색상 스타일 계산
+              const countStyle = getGameCountBadgeStyle(c.assigned);
+
               // 버튼 및 카드 상태 결정
               const isCurrent = c.isCurrentSlot;
               const isConflict = c.isRoundConflict;
@@ -600,13 +720,14 @@ export default function MatchPlayerSelectModal({
                       : isDisabled 
                       ? '1px solid #e2e8f0' 
                       : '1px solid #cbd5e1',
+                    borderLeft: `5px solid ${countStyle.accent}`,
                     boxShadow: isCurrent ? '0 2px 8px rgba(0, 122, 255, 0.12)' : '0 1px 3px rgba(0,0,0,0.02)',
                     opacity: isDisabled ? 0.75 : 1,
                     transition: 'all 0.15s ease',
                     gap: '10px'
                   }}
                 >
-                  {/* 선수 기본 정보 & ⭐ 완료 경기수 배지 */}
+                  {/* 선수 기본 정보 & ⭐ 경기수별 전용 색상 배지 */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 800, fontSize: '13.5px', color: isConflict ? 'var(--txt3)' : 'var(--txt)' }}>
@@ -656,18 +777,23 @@ export default function MatchPlayerSelectModal({
                       )}
                     </div>
 
-                    {/* ⭐ 사용자 요청 핵심: 현재 몇 경기를 완료했는지 및 총 배정 수 명확한 표기 */}
+                    {/* ⭐ 사용자 요청 핵심: 경기수별 색상 배지 (총 배정 + 완료 경기수) */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
                       <span style={{
                         fontSize: '11px',
-                        padding: '2px 7px',
+                        padding: '2px 8px',
                         borderRadius: '6px',
                         fontWeight: 800,
-                        backgroundColor: c.played > 0 ? 'rgba(34, 197, 94, 0.12)' : 'rgba(100, 116, 139, 0.1)',
-                        color: c.played > 0 ? '#15803d' : '#64748b',
-                        border: c.played > 0 ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(100, 116, 139, 0.2)',
+                        backgroundColor: countStyle.bg,
+                        color: countStyle.text,
+                        border: `1px solid ${countStyle.border}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
                       }}>
-                        🎾 {c.played}경기 진행완료 (총 {c.assigned}경기 배정)
+                        <span>{countStyle.dot}</span>
+                        <span>총 {c.assigned}경기 배정</span>
+                        <span style={{ opacity: 0.8, fontWeight: 600 }}>({c.played}경기 완료)</span>
                       </span>
                       {c.isAvailableInRound && (
                         <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
