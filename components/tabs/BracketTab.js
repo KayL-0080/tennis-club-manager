@@ -60,6 +60,7 @@ export default function BracketTab({
   schedule, setSchedule, scores, setScores,
   members, participants, lastGenStats,
   scheduleRounds, scheduleCourts, setScheduleRounds, setScheduleCourts,
+  usePenalty = true, setUsePenalty,
   penaltyAmount = 1000, setPenaltyAmount,
   penaltyPaidMap = {}, setPenaltyPaidMap,
   maxGames = 6, setMaxGames,
@@ -68,6 +69,8 @@ export default function BracketTab({
   title,
   onSave, onPrint, isAdmin, isReadOnly, isPastMatch,
 }) {
+  const [playerFilter, setPlayerFilter] = useState('ALL'); // 'ALL' | 'IN_PROGRESS' | 'DONE' | 'WAITING'
+
   const byId = useMemo(() => {
     const m = {}; members.forEach(p => m[p.id] = p); return m;
   }, [members]);
@@ -442,6 +445,85 @@ export default function BracketTab({
     }
     return list;
   }, [schedule, scores, courts]);
+
+  /* ── 🎾 각 선수별 배정 경기수 계산 ── */
+  const playerAssignedCounts = useMemo(() => {
+    const map = {};
+    if (!schedule) return map;
+    schedule.forEach(round => {
+      if (!Array.isArray(round)) return;
+      round.forEach(match => {
+        if (!match) return;
+        [...(match.teamA || []), ...(match.teamB || [])].forEach(pId => {
+          if (pId) {
+            map[pId] = (map[pId] || 0) + 1;
+          }
+        });
+      });
+    });
+    return map;
+  }, [schedule]);
+
+  /* ── 🎾 각 선수별 경기 참여 및 진행 현황 통계 ── */
+  const playerGameStats = useMemo(() => {
+    const todayMap = new Map((todayRows || []).map(r => [r.id, r]));
+    const participantMap = new Map((participants || []).map(pt => [pt.playerId, pt]));
+    const list = entries.map(p => {
+      const r = todayMap.get(p.id) || {};
+      const played = r.played || 0;
+      const pt = participantMap.get(p.id);
+      const assigned = playerAssignedCounts[p.id] || pt?.target || 0;
+      const remaining = Math.max(0, assigned - played);
+      const percent = assigned > 0 ? Math.min(100, Math.round((played / assigned) * 100)) : (played > 0 ? 100 : 0);
+      const isDone = assigned > 0 ? played >= assigned : played > 0;
+      const isWaiting = played === 0;
+      const isInProgress = played > 0 && !isDone;
+      return {
+        id: p.id,
+        name: p.name,
+        gender: p.gender || 'M',
+        ntrp: p.ntrp || 2.0,
+        played,
+        assigned,
+        remaining,
+        percent,
+        isDone,
+        isWaiting,
+        isInProgress,
+        win: r.win || 0,
+        draw: r.draw || 0,
+        loss: r.loss || 0,
+        diff: r.diff || 0,
+        winRate: r.winRate !== undefined ? r.winRate : -1,
+      };
+    });
+
+    list.sort((a, b) => b.played - a.played || b.assigned - a.assigned || a.name.localeCompare(b.name));
+    return list;
+  }, [entries, todayRows, playerAssignedCounts, participants]);
+
+  const totalAssignedPlayerGames = useMemo(() => {
+    return playerGameStats.reduce((sum, p) => sum + p.assigned, 0);
+  }, [playerGameStats]);
+
+  const totalCompletedPlayerGames = useMemo(() => {
+    return playerGameStats.reduce((sum, p) => sum + p.played, 0);
+  }, [playerGameStats]);
+
+  const playerStatsSummary = useMemo(() => {
+    const total = playerGameStats.length;
+    const completed = playerGameStats.filter(p => p.isDone).length;
+    const inProgress = playerGameStats.filter(p => p.isInProgress).length;
+    const waiting = playerGameStats.filter(p => p.isWaiting).length;
+    return { total, completed, inProgress, waiting };
+  }, [playerGameStats]);
+
+  const displayedPlayerStats = useMemo(() => {
+    if (playerFilter === 'DONE') return playerGameStats.filter(p => p.isDone);
+    if (playerFilter === 'IN_PROGRESS') return playerGameStats.filter(p => p.isInProgress);
+    if (playerFilter === 'WAITING') return playerGameStats.filter(p => p.isWaiting);
+    return playerGameStats;
+  }, [playerGameStats, playerFilter]);
 
   /* ── 벌칙금 정산 통계 ── */
   const penaltySummary = useMemo(() => {
@@ -1170,270 +1252,519 @@ export default function BracketTab({
       </div>
 
 
-      {/* 💸 1. 최종 경기 벌칙금(진팀 벌금) 정산소 */}
-      <div className={`card ${styles.section}`} style={{ marginTop: '24px', border: '1px solid rgba(225, 29, 72, 0.25)', background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255, 241, 242, 0.4) 100%)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--txt)' }}>
-                💸 최종 경기 벌칙금(진팀 벌금) 정산소
-              </h2>
-              {matchStats.isAllCompleted ? (
-                <span className="badge badge-green" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
-                  🎉 전체 경기 완료 (최종 정산 완료)
-                </span>
-              ) : (
-                <span className="badge badge-blue" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
-                  🎾 경기 진행 중 ({matchStats.completedMatches}/{matchStats.totalMatches}경기 완료)
-                </span>
-              )}
+      {/* 💸 1. 최종 경기 벌칙금(진팀 벌금) 정산소 (usePenalty === true 일 때 표시) */}
+      {usePenalty && (
+        <div className={`card ${styles.section}`} style={{ marginTop: '24px', border: '1px solid rgba(225, 29, 72, 0.25)', background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255, 241, 242, 0.4) 100%)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--txt)' }}>
+                  💸 최종 경기 벌칙금(진팀 벌금) 정산소
+                </h2>
+                {matchStats.isAllCompleted ? (
+                  <span className="badge badge-green" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
+                    🎉 전체 경기 완료 (최종 정산 완료)
+                  </span>
+                ) : (
+                  <span className="badge badge-blue" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
+                    🎾 경기 진행 중 ({matchStats.completedMatches}/{matchStats.totalMatches}경기 완료)
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--txt2)' }}>
+                진팀 패배 시 1인당 부과되는 벌칙금을 설정하고, 최종 완료 시 개인별 납부 벌칙금을 정산합니다.
+              </p>
             </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--txt2)' }}>
-              진팀 패배 시 1인당 부과되는 벌칙금을 설정하고, 최종 완료 시 개인별 납부 벌칙금을 정산합니다.
-            </p>
-          </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
-              onClick={handleOpenPenaltyShare}
-            >
-              📤 벌칙금 정산 내역 공유
-            </button>
-            {isAdmin && (
-              <>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleBulkPayment(true)}
-                  title="벌칙 대상자 전원을 납부완료 상태로 변경"
-                >
-                  ✅ 전원 완납
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleBulkPayment(false)}
-                  title="벌칙 대상자 전원을 미납 상태로 변경"
-                >
-                  🔄 전원 미납
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* 벌칙금액 설정 툴바 */}
-        <div style={{ 
-          padding: '12px 16px', 
-          backgroundColor: 'rgba(255, 255, 255, 0.85)', 
-          borderRadius: '12px', 
-          border: '1px solid var(--border)',
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          flexWrap: 'wrap', 
-          gap: '12px',
-          marginBottom: '16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)' }}>
-              💰 진팀 1인당 벌칙 설정 (1패당):
-            </span>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {[
-                { label: '0원(벌칙없음)', value: 0 },
-                { label: '1,000원', value: 1000 },
-                { label: '2,000원', value: 2000 },
-                { label: '3,000원', value: 3000 },
-                { label: '5,000원', value: 5000 }
-              ].map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => handleSelectPenaltyPreset(opt.value)}
-                  disabled={!isAdmin && isReadOnly}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '8px',
-                    border: penaltyAmount === opt.value ? '1.5px solid #e11d48' : '1px solid var(--border)',
-                    backgroundColor: penaltyAmount === opt.value ? '#ffe4e6' : '#fff',
-                    color: penaltyAmount === opt.value ? '#e11d48' : 'var(--txt)',
-                    fontWeight: penaltyAmount === opt.value ? 800 : 500,
-                    fontSize: '12px',
-                    cursor: (!isAdmin && isReadOnly) ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>직접 입력:</span>
-            <input 
-              type="number" 
-              className="input input-sm" 
-              style={{ width: '80px', textAlign: 'right', fontWeight: 700 }}
-              value={customPenaltyInput}
-              disabled={!isAdmin && isReadOnly}
-              onChange={e => setCustomPenaltyInput(e.target.value)}
-              onBlur={handleCustomPenaltyBlur}
-              step="500"
-              min="0"
-            />
-            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--txt)' }}>원</span>
-          </div>
-        </div>
-
-        {/* 4분할 핵심 KPI 카드 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-          <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid rgba(225, 29, 72, 0.2)' }}>
-            <div style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>💵 총 모인 벌칙금</div>
-            <div style={{ fontSize: '20px', fontWeight: 900, color: '#e11d48', marginTop: '2px' }}>
-              {penaltySummary.totalPenalty.toLocaleString()}원
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
-              총 {penaltySummary.totalLosses}패 발생 (1패당 {(penaltyAmount || 0).toLocaleString()}원)
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>🎾 경기 진행 완료율</div>
-            <div style={{ fontSize: '20px', fontWeight: 900, color: matchStats.isAllCompleted ? '#16a34a' : 'var(--ios-blue)', marginTop: '2px' }}>
-              {matchStats.completedMatches} / {matchStats.totalMatches}경기
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
-              진행률 {Math.round((matchStats.completedMatches / (matchStats.totalMatches || 1)) * 100)}% {matchStats.isAllCompleted ? '· 전체 완료 ✅' : ''}
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>👥 벌칙금 수납 현황</div>
-            <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--txt)', marginTop: '2px' }}>
-              완납 {penaltySummary.paidCount}명 <span style={{ fontSize: '13px', color: 'var(--txt3)', fontWeight: 500 }}>/ 미납 {penaltySummary.unpaidCount}명</span>
-            </div>
-            <div style={{ fontSize: '11px', color: penaltySummary.unpaidCount === 0 && penaltySummary.totalPenalty > 0 ? '#16a34a' : '#b45309', marginTop: '2px', fontWeight: 700 }}>
-              {penaltySummary.totalPenalty === 0 ? '벌칙금 대상 없음' : penaltySummary.unpaidCount === 0 ? '전원 수납 완료 🎉' : `미납 총액: ${penaltySummary.unpaidTotal.toLocaleString()}원`}
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid rgba(255, 149, 0, 0.3)' }}>
-            <div style={{ fontSize: '11.5px', color: '#b45309', fontWeight: 700 }}>💸 오늘의 최다 기부왕</div>
-            <div style={{ fontSize: '18px', fontWeight: 900, color: '#b45309', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {penaltySummary.topLoser ? `${penaltySummary.topLoser.name} (${penaltySummary.topLoser.losses}패)` : '기부왕 없음'}
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
-              {penaltySummary.topLoser ? `납부액: ${penaltySummary.topLoser.penalty.toLocaleString()}원 (${penaltySummary.topLoser.isPaid ? '완납 ✅' : '미납 💰'})` : '경기를 진행해주세요'}
-            </div>
-          </div>
-        </div>
-
-        {/* 개인별 벌칙금 납부 리스트 */}
-        {penaltySummary.losersList.length > 0 && (
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)', marginBottom: '8px' }}>
-              📋 개인별 벌칙금 산출 및 납부 확인 ({penaltySummary.losersList.length}명)
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px' }}>
-              {penaltySummary.losersList.map((p, idx) => (
-                <div 
-                  key={p.id}
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: '10px',
-                    backgroundColor: '#fff',
-                    border: idx === 0 ? '1.5px solid rgba(225, 29, 72, 0.4)' : '1px solid var(--border)',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '8px'
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
-                        {p.name}
-                      </span>
-                      {idx === 0 && (
-                        <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: '#ffe4e6', color: '#e11d48', fontWeight: 800 }}>
-                          기부왕 💸
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '2px' }}>
-                      {p.played}경기 ({p.win}승 {p.losses}패)
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 900, color: '#e11d48' }}>
-                      {p.penalty.toLocaleString()}원
-                    </span>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+                onClick={handleOpenPenaltyShare}
+              >
+                📤 벌칙금 정산 내역 공유
+              </button>
+              {isAdmin && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleBulkPayment(true)}
+                    title="벌칙 대상자 전원을 납부완료 상태로 변경"
+                  >
+                    ✅ 전원 완납
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleBulkPayment(false)}
+                    title="벌칙 대상자 전원을 미납 상태로 변경"
+                  >
+                    🔄 전원 미납
+                  </button>
+                  {setUsePenalty && (
                     <button
                       type="button"
-                      onClick={() => handleTogglePayment(p.id)}
-                      disabled={!isAdmin && isReadOnly}
-                      style={{
-                        padding: '2px 8px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        borderRadius: '6px',
-                        border: 'none',
-                        cursor: (!isAdmin && isReadOnly) ? 'not-allowed' : 'pointer',
-                        backgroundColor: p.isPaid ? '#dcfce7' : '#fef3c7',
-                        color: p.isPaid ? '#15803d' : '#b45309'
-                      }}
-                      title="클릭하여 납부/미납 상태 변경"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setUsePenalty(false)}
+                      title="벌칙금 정산소를 끄고 선수별 경기 진행 현황 모드로 전환"
+                      style={{ fontSize: '11.5px', color: '#475569', borderColor: '#cbd5e1' }}
                     >
-                      {p.isPaid ? '✅ 완납' : '💰 미납'}
+                      🛡️ 벌칙금 끄기 (선수 현황 모드)
                     </button>
-                  </div>
-                </div>
-              ))}
+                  )}
+                </>
+              )}
             </div>
           </div>
-        )}
 
-        {/* 무패 선수 (벌칙 면제) 안내 */}
-        {penaltySummary.unbeatenList.length > 0 && (
-          <div style={{ padding: '8px 12px', backgroundColor: 'rgba(22, 163, 74, 0.08)', borderRadius: '8px', border: '1px solid rgba(22, 163, 74, 0.2)', fontSize: '12px', color: '#166534', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span>👑</span>
-            <strong>무패 선수 (벌칙 면제):</strong>
-            <span>
-              {penaltySummary.unbeatenList.map(u => `${u.name} (${u.win}승${u.draw > 0 ? ` ${u.draw}무` : ''})`).join(', ')}
-            </span>
+          {/* 벌칙금액 설정 툴바 */}
+          <div style={{ 
+            padding: '12px 16px', 
+            backgroundColor: 'rgba(255, 255, 255, 0.85)', 
+            borderRadius: '12px', 
+            border: '1px solid var(--border)',
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            flexWrap: 'wrap', 
+            gap: '12px',
+            marginBottom: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)' }}>
+                💰 진팀 1인당 벌칙 설정 (1패당):
+              </span>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {[
+                  { label: '0원(벌칙없음)', value: 0 },
+                  { label: '1,000원', value: 1000 },
+                  { label: '2,000원', value: 2000 },
+                  { label: '3,000원', value: 3000 },
+                  { label: '5,000원', value: 5000 }
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleSelectPenaltyPreset(opt.value)}
+                    disabled={!isAdmin && isReadOnly}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '8px',
+                      border: penaltyAmount === opt.value ? '1.5px solid #e11d48' : '1px solid var(--border)',
+                      backgroundColor: penaltyAmount === opt.value ? '#ffe4e6' : '#fff',
+                      color: penaltyAmount === opt.value ? '#e11d48' : 'var(--txt)',
+                      fontWeight: penaltyAmount === opt.value ? 800 : 500,
+                      fontSize: '12px',
+                      cursor: (!isAdmin && isReadOnly) ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>직접 입력:</span>
+              <input 
+                type="number" 
+                className="input input-sm" 
+                style={{ width: '80px', textAlign: 'right', fontWeight: 700 }}
+                value={customPenaltyInput}
+                disabled={!isAdmin && isReadOnly}
+                onChange={e => setCustomPenaltyInput(e.target.value)}
+                onBlur={handleCustomPenaltyBlur}
+                step="500"
+                min="0"
+              />
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--txt)' }}>원</span>
+            </div>
           </div>
-        )}
 
-        {/* 클럽 입금 계좌 안내 */}
-        {clubSettings?.bankAccount && (
-          <div style={{ padding: '8px 12px', backgroundColor: 'rgba(0, 122, 255, 0.06)', borderRadius: '8px', border: '1px solid rgba(0, 122, 255, 0.15)', fontSize: '12px', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span>🏦</span>
-            <strong>클럽 벌칙금/회비 입금 계좌:</strong>
-            <span style={{ fontWeight: 700 }}>{clubSettings.bankAccount}</span>
-            {clubSettings.accountHolder && <span>(예금주: {clubSettings.accountHolder})</span>}
+          {/* 4분할 핵심 KPI 카드 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+            <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid rgba(225, 29, 72, 0.2)' }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>💵 총 모인 벌칙금</div>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: '#e11d48', marginTop: '2px' }}>
+                {penaltySummary.totalPenalty.toLocaleString()}원
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
+                총 {penaltySummary.totalLosses}패 발생 (1패당 {(penaltyAmount || 0).toLocaleString()}원)
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>🎾 경기 진행 완료율</div>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: matchStats.isAllCompleted ? '#16a34a' : 'var(--ios-blue)', marginTop: '2px' }}>
+                {matchStats.completedMatches} / {matchStats.totalMatches}경기
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
+                진행률 {Math.round((matchStats.completedMatches / (matchStats.totalMatches || 1)) * 100)}% {matchStats.isAllCompleted ? '· 전체 완료 ✅' : ''}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>👥 벌칙금 수납 현황</div>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--txt)', marginTop: '2px' }}>
+                완납 {penaltySummary.paidCount}명 <span style={{ fontSize: '13px', color: 'var(--txt3)', fontWeight: 500 }}>/ 미납 {penaltySummary.unpaidCount}명</span>
+              </div>
+              <div style={{ fontSize: '11px', color: penaltySummary.unpaidCount === 0 && penaltySummary.totalPenalty > 0 ? '#16a34a' : '#b45309', marginTop: '2px', fontWeight: 700 }}>
+                {penaltySummary.totalPenalty === 0 ? '벌칙금 대상 없음' : penaltySummary.unpaidCount === 0 ? '전원 수납 완료 🎉' : `미납 총액: ${penaltySummary.unpaidTotal.toLocaleString()}원`}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid rgba(255, 149, 0, 0.3)' }}>
+              <div style={{ fontSize: '11.5px', color: '#b45309', fontWeight: 700 }}>💸 오늘의 최다 기부왕</div>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#b45309', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {penaltySummary.topLoser ? `${penaltySummary.topLoser.name} (${penaltySummary.topLoser.losses}패)` : '기부왕 없음'}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
+                {penaltySummary.topLoser ? `납부액: ${penaltySummary.topLoser.penalty.toLocaleString()}원 (${penaltySummary.topLoser.isPaid ? '완납 ✅' : '미납 💰'})` : '경기를 진행해주세요'}
+              </div>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* 2. 오늘 개인 순위표 & 벌칙금 현황 */}
+          {/* 개인별 벌칙금 납부 리스트 */}
+          {penaltySummary.losersList.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)', marginBottom: '8px' }}>
+                📋 개인별 벌칙금 산출 및 납부 확인 ({penaltySummary.losersList.length}명)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px' }}>
+                {penaltySummary.losersList.map((p, idx) => (
+                  <div 
+                    key={p.id}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      backgroundColor: '#fff',
+                      border: idx === 0 ? '1.5px solid rgba(225, 29, 72, 0.4)' : '1px solid var(--border)',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
+                          {p.name}
+                        </span>
+                        {idx === 0 && (
+                          <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: '#ffe4e6', color: '#e11d48', fontWeight: 800 }}>
+                            기부왕 💸
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '2px' }}>
+                        {p.played}경기 ({p.win}승 {p.losses}패)
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 900, color: '#e11d48' }}>
+                        {p.penalty.toLocaleString()}원
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePayment(p.id)}
+                        disabled={!isAdmin && isReadOnly}
+                        style={{
+                          padding: '2px 8px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          borderRadius: '6px',
+                          border: 'none',
+                          cursor: (!isAdmin && isReadOnly) ? 'not-allowed' : 'pointer',
+                          backgroundColor: p.isPaid ? '#dcfce7' : '#fef3c7',
+                          color: p.isPaid ? '#15803d' : '#b45309'
+                        }}
+                        title="클릭하여 납부/미납 상태 변경"
+                      >
+                        {p.isPaid ? '✅ 완납' : '💰 미납'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 무패 선수 (벌칙 면제) 안내 */}
+          {penaltySummary.unbeatenList.length > 0 && (
+            <div style={{ padding: '8px 12px', backgroundColor: 'rgba(22, 163, 74, 0.08)', borderRadius: '8px', border: '1px solid rgba(22, 163, 74, 0.2)', fontSize: '12px', color: '#166534', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span>👑</span>
+              <strong>무패 선수 (벌칙 면제):</strong>
+              <span>
+                {penaltySummary.unbeatenList.map(u => `${u.name} (${u.win}승${u.draw > 0 ? ` ${u.draw}무` : ''})`).join(', ')}
+              </span>
+            </div>
+          )}
+
+          {/* 클럽 입금 계좌 안내 */}
+          {clubSettings?.bankAccount && (
+            <div style={{ padding: '8px 12px', backgroundColor: 'rgba(0, 122, 255, 0.06)', borderRadius: '8px', border: '1px solid rgba(0, 122, 255, 0.15)', fontSize: '12px', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span>🏦</span>
+              <strong>클럽 벌칙금/회비 입금 계좌:</strong>
+              <span style={{ fontWeight: 700 }}>{clubSettings.bankAccount}</span>
+              {clubSettings.accountHolder && <span>(예금주: {clubSettings.accountHolder})</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🎾 1. 선수별 경기 진행 현황 (usePenalty === false 일 때 표시) */}
+      {!usePenalty && (
+        <div className={`card ${styles.section}`} style={{ marginTop: '24px', border: '1px solid rgba(14, 165, 233, 0.25)', background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(240, 249, 255, 0.6) 100%)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--txt)' }}>
+                  🎾 선수별 경기 진행 현황
+                </h2>
+                <span className="badge badge-blue" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
+                  🛡️ 벌칙금 미적용 모드
+                </span>
+                {totalCompletedPlayerGames >= totalAssignedPlayerGames && totalAssignedPlayerGames > 0 ? (
+                  <span className="badge badge-green" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
+                    🎉 전원 배정 경기 완료
+                  </span>
+                ) : (
+                  <span className="badge badge-blue" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
+                    진행률 {Math.round((totalCompletedPlayerGames / (totalAssignedPlayerGames || 1)) * 100)}% ({totalCompletedPlayerGames}/{totalAssignedPlayerGames} 선수-게임)
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--txt2)' }}>
+                오늘 참가 선수별 배정된 게임 수와 현재까지 완료한 게임 수 및 전적을 실시간으로 확인합니다.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {isAdmin && setUsePenalty && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setUsePenalty(true)}
+                  title="벌칙금 정산소 모드로 전환"
+                  style={{ fontSize: '11.5px', color: '#e11d48', borderColor: 'rgba(225, 29, 72, 0.3)', backgroundColor: '#fff', fontWeight: 700 }}
+                >
+                  💸 벌칙금 정산소 켜기
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 4분할 경기 진행 핵심 KPI 카드 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+            <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid rgba(14, 165, 233, 0.2)' }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>👥 총 참가 선수</div>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--txt)', marginTop: '2px' }}>
+                {playerGameStats.length}명
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
+                총 배정: {totalAssignedPlayerGames} 선수-게임 (1인 평균 {(totalAssignedPlayerGames / (playerGameStats.length || 1)).toFixed(1)}게임)
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>🎾 코트별 경기 완료율</div>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: matchStats.isAllCompleted ? '#16a34a' : 'var(--ios-blue)', marginTop: '2px' }}>
+                {matchStats.completedMatches} / {matchStats.totalMatches}경기 ({Math.round((matchStats.completedMatches / (matchStats.totalMatches || 1)) * 100)}%)
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
+                선수-게임 완료: {totalCompletedPlayerGames} / {totalAssignedPlayerGames} ({Math.round((totalCompletedPlayerGames / (totalAssignedPlayerGames || 1)) * 100)}%)
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 700 }}>📊 선수별 진행 상태</div>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--txt)', marginTop: '2px' }}>
+                <span style={{ color: '#16a34a' }}>완료 {playerStatsSummary.completed}</span> / <span style={{ color: '#0284c7' }}>진행 {playerStatsSummary.inProgress}</span> / <span style={{ color: '#64748b' }}>대기 {playerStatsSummary.waiting}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
+                {playerStatsSummary.completed === playerGameStats.length && playerGameStats.length > 0 ? '모든 선수가 배정 경기를 마쳤습니다 🎉' : `경기 대기 선수 ${playerStatsSummary.waiting}명`}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '14px 16px', background: '#fff', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+              <div style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: 700 }}>🏆 최고 승률 선수</div>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#16a34a', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {(() => {
+                  const qualified = playerGameStats.filter(p => p.played > 0);
+                  if (qualified.length === 0) return '경기 진행 대기';
+                  const top = [...qualified].sort((a, b) => (b.winRate - a.winRate) || (b.diff - a.diff) || (b.win - a.win))[0];
+                  return `${top.name} (${top.win}승 ${top.loss}패, ${(top.winRate * 100).toFixed(0)}%)`;
+                })()}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--txt2)', marginTop: '2px' }}>
+                오늘의 승률 1위 플레이어
+              </div>
+            </div>
+          </div>
+
+          {/* 필터 탭 */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--txt2)' }}>보기 필터:</span>
+            {[
+              { key: 'ALL', label: `전체 (${playerStatsSummary.total}명)` },
+              { key: 'IN_PROGRESS', label: `🎾 진행중 (${playerStatsSummary.inProgress}명)` },
+              { key: 'DONE', label: `✅ 완료 (${playerStatsSummary.completed}명)` },
+              { key: 'WAITING', label: `⏳ 대기중 (${playerStatsSummary.waiting}명)` },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setPlayerFilter(tab.key)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  border: playerFilter === tab.key ? '1.5px solid #0284c7' : '1px solid var(--border)',
+                  backgroundColor: playerFilter === tab.key ? '#e0f2fe' : '#fff',
+                  color: playerFilter === tab.key ? '#0369a1' : 'var(--txt2)',
+                  fontWeight: playerFilter === tab.key ? 800 : 500,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 선수별 게임 진행 현황 테이블 */}
+          <div className="table-wrap">
+            <table className="table" style={{ width: '100%', textAlign: 'center' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 60 }}>번호</th>
+                  <th style={{ textAlign: 'left', paddingLeft: '16px' }}>선수명</th>
+                  <th>진행률</th>
+                  <th>완료 / 배정</th>
+                  <th>남은 경기</th>
+                  <th>진행 상태</th>
+                  <th>승 / 무 / 패</th>
+                  <th>승률</th>
+                  <th>득실차</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedPlayerStats.map((p, idx) => (
+                  <tr key={p.id}>
+                    <td>{idx + 1}</td>
+                    <td style={{ textAlign: 'left', paddingLeft: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
+                          {p.name}
+                        </span>
+                        <span style={{
+                          fontSize: '10px',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          backgroundColor: p.gender === 'F' ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                          color: p.gender === 'F' ? '#db2777' : '#2563eb',
+                          fontWeight: 700
+                        }}>
+                          {p.gender === 'F' ? '여' : '남'} {p.ntrp}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ minWidth: '120px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{
+                            width: `${p.percent}%`,
+                            height: '100%',
+                            backgroundColor: p.isDone ? '#16a34a' : p.percent > 0 ? '#0284c7' : '#cbd5e1',
+                            borderRadius: '4px',
+                            transition: 'width 0.3s ease'
+                          }} />
+                        </div>
+                        <span style={{ fontSize: '11.5px', fontWeight: 700, minWidth: '32px', textAlign: 'right', color: p.isDone ? '#16a34a' : 'var(--txt)' }}>
+                          {p.percent}%
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <strong style={{ fontSize: '13.5px', color: p.isDone ? '#16a34a' : 'var(--txt)' }}>
+                        {p.played}
+                      </strong>
+                      <span style={{ fontSize: '12px', color: 'var(--txt3)' }}> / {p.assigned}게임</span>
+                    </td>
+                    <td>
+                      {p.remaining > 0 ? (
+                        <span style={{ fontSize: '12px', color: '#d97706', fontWeight: 700 }}>
+                          {p.remaining}게임
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700 }}>
+                          0 (완료)
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {p.isDone ? (
+                        <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 700 }}>
+                          완료 ✅
+                        </span>
+                      ) : p.isInProgress ? (
+                        <span className="badge badge-blue" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 700 }}>
+                          진행중 🎾
+                        </span>
+                      ) : (
+                        <span className="badge badge-gray" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 600 }}>
+                          대기 ⏳
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span style={{ color: '#16a34a', fontWeight: 700 }}>{p.win}</span>
+                      <span style={{ color: 'var(--txt3)' }}> / </span>
+                      <span style={{ color: '#64748b' }}>{p.draw}</span>
+                      <span style={{ color: 'var(--txt3)' }}> / </span>
+                      <span style={{ color: p.loss > 0 ? '#dc2626' : 'inherit', fontWeight: p.loss > 0 ? 700 : 400 }}>{p.loss}</span>
+                    </td>
+                    <td>
+                      {p.played > 0 ? (
+                        <span style={{ fontWeight: 700, color: p.winRate >= 0.6 ? '#16a34a' : p.winRate <= 0.3 ? '#dc2626' : 'var(--txt)' }}>
+                          {(p.winRate * 100).toFixed(0)}%
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--txt3)' }}>-</span>
+                      )}
+                    </td>
+                    <td>
+                      <strong style={{ color: p.diff > 0 ? '#16a34a' : p.diff < 0 ? '#dc2626' : 'inherit' }}>
+                        {p.diff > 0 ? '+' + p.diff : p.diff}
+                      </strong>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 2. 오늘 개인 순위표 */}
       <div className={`card ${styles.section}`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)' }}>
-              🏆 오늘 개인 순위표 & 벌칙금 현황
+              {usePenalty ? '🏆 오늘 개인 순위표 & 벌칙금 현황' : '🏆 오늘 개인 순위표'}
             </h2>
             <span className={styles.sectionNote}>
-              (승률 → 득실차 → 다승 순 정렬 / 1패당 {(penaltyAmount || 0).toLocaleString()}원 벌칙금 반영)
+              {usePenalty 
+                ? `(승률 → 득실차 → 다승 순 정렬 / 1패당 ${(penaltyAmount || 0).toLocaleString()}원 벌칙금 반영)`
+                : '(승률 → 득실차 → 다승 순 정렬)'}
             </span>
           </div>
-          {penaltyAmount > 0 && (
+          {usePenalty && penaltyAmount > 0 && (
             <span className="hero-chip" style={{ fontSize: '12px', padding: '3px 10px', color: '#e11d48', background: 'rgba(225, 29, 72, 0.08)' }}>
               1패당 {penaltyAmount.toLocaleString()}원
             </span>
@@ -1442,7 +1773,9 @@ export default function BracketTab({
 
         {todayRows.length === 0 ? (
           <p className="text-muted" style={{ fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
-            아직 입력된 점수가 없습니다. 대진표에서 스코어를 입력하면 순위와 벌칙금이 자동으로 산출됩니다.
+            {usePenalty 
+              ? '아직 입력된 점수가 없습니다. 대진표에서 스코어를 입력하면 순위와 벌칙금이 자동으로 산출됩니다.'
+              : '아직 입력된 점수가 없습니다. 대진표에서 스코어를 입력하면 개인 순위가 자동으로 산출됩니다.'}
           </p>
         ) : (
           <div className="table-wrap">
@@ -1457,14 +1790,25 @@ export default function BracketTab({
                   <th>패</th>
                   <th>승률</th>
                   <th>득실차</th>
-                  <th style={{ color: '#e11d48' }}>💸 벌칙금액</th>
-                  <th>납부상태</th>
+                  {usePenalty ? (
+                    <>
+                      <th style={{ color: '#e11d48' }}>💸 벌칙금액</th>
+                      <th>납부상태</th>
+                    </>
+                  ) : (
+                    <>
+                      <th>경기 진행</th>
+                      <th>진행상태</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {todayRows.map((r, i) => {
                   const penalty = (r.loss || 0) * (penaltyAmount || 0);
                   const isPaid = !!penaltyPaidMap[r.id];
+                  const assigned = playerAssignedCounts[r.id] || r.played || 0;
+                  const isDone = assigned > 0 ? r.played >= assigned : r.played > 0;
                   return (
                     <tr key={r.id ?? r.name}>
                       <td>
@@ -1483,47 +1827,65 @@ export default function BracketTab({
                           {r.diff > 0 ? '+' + r.diff : r.diff}
                         </strong>
                       </td>
-                      <td>
-                        {penaltyAmount > 0 ? (
-                          r.loss > 0 ? (
-                            <strong style={{ color: '#e11d48', fontSize: '13.5px' }}>
-                              {penalty.toLocaleString()}원
-                            </strong>
-                          ) : r.played > 0 ? (
-                            <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 6px' }}>
-                              👑 0원 (무패)
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--txt3)' }}>-</span>
-                          )
-                        ) : (
-                          <span style={{ color: 'var(--txt3)' }}>-</span>
-                        )}
-                      </td>
-                      <td>
-                        {penaltyAmount > 0 && r.loss > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePayment(r.id)}
-                            disabled={!isAdmin && isReadOnly}
-                            style={{
-                              padding: '2px 8px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              borderRadius: '6px',
-                              border: 'none',
-                              cursor: (!isAdmin && isReadOnly) ? 'not-allowed' : 'pointer',
-                              backgroundColor: isPaid ? '#dcfce7' : '#fef3c7',
-                              color: isPaid ? '#15803d' : '#b45309'
-                            }}
-                            title="클릭하여 납부 상태 변경"
-                          >
-                            {isPaid ? '✅ 완납' : '💰 미납'}
-                          </button>
-                        ) : (
-                          <span style={{ color: 'var(--txt3)', fontSize: '12px' }}>면제</span>
-                        )}
-                      </td>
+                      {usePenalty ? (
+                        <>
+                          <td>
+                            {penaltyAmount > 0 ? (
+                              r.loss > 0 ? (
+                                <strong style={{ color: '#e11d48', fontSize: '13.5px' }}>
+                                  {penalty.toLocaleString()}원
+                                </strong>
+                              ) : r.played > 0 ? (
+                                <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 6px' }}>
+                                  👑 0원 (무패)
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--txt3)' }}>-</span>
+                              )
+                            ) : (
+                              <span style={{ color: 'var(--txt3)' }}>-</span>
+                            )}
+                          </td>
+                          <td>
+                            {penaltyAmount > 0 && r.loss > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePayment(r.id)}
+                                disabled={!isAdmin && isReadOnly}
+                                style={{
+                                  padding: '2px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  borderRadius: '6px',
+                                  border: 'none',
+                                  cursor: (!isAdmin && isReadOnly) ? 'not-allowed' : 'pointer',
+                                  backgroundColor: isPaid ? '#dcfce7' : '#fef3c7',
+                                  color: isPaid ? '#15803d' : '#b45309'
+                                }}
+                                title="클릭하여 납부 상태 변경"
+                              >
+                                {isPaid ? '✅ 완납' : '💰 미납'}
+                              </button>
+                            ) : (
+                              <span style={{ color: 'var(--txt3)', fontSize: '12px' }}>면제</span>
+                            )}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>
+                            <strong style={{ color: isDone ? '#16a34a' : '#0284c7' }}>{r.played}</strong>
+                            <span style={{ color: 'var(--txt3)', fontSize: '12px' }}> / {assigned}게임</span>
+                          </td>
+                          <td>
+                            {isDone ? (
+                              <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 6px', fontWeight: 700 }}>완료 ✅</span>
+                            ) : (
+                              <span className="badge badge-blue" style={{ fontSize: '11px', padding: '2px 6px', fontWeight: 700 }}>진행중 🎾</span>
+                            )}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}

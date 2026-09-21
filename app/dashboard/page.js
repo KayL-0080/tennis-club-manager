@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [allowSingles, setAllowSingles] = useState(false);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
+  const [usePenalty, setUsePenalty] = useState(false);
 
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -129,6 +130,7 @@ export default function Dashboard() {
         allowSingles,
         startTime,
         endTime,
+        usePenalty,
         schedule: schedRounds,
         scores: {},
         scheduleRounds_: r,
@@ -180,6 +182,7 @@ export default function Dashboard() {
         allowSingles,
         startTime,
         endTime,
+        usePenalty,
         schedule: schedRounds,
         scores: {},
         scheduleRounds_: r,
@@ -579,6 +582,7 @@ export default function Dashboard() {
               allowSingles={allowSingles} setAllowSingles={setAllowSingles}
               startTime={startTime} setStartTime={setStartTime}
               endTime={endTime} setEndTime={setEndTime}
+              usePenalty={usePenalty} setUsePenalty={setUsePenalty}
               groups={groups} setGroups={setGroups}
               onScheduleGenerated={handleScheduleGenerated}
               onScheduleManual={handleScheduleManual}
@@ -650,6 +654,15 @@ function ScheduleCard({ s, members, isAdmin, onOpen, onDelete, isCompleted }) {
               <span className="badge badge-green" style={{ fontSize: '11px' }}>✓ 생성 완료</span>
             ) : (
               <span className="badge badge-gold" style={{ fontSize: '11px' }}>📝 미생성</span>
+            )}
+            {s.usePenalty ? (
+              <span className="badge" style={{ backgroundColor: 'rgba(225, 29, 72, 0.1)', color: '#e11d48', fontSize: '11px', fontWeight: 700 }}>
+                💸 벌칙금 적용
+              </span>
+            ) : (
+              <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', fontSize: '11px', fontWeight: 700 }}>
+                🛡️ 벌칙금 미적용
+              </span>
             )}
             {(() => {
               let totalMens = 0, totalWomens = 0, totalMixed = 0, totalJoint = 0, totalSingles = 0;

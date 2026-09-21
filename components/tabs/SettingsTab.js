@@ -25,6 +25,7 @@ export default function SettingsTab({
   jointCount, setJointCount,
   allowSingles, setAllowSingles,
   startTime, setStartTime, endTime, setEndTime,
+  usePenalty = false, setUsePenalty,
   groups, setGroups,
   onScheduleGenerated, onScheduleManual, onSave, onSaveAndExit, onGoto, onReloadMembers
 }) {
@@ -566,6 +567,35 @@ export default function SettingsTab({
             🎾 참가자 부족으로 라운드 당 단식 {singlesPerRound}경기, 복식 {doublesPerRound}경기가 진행됩니다.
           </div>
         )}
+
+        {/* 벌칙금 여부 설정 */}
+        <div style={{
+          marginTop: '16px',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          backgroundColor: usePenalty ? 'rgba(225, 29, 72, 0.05)' : 'var(--bg)',
+          border: `1px solid ${usePenalty ? 'rgba(225, 29, 72, 0.3)' : 'var(--border)'}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px'
+        }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, fontWeight: 700, fontSize: '13.5px', color: 'var(--txt)' }}>
+            <input 
+              type="checkbox" 
+              checked={!!usePenalty} 
+              onChange={e => setUsePenalty && setUsePenalty(e.target.checked)} 
+              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+            />
+            💸 경기 패배 벌칙금(진팀 벌금) 정산 적용
+          </label>
+          <span style={{ fontSize: '12px', color: usePenalty ? '#e11d48' : 'var(--txt3)', fontWeight: 600 }}>
+            {usePenalty 
+              ? '✓ 체크됨: 대진표 화면에 패배 벌칙금 정산소가 활성화됩니다.' 
+              : '✓ 체크 해제됨: 벌칙금 정산소 대신 선수별 경기 진행/완료 현황이 표시됩니다.'}
+          </span>
+        </div>
       </div>
 
       {/* 4단계: 참가자 목표 게임수 설정 및 균등 배분 */}
