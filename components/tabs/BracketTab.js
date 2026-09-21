@@ -1853,7 +1853,7 @@ export default function BracketTab({
                 )}
               </div>
               <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--txt2)' }}>
-                오늘 참가 선수별 배정된 게임 수와 현재까지 완료한 게임 수 및 전적을 실시간으로 확인합니다.
+                오늘 참가 선수별 배정된 경기 수와 현재까지 완료한 경기 수를 실시간으로 확인합니다.
               </p>
             </div>
 
@@ -1967,109 +1967,71 @@ export default function BracketTab({
                 <tr>
                   <th style={{ width: 60 }}>번호</th>
                   <th style={{ textAlign: 'left', paddingLeft: '16px' }}>선수명</th>
-                  <th>진행률</th>
-                  <th>완료 / 배정</th>
-                  <th>남은 경기</th>
-                  <th>진행 상태</th>
-                  <th>승 / 무 / 패</th>
-                  <th>승률</th>
-                  <th>득실차</th>
+                  <th style={{ width: 160, textAlign: 'center' }}>경기수</th>
                 </tr>
               </thead>
               <tbody>
-                {displayedPlayerStats.map((p, idx) => {
-                  const isFemale = p.gender === 'F';
-                  return (
-                    <tr key={p.id}>
-                      <td>{idx + 1}</td>
-                      <td style={{ textAlign: 'left', paddingLeft: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
-                            {getDisplayNameWithGuest(p)}
-                          </span>
-                          <span style={{
-                            fontSize: '10px',
-                            padding: '1px 5px',
-                            borderRadius: '4px',
-                            backgroundColor: isFemale ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                            color: isFemale ? '#db2777' : '#2563eb',
-                            fontWeight: 700
-                          }}>
-                            {isFemale ? '여' : '남'}
-                          </span>
-                        </div>
-                      </td>
-                    <td style={{ minWidth: '120px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ flex: 1, height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                          <div style={{
-                            width: `${p.percent}%`,
-                            height: '100%',
-                            backgroundColor: p.isDone ? '#16a34a' : p.percent > 0 ? '#0284c7' : '#cbd5e1',
-                            borderRadius: '4px',
-                            transition: 'width 0.3s ease'
-                          }} />
-                        </div>
-                        <span style={{ fontSize: '11.5px', fontWeight: 700, minWidth: '32px', textAlign: 'right', color: p.isDone ? '#16a34a' : 'var(--txt)' }}>
-                          {p.percent}%
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <strong style={{ fontSize: '13.5px', color: p.isDone ? '#16a34a' : 'var(--txt)' }}>
-                        {p.played}
-                      </strong>
-                      <span style={{ fontSize: '12px', color: 'var(--txt3)' }}> / {p.assigned}게임</span>
-                    </td>
-                    <td>
-                      {p.remaining > 0 ? (
-                        <span style={{ fontSize: '12px', color: '#d97706', fontWeight: 700 }}>
-                          {p.remaining}게임
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700 }}>
-                          0 (완료)
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      {p.isDone ? (
-                        <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 700 }}>
-                          완료 ✅
-                        </span>
-                      ) : p.isInProgress ? (
-                        <span className="badge badge-blue" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 700 }}>
-                          진행중 🎾
-                        </span>
-                      ) : (
-                        <span className="badge badge-gray" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 600 }}>
-                          대기 ⏳
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <span style={{ color: '#16a34a', fontWeight: 700 }}>{p.win}</span>
-                      <span style={{ color: 'var(--txt3)' }}> / </span>
-                      <span style={{ color: '#64748b' }}>{p.draw}</span>
-                      <span style={{ color: 'var(--txt3)' }}> / </span>
-                      <span style={{ color: p.loss > 0 ? '#dc2626' : 'inherit', fontWeight: p.loss > 0 ? 700 : 400 }}>{p.loss}</span>
-                    </td>
-                    <td>
-                      {p.played > 0 ? (
-                        <span style={{ fontWeight: 700, color: p.winRate >= 0.6 ? '#16a34a' : p.winRate <= 0.3 ? '#dc2626' : 'var(--txt)' }}>
-                          {(p.winRate * 100).toFixed(0)}%
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--txt3)' }}>-</span>
-                      )}
-                    </td>
-                    <td>
-                      <strong style={{ color: p.diff > 0 ? '#16a34a' : p.diff < 0 ? '#dc2626' : 'inherit' }}>
-                        {p.diff > 0 ? '+' + p.diff : p.diff}
-                      </strong>
+                {displayedPlayerStats.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '24px', color: 'var(--txt3)', fontSize: '13px' }}>
+                      해당 조건의 선수가 없습니다.
                     </td>
                   </tr>
-                ); })}
+                ) : (
+                  displayedPlayerStats.map((p, idx) => {
+                    const isFemale = p.gender === 'F';
+                    const countStyle = getGameCountBadgeStyle(p.assigned);
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ fontWeight: 600, color: 'var(--txt3)', fontSize: '13px' }}>{idx + 1}</td>
+                        <td style={{ textAlign: 'left', paddingLeft: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
+                              {getDisplayNameWithGuest(p)}
+                            </span>
+                            <span style={{
+                              fontSize: '10px',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              backgroundColor: isFemale ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                              color: isFemale ? '#db2777' : '#2563eb',
+                              fontWeight: 700
+                            }}>
+                              {isFemale ? '여' : '남'}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                            <span style={{
+                              fontSize: '10px',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontWeight: 800,
+                              backgroundColor: countStyle.bg,
+                              color: countStyle.text,
+                              border: `1px solid ${countStyle.border}`,
+                              lineHeight: '15px'
+                            }}>
+                              {countStyle.short}
+                            </span>
+                            <strong style={{ fontSize: '13.5px', color: p.isDone ? '#16a34a' : 'var(--txt)' }}>
+                              {p.played}
+                            </strong>
+                            <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>
+                              / {p.assigned}경기
+                            </span>
+                            {p.isDone && (
+                              <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
+                                (완료)
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
