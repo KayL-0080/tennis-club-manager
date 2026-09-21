@@ -49,6 +49,20 @@ function SortableRow({ id, children }) {
 
 const COURT_LABELS = 'ABCDEFGHIJ'.split('');
 
+const checkIsGuest = (p) => Boolean(
+  p && (
+    p.role === '게스트' ||
+    (typeof p.role === 'string' && p.role.includes('게스트')) ||
+    p.isGuest === true
+  )
+);
+
+const getDisplayNameWithGuest = (p) => {
+  if (!p) return '';
+  const name = p.name || '';
+  return checkIsGuest(p) && !name.includes('(게)') ? `${name}(게)` : name;
+};
+
 const scoreOptions = (max = 6) => {
   const opts = [];
   opts.push(<option key="empty" value="">-</option>);
@@ -452,15 +466,15 @@ export default function BracketTab({
       <optgroup key="group-current" label={`── 🎾 대진표 참가자 (${list.length}명) ──`}>
         {list.map(p => (
           <option key={p.id} value={p.id}>
-            {p.name} ({p.gender === 'F' ? '여' : '남'}·{p.ntrp})
+            {getDisplayNameWithGuest(p)} ({p.gender === 'F' ? '여' : '남'})
           </option>
         ))}
       </optgroup>,
       ...(nonParticipants.length > 0 ? [
-        <optgroup key="group-regular" label={`── ➕ 추가 정회원 (선택 시 참가 등록) ──`}>
+        <optgroup key="group-regular" label={`── ➕ 추가 회원 (선택 시 참가 등록) ──`}>
           {nonParticipants.map(p => (
             <option key={`add_${p.id}`} value={`add_${p.id}`}>
-              ➕ {p.name} ({p.role || '정회원'}·{p.gender === 'F' ? '여' : '남'}·{p.ntrp})
+              ➕ {getDisplayNameWithGuest(p)} ({p.role || '정회원'}·{p.gender === 'F' ? '여' : '남'})
             </option>
           ))}
         </optgroup>
@@ -561,8 +575,9 @@ export default function BracketTab({
       return {
         id: p.id,
         name: p.name,
+        role: p.role,
+        isGuest: p.isGuest,
         gender: p.gender || 'M',
-        ntrp: p.ntrp || 2.0,
         played,
         assigned,
         remaining,
@@ -1027,8 +1042,6 @@ export default function BracketTab({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {matchesToRender.map((mObj) => {
                         const { ri, ci: currentCi, match: m, score: sc, hasScore, isWinA, isWinB } = mObj;
-                        const sumA = teamNtrpSum(m.teamA, byId);
-                        const sumB = teamNtrpSum(m.teamB, byId);
                         const isCurrentActive = activeMatch && activeMatch.ri === ri;
 
                         return (
@@ -1092,14 +1105,14 @@ export default function BracketTab({
                                   <span style={{ fontSize: '11px', fontWeight: 800, color: '#1d4ed8', whiteSpace: 'nowrap' }}>
                                     A팀 {isWinA && '🏆'}
                                   </span>
-                                  <span style={{ fontSize: '10.5px', color: '#3b82f6', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                    {sumA.toFixed(1)}
-                                  </span>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
                                   {[0, 1].map(slot => {
                                     const pId = m.teamA[slot];
                                     const isDup = pId && roundConflicts[ri]?.[pId];
+                                    const player = byId[pId];
+                                    const isFemale = player?.gender === 'F';
+                                    const isMale = player?.gender === 'M';
                                     return (
                                       <select
                                         key={slot}
@@ -1115,6 +1128,10 @@ export default function BracketTab({
                                           padding: '2px 4px',
                                           borderRadius: '6px',
                                           boxSizing: 'border-box',
+                                          fontWeight: player ? 600 : 'normal',
+                                          color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt)',
+                                          borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : undefined,
+                                          backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : undefined,
                                           ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 700 } : {})
                                         }}
                                         value={pId || ''}
@@ -1160,14 +1177,14 @@ export default function BracketTab({
                                   <span style={{ fontSize: '11px', fontWeight: 800, color: '#b91c1c', whiteSpace: 'nowrap' }}>
                                     B팀 {isWinB && '🏆'}
                                   </span>
-                                  <span style={{ fontSize: '10.5px', color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                    {sumB.toFixed(1)}
-                                  </span>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
                                   {[0, 1].map(slot => {
                                     const pId = m.teamB[slot];
                                     const isDup = pId && roundConflicts[ri]?.[pId];
+                                    const player = byId[pId];
+                                    const isFemale = player?.gender === 'F';
+                                    const isMale = player?.gender === 'M';
                                     return (
                                       <select
                                         key={slot}
@@ -1183,6 +1200,10 @@ export default function BracketTab({
                                           padding: '2px 4px',
                                           borderRadius: '6px',
                                           boxSizing: 'border-box',
+                                          fontWeight: player ? 600 : 'normal',
+                                          color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt)',
+                                          borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : undefined,
+                                          backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : undefined,
                                           ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 700 } : {})
                                         }}
                                         value={pId || ''}
@@ -1260,8 +1281,6 @@ export default function BracketTab({
                     {round.map((m, ci) => {
                       const key = `${ri}-${ci}`;
                       const sc = scores[key] || { a: null, b: null };
-                      const sumA = teamNtrpSum(m.teamA, byId);
-                      const sumB = teamNtrpSum(m.teamB, byId);
                       const hasScore = sc.a !== null && sc.a !== undefined && sc.a !== '' &&
                                        sc.b !== null && sc.b !== undefined && sc.b !== '';
                       const winA = hasScore && Number(sc.a) > Number(sc.b);
@@ -1274,13 +1293,22 @@ export default function BracketTab({
                               {[0, 1].map(slot => {
                                 const pId = m.teamA[slot];
                                 const isDup = pId && roundConflicts[ri]?.[pId];
+                                const player = byId[pId];
+                                const isFemale = player?.gender === 'F';
+                                const isMale = player?.gender === 'M';
                                 return (
                                   <select 
                                     key={slot} 
                                     disabled={isReadOnly || !isAdmin}
                                     title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
                                     className={`${styles.playerSel} ${styles.bgTeamA}`}
-                                    style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
+                                    style={{
+                                      fontWeight: player ? 600 : 'normal',
+                                      color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt)',
+                                      borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : undefined,
+                                      backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : undefined,
+                                      ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {})
+                                    }}
                                     value={pId || ''}
                                     onChange={e => onPlayerSelect(ri, ci, 'a', slot, e.target.value)}>
                                     {playerOptions(pId)}
@@ -1311,13 +1339,22 @@ export default function BracketTab({
                               {[0, 1].map(slot => {
                                 const pId = m.teamB[slot];
                                 const isDup = pId && roundConflicts[ri]?.[pId];
+                                const player = byId[pId];
+                                const isFemale = player?.gender === 'F';
+                                const isMale = player?.gender === 'M';
                                 return (
                                   <select 
                                     key={slot} 
                                     disabled={isReadOnly || !isAdmin}
                                     title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
                                     className={`${styles.playerSel} ${styles.bgTeamB}`}
-                                    style={isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {}}
+                                    style={{
+                                      fontWeight: player ? 600 : 'normal',
+                                      color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt)',
+                                      borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : undefined,
+                                      backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : undefined,
+                                      ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {})
+                                    }}
                                     value={pId || ''}
                                     onChange={e => onPlayerSelect(ri, ci, 'b', slot, e.target.value)}>
                                     {playerOptions(pId)}
@@ -1774,26 +1811,28 @@ export default function BracketTab({
                 </tr>
               </thead>
               <tbody>
-                {displayedPlayerStats.map((p, idx) => (
-                  <tr key={p.id}>
-                    <td>{idx + 1}</td>
-                    <td style={{ textAlign: 'left', paddingLeft: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
-                          {p.name}
-                        </span>
-                        <span style={{
-                          fontSize: '10px',
-                          padding: '1px 5px',
-                          borderRadius: '4px',
-                          backgroundColor: p.gender === 'F' ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                          color: p.gender === 'F' ? '#db2777' : '#2563eb',
-                          fontWeight: 700
-                        }}>
-                          {p.gender === 'F' ? '여' : '남'} {p.ntrp}
-                        </span>
-                      </div>
-                    </td>
+                {displayedPlayerStats.map((p, idx) => {
+                  const isFemale = p.gender === 'F';
+                  return (
+                    <tr key={p.id}>
+                      <td>{idx + 1}</td>
+                      <td style={{ textAlign: 'left', paddingLeft: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
+                            {getDisplayNameWithGuest(p)}
+                          </span>
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            backgroundColor: isFemale ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                            color: isFemale ? '#db2777' : '#2563eb',
+                            fontWeight: 700
+                          }}>
+                            {isFemale ? '여' : '남'}
+                          </span>
+                        </div>
+                      </td>
                     <td style={{ minWidth: '120px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ flex: 1, height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
@@ -1864,7 +1903,7 @@ export default function BracketTab({
                       </strong>
                     </td>
                   </tr>
-                ))}
+                ); })}
               </tbody>
             </table>
           </div>
@@ -1929,6 +1968,8 @@ export default function BracketTab({
                   const isPaid = !!penaltyPaidMap[r.id];
                   const assigned = playerAssignedCounts[r.id] || r.played || 0;
                   const isDone = assigned > 0 ? r.played >= assigned : r.played > 0;
+                  const player = byId[r.id];
+                  const isFemale = (player?.gender || r.gender) === 'F';
                   return (
                     <tr key={r.id ?? r.name}>
                       <td>
@@ -1936,7 +1977,21 @@ export default function BracketTab({
                           {i === 0 && r.played > 0 ? '🥇 1' : i === 1 && r.played > 0 ? '🥈 2' : i === 2 && r.played > 0 ? '🥉 3' : r.played > 0 ? i + 1 : '-'}
                         </strong>
                       </td>
-                      <td style={{ fontWeight: 700 }}>{r.name}</td>
+                      <td style={{ fontWeight: 700 }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
+                          <span>{getDisplayNameWithGuest(player || r)}</span>
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            backgroundColor: isFemale ? 'rgba(236, 72, 153, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                            color: isFemale ? '#db2777' : '#2563eb',
+                            fontWeight: 800
+                          }}>
+                            {isFemale ? '여' : '남'}
+                          </span>
+                        </div>
+                      </td>
                       <td>{r.played}</td>
                       <td><span style={{ color: '#16a34a', fontWeight: 700 }}>{r.win}</span></td>
                       <td><span style={{ color: '#64748b' }}>{r.draw}</span></td>

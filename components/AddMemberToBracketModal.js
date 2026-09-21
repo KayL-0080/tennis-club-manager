@@ -4,6 +4,20 @@ import { useState, useMemo } from 'react';
 
 const REGULAR_ROLES = ['회장', '부회장', '총무', '경기이사', '운영이사', '정회원'];
 
+const checkIsGuest = (p) => Boolean(
+  p && (
+    p.role === '게스트' ||
+    (typeof p.role === 'string' && p.role.includes('게스트')) ||
+    p.isGuest === true
+  )
+);
+
+const getDisplayNameWithGuest = (p) => {
+  if (!p) return '';
+  const name = p.name || '';
+  return checkIsGuest(p) && !name.includes('(게)') ? `${name}(게)` : name;
+};
+
 export default function AddMemberToBracketModal({
   isOpen,
   onClose,
@@ -419,7 +433,7 @@ export default function AddMemberToBracketModal({
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--txt)' }}>
-                              {m.name}
+                              {getDisplayNameWithGuest(m)}
                             </span>
                             <span style={{
                               fontSize: '10.5px',
@@ -440,7 +454,7 @@ export default function AddMemberToBracketModal({
                               color: m.gender === 'F' ? '#db2777' : '#2563eb',
                               fontWeight: 700
                             }}>
-                              {m.gender === 'F' ? '여' : '남'} {m.ntrp}
+                              {m.gender === 'F' ? '여' : '남'}
                             </span>
                           </div>
                           {m.tennisStartedAt && (
@@ -578,7 +592,7 @@ export default function AddMemberToBracketModal({
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--txt)' }}>
-                            {m.name}
+                            {getDisplayNameWithGuest(m)}
                           </span>
                           <span style={{
                             fontSize: '10.5px',
@@ -599,7 +613,7 @@ export default function AddMemberToBracketModal({
                             color: m.gender === 'F' ? '#db2777' : '#2563eb',
                             fontWeight: 700
                           }}>
-                            {m.gender === 'F' ? '여' : '남'} {m.ntrp}
+                            {m.gender === 'F' ? '여' : '남'}
                           </span>
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '2px' }}>

@@ -4,6 +4,23 @@ import styles from './ScheduleResult.module.css';
 
 const COURT_LABELS = 'ABCDEFGHIJ'.split('');
 
+const checkIsGuest = (p) => Boolean(
+  p && (
+    p.role === '게스트' ||
+    (typeof p.role === 'string' && p.role.includes('게스트')) ||
+    p.isGuest === true
+  )
+);
+
+const getDisplayName = (p) => {
+  if (!p) return '';
+  const name = p.name || '';
+  const isGuest = checkIsGuest(p);
+  const tag = isGuest && !name.includes('(게)') ? '(게)' : '';
+  const gender = p.gender ? ` (${p.gender === 'F' ? '여' : '남'})` : '';
+  return `${name}${tag}${gender}`;
+};
+
 export default function ScheduleResult({ result, players, rounds, courts }) {
   if (!result?.scheduleRounds) return null;
 
@@ -36,11 +53,9 @@ export default function ScheduleResult({ result, players, rounds, courts }) {
                   <td className={styles.roundLabel}>{ri + 1}R</td>
                   {round.map((m, mi) => (
                     <td key={mi} className={styles.matchCell}>
-                      <span className={styles.team}>{m.teamA.map((p) => p.name).join(' + ')}</span>
-                      <span className={styles.ntrpSum}>({m.sumA.toFixed(1)})</span>
+                      <span className={styles.team}>{m.teamA.map((p) => getDisplayName(p)).join(' + ')}</span>
                       <span className={styles.vs}>vs</span>
-                      <span className={styles.team}>{m.teamB.map((p) => p.name).join(' + ')}</span>
-                      <span className={styles.ntrpSum}>({m.sumB.toFixed(1)})</span>
+                      <span className={styles.team}>{m.teamB.map((p) => getDisplayName(p)).join(' + ')}</span>
                       {m.type === 'mixed' && <span className="badge badge-purple" style={{ marginTop: 4, fontSize: 10 }}>혼복</span>}
                       {m.type === 'group' && <span className="badge badge-gold"   style={{ marginTop: 4, fontSize: 10 }}>지정</span>}
                     </td>
