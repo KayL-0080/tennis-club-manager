@@ -322,7 +322,7 @@ export default function SettingsTab({
   return (
     <div>
       {/* 1단계: 경기 일시 및 시간 설정 */}
-      <div className={`card ${styles.section}`}>
+      <div className={`card ${styles.section}`} style={{ overflow: 'hidden', maxWidth: '100%', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
           <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>1단계: 경기 일시 및 시간 설정</h2>
           {matchedEvent && (
@@ -332,7 +332,7 @@ export default function SettingsTab({
           )}
         </div>
         
-        <div className={styles.step1DateTimeContainer}>
+        <div className={styles.step1DateTimeContainer} style={{ maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
           <div className={styles.step1InputsGrid}>
             <div className={`${styles.step1FormGroup} ${styles.step1DateCol}`}>
               <label className={styles.step1Label}>

@@ -7,6 +7,9 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .sectionTitle {
@@ -515,6 +518,9 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
 @media (max-width: 640px) {
   .section {
     padding: 12px 10px;
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow: hidden;
   }
   .topToolbarGrid {
     grid-template-columns: 1fr;
@@ -811,14 +817,19 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   flex-direction: column;
   gap: 12px;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .step1InputsGrid {
   display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
   align-items: flex-end;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .step1FormGroup {
@@ -827,6 +838,9 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   gap: 6px;
   margin: 0;
   min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .step1Label {
@@ -836,20 +850,22 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   display: flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
 }
 
 .step1Input {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 40px;
-  padding: 8px 12px;
-  font-size: 0.9rem;
+  padding: 6px 10px;
+  font-size: 0.88rem;
   font-weight: 600;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--txt);
   box-sizing: border-box;
-  min-width: 0;
   outline: none;
   transition: all 0.2s ease;
 }
@@ -870,6 +886,10 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   padding: 10px 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .step1DurationBadge {
@@ -887,6 +907,8 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   gap: 6px;
   flex-wrap: wrap;
   align-items: center;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .step1PresetBtn {
@@ -901,6 +923,8 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .step1PresetBtn:hover {
@@ -921,13 +945,18 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
   white-space: nowrap;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
-/* 모바일 화면 대응: 날짜 상단 전체 폭, 시작/종료 시간 2열 1:1 대칭 배치 */
-@media (max-width: 640px) {
+/* 860px 이하 화면 (모바일 및 태블릿) 대응: 
+   날짜 상단 전체 폭, 시작/종료 시간 2열 1:1 대칭 배치로 카드를 절대 넘지 않음 */
+@media (max-width: 860px) {
   .step1InputsGrid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
+    width: 100%;
+    max-width: 100%;
   }
   .step1DateCol {
     grid-column: 1 / -1;
@@ -943,18 +972,35 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   }
   .step1PresetGroup {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
     width: 100%;
+    max-width: 100%;
   }
   .step1PresetBtn,
   .step1PresetBtnActive {
     text-align: center;
-    padding: 4px 2px;
+    padding: 4px 1px;
     width: 100%;
+    max-width: 100%;
     font-size: 11px;
   }
 }
+
+@media (max-width: 480px) {
+  .step1InputsGrid {
+    gap: 8px;
+  }
+  .step1Input {
+    padding: 6px 8px;
+    font-size: 0.82rem;
+    height: 38px;
+  }
+  .step1Label {
+    font-size: 0.76rem;
+  }
+}
+
 
 
 
