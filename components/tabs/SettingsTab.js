@@ -1,7 +1,7 @@
 // components/tabs/SettingsTab.js — 오늘 참가자 선택 + 라운드/코트 + 특별조건 + 대진표 생성
 'use client';
-import { useState } from 'react';
-import { generateSchedule, makeEmptyMatch } from '@/lib/scheduler';
+import { useState, useEffect } from 'react';
+import { generateSchedule, makeEmptyMatch, calculateRecommendedSettings } from '@/lib/scheduler';
 import { addMember } from '@/lib/firestore';
 import styles from './tabs.module.css';
 
@@ -33,25 +33,131 @@ export default function SettingsTab({
   const [generating, setGenerating] = useState(false);
   const [enableConditions, setEnableConditions] = useState(false);
   const [selectedToAdd, setSelectedToAdd] = useState([]);
+  const [recExplanation, setRecExplanation] = useState('');
+  const [recNotice, setRecNotice] = useState('');
   
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestForm, setGuestForm] = useState({ name: '', gender: 'M', ntrp: 2.0 });
+
+  // 경기 시간(분 및 포맷) 계산
+  const calcDuration = (start, end) => {
+    if (!start || !end) return { text: '3시간 (180분)', diff: 180, hours: 3, mins: 0 };
+    const [sH, sM] = start.split(':').map(Number);
+    const [eH, eM] = end.split(':').map(Number);
+    let diff = (eH * 60 + eM) - (sH * 60 + sM);
+    if (diff <= 0) diff += 24 * 60;
+    const hours = Math.floor(diff / 60);
+    const mins = diff % 60;
+    const text = `${hours > 0 ? `${hours}시간 ` : ''}${mins > 0 ? `${mins}분` : ''}`.trim() || '0분';
+    return { text: `${text} (${diff}분)`, diff, hours, mins };
+  };
+  const durationInfo = calcDuration(startTime, endTime);
+
+  // 균등 배분 계산 헬퍼
+  const computeBalancedParticipants = (pts, rCount = rounds, cCount = courts, allowS = allowSingles) => {
+    const n = pts.length;
+    if (n === 0) return pts;
+    const isSActive = allowS && n < cCount * 4 && n > 0;
+    const sPerRound = isSActive ? Math.min(cCount, Math.ceil((cCount * 4 - n) / 2)) : 0;
+    const dPerRound = cCount - sPerRound;
+    const sSlots = sPerRound * 2 + dPerRound * 4;
+    const tSlots = rCount * sSlots;
+    if (tSlots <= 0) return pts;
+    const base = Math.floor(tSlots / n);
+    let rem = tSlots - base * n;
+    return pts.map((pt, i) => ({ ...pt, target: base + (i < rem ? 1 : 0) }));
+  };
+
+  // 추천 설정 적용 함수
+  const applyRecommendation = (pts = participants, sTime = startTime, eTime = endTime, numCourts = courts) => {
+    const rec = calculateRecommendedSettings({
+      startTime: sTime,
+      endTime: eTime,
+      courts: numCourts,
+      participants: pts,
+      members
+    });
+
+    setRounds(rec.rounds);
+    setMensDoublesCount(rec.mensDoublesCount);
+    setWomensDoublesCount(rec.womensDoublesCount);
+    setMixedCount(rec.mixedCount);
+    setJointCount(rec.jointCount);
+    setRecExplanation(rec.explanation);
+
+    if (pts.length > 0) {
+      const balanced = computeBalancedParticipants(pts, rec.rounds, numCourts, allowSingles);
+      setParticipants(balanced);
+    }
+    setRecNotice('💡 3단계 설정이 추천값으로 자동 반영되었습니다.');
+    setTimeout(() => setRecNotice(''), 4000);
+  };
+
+  // 시간 변경 핸들러
+  const handleStartTimeChange = (newStart) => {
+    setStartTime(newStart);
+    if (participants.length > 0) {
+      applyRecommendation(participants, newStart, endTime, courts);
+    } else {
+      const rec = calculateRecommendedSettings({ startTime: newStart, endTime, courts, participants, members });
+      setRounds(rec.rounds);
+    }
+  };
+
+  const handleEndTimeChange = (newEnd) => {
+    setEndTime(newEnd);
+    if (participants.length > 0) {
+      applyRecommendation(participants, startTime, newEnd, courts);
+    } else {
+      const rec = calculateRecommendedSettings({ startTime, endTime: newEnd, courts, participants, members });
+      setRounds(rec.rounds);
+    }
+  };
+
+  // 시간 프리셋 적용 (시작 시간 기준)
+  const applyDurationPreset = (hoursToAdd, minsToAdd = 0) => {
+    const [sH, sM] = (startTime || '09:00').split(':').map(Number);
+    let totalMinutes = sH * 60 + sM + hoursToAdd * 60 + minsToAdd;
+    if (totalMinutes >= 24 * 60) totalMinutes %= 24 * 60;
+    const newEH = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+    const newEM = String(totalMinutes % 60).padStart(2, '0');
+    const newEnd = `${newEH}:${newEM}`;
+    handleEndTimeChange(newEnd);
+  };
 
   // 참가자로 포함 여부
   const isParticipant = id => participants.some(pt => pt.playerId === id);
 
   const addParticipant = id => {
     if (!id || isParticipant(id)) return;
-    setParticipants(prev => [...prev, { playerId: id, target: 0 }]);
+    const newPts = [...participants, { playerId: id, target: 0 }];
+    applyRecommendation(newPts, startTime, endTime, courts);
   };
-  const removeParticipant = id => setParticipants(prev => prev.filter(pt => pt.playerId !== id));
+  const removeParticipant = id => {
+    const newPts = participants.filter(pt => pt.playerId !== id);
+    if (newPts.length > 0) {
+      applyRecommendation(newPts, startTime, endTime, courts);
+    } else {
+      setParticipants([]);
+      setMensDoublesCount(0);
+      setWomensDoublesCount(0);
+      setMixedCount(0);
+      setJointCount(0);
+      setRecExplanation('');
+    }
+  };
   const addAll = () => {
-    const newPts = members.filter(m => !isParticipant(m.id)).map(m => ({ playerId: m.id, target: 0 }));
-    setParticipants(prev => [...prev, ...newPts]);
+    const newPts = members.map(m => ({ playerId: m.id, target: 0 }));
+    applyRecommendation(newPts, startTime, endTime, courts);
   };
   const clearAll = () => {
     if (!confirm('참가자 전체를 제외할까요?')) return;
     setParticipants([]);
+    setMensDoublesCount(0);
+    setWomensDoublesCount(0);
+    setMixedCount(0);
+    setJointCount(0);
+    setRecExplanation('');
   };
 
   const matchedEvent = events.find(e => e.date === matchDate);
@@ -66,11 +172,13 @@ export default function SettingsTab({
       return;
     }
     
-    if (confirm(`투표에서 참석으로 표시된 ${attendingIds.length}명을 불러오시겠습니까?\n(기존 참가자 목록은 교체됩니다.)`)) {
+    if (confirm(`투표에서 참석으로 표시된 ${attendingIds.length}명을 불러오시겠습니까?\n(기존 참가자 목록이 교체되며 3단계 설정이 추천값으로 세팅됩니다.)`)) {
       const newPts = attendingIds.map(id => ({ playerId: id, target: 0 }));
-      setParticipants(newPts);
+      const sTime = matchedEvent.startTime || startTime;
+      const eTime = matchedEvent.endTime || endTime;
       if (matchedEvent.startTime) setStartTime(matchedEvent.startTime);
       if (matchedEvent.endTime) setEndTime(matchedEvent.endTime);
+      applyRecommendation(newPts, sTime, eTime, courts);
     }
   };
 
@@ -79,9 +187,9 @@ export default function SettingsTab({
   };
   const addSelectedParticipants = () => {
     if (selectedToAdd.length === 0) return;
-    const newPts = selectedToAdd.map(id => ({ playerId: id, target: 0 }));
-    setParticipants(prev => [...prev, ...newPts]);
+    const newPts = [...participants, ...selectedToAdd.map(id => ({ playerId: id, target: 0 }))];
     setSelectedToAdd([]);
+    applyRecommendation(newPts, startTime, endTime, courts);
   };
 
   const handleAddGuest = async (e) => {
@@ -90,9 +198,10 @@ export default function SettingsTab({
     try {
       const newId = await addMember('shared', { ...guestForm, role: '게스트' });
       if (onReloadMembers) await onReloadMembers();
-      setParticipants(prev => [...prev, { playerId: newId, target: 0 }]);
+      const newPts = [...participants, { playerId: newId, target: 0 }];
       setShowGuestForm(false);
       setGuestForm({ name: '', gender: 'M', ntrp: 2.0 });
+      applyRecommendation(newPts, startTime, endTime, courts);
     } catch (err) {
       alert('게스트 추가 실패: ' + err.message);
     }
@@ -109,11 +218,8 @@ export default function SettingsTab({
   const totalSlots = rounds * slotsPerRound;
   
   const autoBalance = () => {
-    const n = participants.length;
-    if (n === 0 || totalSlots <= 0) return;
-    const base = Math.floor(totalSlots / n);
-    let rem = totalSlots - base * n;
-    setParticipants(prev => prev.map((pt, i) => ({ ...pt, target: base + (i < rem ? 1 : 0) })));
+    const balanced = computeBalancedParticipants(participants, rounds, courts, allowSingles);
+    setParticipants(balanced);
   };
 
   const targetSum = participants.reduce((s, pt) => s + (pt.target || 0), 0);
@@ -125,6 +231,9 @@ export default function SettingsTab({
     const m = getEntry(pt.playerId);
     return m ? { ...m, target: pt.target } : null;
   }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+
+  const maleCount = entries.filter(e => e.gender === 'M').length;
+  const femaleCount = entries.filter(e => e.gender === 'F').length;
 
   // 특별 조건 그룹 추가
   const addGroup = e => {
@@ -211,22 +320,85 @@ export default function SettingsTab({
 
   return (
     <div>
-      {/* 1단계: 경기 날짜 설정 */}
+      {/* 1단계: 경기 일시 및 시간 설정 */}
       <div className={`card ${styles.section}`}>
-        <h2 className={styles.sectionTitle}>1단계: 경기 날짜</h2>
-        <div className={styles.settingsRow}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+          <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>1단계: 경기 일시 및 시간 설정</h2>
+          {matchedEvent && (
+            <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', fontWeight: 'bold' }}>
+              🗓️ 정기모임 투표 연동 ({matchedEvent.startTime || '19:00'} ~ {matchedEvent.endTime || '22:00'})
+            </span>
+          )}
+        </div>
+        
+        <div className={styles.settingsRow} style={{ alignItems: 'flex-end', gap: '16px' }}>
           <div className="form-group">
             <label className="form-label">경기 날짜</label>
             <input className="input input-sm" type="date" value={matchDate}
               onChange={e => setMatchDate(e.target.value)} style={{ width: 140 }} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">시작 시간</label>
+            <input className="input input-sm" type="time" value={startTime || '09:00'}
+              onChange={e => handleStartTimeChange(e.target.value)} style={{ width: 115 }} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">종료 시간</label>
+            <input className="input input-sm" type="time" value={endTime || '12:00'}
+              onChange={e => handleEndTimeChange(e.target.value)} style={{ width: 115 }} />
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '2px', flexWrap: 'wrap' }}>
+            <span style={{ 
+              fontSize: '13px', 
+              fontWeight: '700', 
+              padding: '6px 12px', 
+              borderRadius: '6px', 
+              background: 'var(--bg)', 
+              border: '1px solid var(--border)', 
+              color: 'var(--txt)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              ⏱️ 총 <strong>{durationInfo.text}</strong>
+            </span>
+            
+            {/* 시간 빠른 프리셋 버튼 */}
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {[
+                { label: '2시간', h: 2, m: 0 },
+                { label: '2.5시간', h: 2, m: 30 },
+                { label: '3시간', h: 3, m: 0 },
+                { label: '4시간', h: 4, m: 0 }
+              ].map(preset => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '11px', padding: '3px 8px', height: '28px' }}
+                  onClick={() => applyDurationPreset(preset.h, preset.m)}
+                  title={`시작 시간(${startTime || '09:00'}) 기준 ${preset.label} 경기`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
       {/* 2단계: 참가자 선택 */}
       <div className={`card ${styles.section}`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 className={styles.sectionTitle} style={{ margin: 0 }}>2단계: 참가자 선택</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>2단계: 참가자 선택</h2>
+            {participants.length > 0 && (
+              <span style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '12px', backgroundColor: 'var(--bg)', border: '1px solid var(--border)', fontWeight: '700' }}>
+                👥 총 {participants.length}명 <span style={{ color: '#2563eb' }}>(남 {maleCount}명)</span> · <span style={{ color: '#9333ea' }}>(여 {femaleCount}명)</span>
+              </span>
+            )}
+          </div>
           <button 
             className="btn btn-primary btn-sm" 
             onClick={loadFromVote}
@@ -236,12 +408,22 @@ export default function SettingsTab({
             🗓️ 참석 투표 불러오기 {matchedEvent ? `(참석 ${Object.values(matchedEvent.attendees || {}).filter(v => v === 'Y').length}명)` : '(투표 없음)'}
           </button>
         </div>
+
+        {recNotice && (
+          <div style={{ marginBottom: '12px', padding: '8px 12px', borderRadius: '6px', backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#16a34a', fontSize: '13px', fontWeight: '700' }}>
+            {recNotice}
+          </div>
+        )}
+
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', maxHeight: '150px', overflowY: 'auto', background: 'var(--bg)' }}>
             {availableToAdd.length === 0 ? <span className="text-muted" style={{ fontSize: 13 }}>추가할 회원이 없습니다.</span> : availableToAdd.map(m => (
               <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'var(--bg-card)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: 14 }}>
                 <input type="checkbox" checked={selectedToAdd.includes(m.id)} onChange={e => toggleSelectToAdd(m.id, e.target.checked)} />
                 {m.name}
+                <span style={{ fontSize: '10px', color: m.gender === 'F' ? '#9333ea' : '#2563eb', fontWeight: 'bold' }}>
+                  ({m.gender === 'F' ? '여' : '남'})
+                </span>
               </label>
             ))}
           </div>
@@ -280,17 +462,63 @@ export default function SettingsTab({
 
       {/* 3단계: 경기 세부 설정 */}
       <div className={`card ${styles.section}`}>
-        <h2 className={styles.sectionTitle}>3단계: 경기 세부 설정</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>3단계: 경기 세부 설정</h2>
+          {participants.length > 0 && (
+            <button 
+              type="button" 
+              className="btn btn-secondary btn-sm"
+              onClick={() => applyRecommendation()}
+              title="경기 시간과 참가자 성별 분포에 맞춰 추천 설정을 다시 적용합니다"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              🔄 추천 설정 다시 적용
+            </button>
+          )}
+        </div>
+
+        {/* 추천 안내 카드 */}
+        {participants.length > 0 && (
+          <div style={{ 
+            padding: '12px 14px', 
+            borderRadius: '8px', 
+            backgroundColor: 'rgba(59, 130, 246, 0.08)', 
+            border: '1px solid rgba(59, 130, 246, 0.25)', 
+            marginBottom: '16px',
+            fontSize: '13px'
+          }}>
+            <div style={{ fontWeight: '800', color: '#1d4ed8', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>💡 경기시간({durationInfo.text}) & 참가자(남 {maleCount}명, 여 {femaleCount}명) 맞춤 추천 세팅</span>
+              <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#2563eb', color: '#fff', fontWeight: 800 }}>자동 세팅됨</span>
+            </div>
+            <div style={{ color: 'var(--txt)', lineHeight: '1.45' }}>
+              {recExplanation || `경기시간(${durationInfo.diff}분)에 맞춘 추천 라운드수(${rounds}R)와 성별 참가 인원에 적합한 게임 수가 세팅되었습니다.`}
+            </div>
+          </div>
+        )}
+
         <div className={styles.settingsRow}>
           <div className="form-group">
             <label className="form-label">라운드 수</label>
-            <select className="input input-sm" value={rounds} onChange={e => setRounds(parseInt(e.target.value) || 1)} style={{ width: 90 }}>
+            <select className="input input-sm" value={rounds} onChange={e => {
+              const newR = parseInt(e.target.value) || 1;
+              setRounds(newR);
+              if (participants.length > 0) {
+                setParticipants(computeBalancedParticipants(participants, newR, courts, allowSingles));
+              }
+            }} style={{ width: 90 }}>
               {numOptions(1, 20)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">코트 수</label>
-            <select className="input input-sm" value={courts} onChange={e => setCourts(parseInt(e.target.value) || 1)} style={{ width: 90 }}>
+            <select className="input input-sm" value={courts} onChange={e => {
+              const newC = parseInt(e.target.value) || 1;
+              setCourts(newC);
+              if (participants.length > 0) {
+                applyRecommendation(participants, startTime, endTime, newC);
+              }
+            }} style={{ width: 90 }}>
               {numOptions(1, 10)}
             </select>
           </div>
@@ -318,16 +546,6 @@ export default function SettingsTab({
               {numOptions(0, 20)}
             </select>
           </div>
-          <div className="form-group">
-            <label className="form-label">시작 시간</label>
-            <input className="input input-sm" type="time" value={startTime || ''}
-              onChange={e => setStartTime(e.target.value)} style={{ width: 110 }} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">종료 시간</label>
-            <input className="input input-sm" type="time" value={endTime || ''}
-              onChange={e => setEndTime(e.target.value)} style={{ width: 110 }} />
-          </div>
           {participants.length > 0 && participants.length < courts * 4 && (
             <div className="form-group" style={{ display: 'flex', alignItems: 'center', height: '32px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
@@ -337,6 +555,7 @@ export default function SettingsTab({
             </div>
           )}
         </div>
+
         <div style={{ marginTop: 12, fontSize: 13, color: isMatchSumOk ? 'var(--primary)' : 'var(--danger)', fontWeight: 'bold' }}>
           {isMatchSumOk 
             ? (sumMatches < requiredMatches ? `✓ 세부 게임(${sumMatches}) 외 남은 복식 경기(${requiredMatches - sumMatches})는 성별 무관(잡복)으로 자동 배정됩니다.` : '✓ 세부 게임 수 합계가 총 복식 경기 수와 일치합니다.')
