@@ -1422,13 +1422,19 @@ export default function BracketTab({
                                       backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : 'rgba(248, 250, 252, 0.6)',
                                       cursor: (isReadOnly || !isAdmin) ? 'default' : 'pointer',
                                       borderStyle: player ? 'solid' : 'dashed',
+                                      minWidth: '96px',
+                                      width: '100%',
+                                      height: '26px',
+                                      padding: '2px 5px',
+                                      fontSize: '11.5px',
+                                      whiteSpace: 'nowrap',
                                       ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {})
                                     }}
                                     onClick={() => openPlayerModal(ri, ci, 'a', slot)}
                                   >
                                     {player ? (
-                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', overflow: 'hidden', maxWidth: '100%' }}>
-                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', justifyContent: 'center', width: '100%' }}>
+                                        <span style={{ whiteSpace: 'nowrap' }}>
                                           {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
                                         </span>
                                         <span style={{
@@ -1446,7 +1452,7 @@ export default function BracketTab({
                                         </span>
                                       </span>
                                     ) : (
-                                      <span style={{ fontSize: '11px', color: 'var(--txt3)', fontStyle: 'italic' }}>
+                                      <span style={{ fontSize: '11px', color: 'var(--txt3)', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
                                         + 추가
                                       </span>
                                     )}
@@ -1496,13 +1502,19 @@ export default function BracketTab({
                                       backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : 'rgba(248, 250, 252, 0.6)',
                                       cursor: (isReadOnly || !isAdmin) ? 'default' : 'pointer',
                                       borderStyle: player ? 'solid' : 'dashed',
+                                      minWidth: '96px',
+                                      width: '100%',
+                                      height: '26px',
+                                      padding: '2px 5px',
+                                      fontSize: '11.5px',
+                                      whiteSpace: 'nowrap',
                                       ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {})
                                     }}
                                     onClick={() => openPlayerModal(ri, ci, 'b', slot)}
                                   >
                                     {player ? (
-                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', overflow: 'hidden', maxWidth: '100%' }}>
-                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', justifyContent: 'center', width: '100%' }}>
+                                        <span style={{ whiteSpace: 'nowrap' }}>
                                           {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
                                         </span>
                                         <span style={{
@@ -1520,7 +1532,7 @@ export default function BracketTab({
                                         </span>
                                       </span>
                                     ) : (
-                                      <span style={{ fontSize: '11px', color: 'var(--txt3)', fontStyle: 'italic' }}>
+                                      <span style={{ fontSize: '11px', color: 'var(--txt3)', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
                                         + 추가
                                       </span>
                                     )}

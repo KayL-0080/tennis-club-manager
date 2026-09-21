@@ -211,33 +211,30 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
 .teamLine {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   margin: 0;
   font-size: 0.78rem;
   line-height: 1.2;
   position: relative;
+  min-width: 96px;
+  flex: 1;
 }
 
-@media (min-width: 992px) {
-  .teamLine {
-    flex-direction: row;
-    gap: 8px;
-  }
-}
 .winner { font-weight: 800; color: #16a34a; }
 
 .playerSel,
 .playerSlotBtn {
-  font-size: 0.8rem;
-  padding: 4px 6px;
-  border-radius: 8px;
+  font-size: 0.78rem;
+  padding: 2px 6px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--txt);
-  width: 72px;
-  height: 30px;
+  min-width: 96px;
+  width: auto;
+  height: 26px;
   box-sizing: border-box;
   text-align: center;
   font-weight: 700;
@@ -247,13 +244,11 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
 }
 
 .playerSlotBtn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .playerSlotBtn:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -326,19 +321,21 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  margin: 0;
+  gap: 2px;
+  margin: 0 3px;
+  flex-shrink: 0;
 }
 .scoreInput {
-  width: 44px;
-  height: 30px;
+  width: 28px;
+  height: 26px;
   box-sizing: border-box;
   text-align: center;
+  text-align-last: center;
   padding: 0;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 800;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--surface);
   color: var(--txt);
   -webkit-appearance: none;
@@ -351,7 +348,7 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
 }
 .scoreInput:focus {
   border-color: var(--ios-blue);
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.18);
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.18);
 }
 .scoreInput:disabled {
   opacity: 0.9;
@@ -362,11 +359,11 @@ tr:nth-child(even) .matchCell { background: rgba(248, 250, 252, 0.6) !important;
 }
 
 .scoreSep { 
-  width: 10px; 
+  width: 6px; 
   text-align: center; 
   color: var(--txt3); 
   font-weight: 800; 
-  font-size: 0.9rem; 
+  font-size: 0.8rem; 
 }
 
 /* ── 검증/통계 ── */
