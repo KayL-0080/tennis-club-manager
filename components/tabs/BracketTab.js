@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { makeEmptyMatch, teamNtrpSum, computeTodayStandings } from '@/lib/scheduler';
 import AddMemberToBracketModal from '@/components/AddMemberToBracketModal';
+import MatchPlayerSelectModal from '@/components/MatchPlayerSelectModal';
 import styles from './tabs.module.css';
 
 import {
@@ -87,6 +88,22 @@ export default function BracketTab({
 }) {
   const [playerFilter, setPlayerFilter] = useState('ALL'); // 'ALL' | 'IN_PROGRESS' | 'DONE' | 'WAITING'
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [playerModalTarget, setPlayerModalTarget] = useState(null);
+  const [showPlayerModal, setShowPlayerModal] = useState(false);
+
+  const openPlayerModal = (ri, ci, team, slot) => {
+    if (isReadOnly || !isAdmin) return;
+    setPlayerModalTarget({ ri, ci, team: team || 'a', slot: slot ?? 0 });
+    setShowPlayerModal(true);
+  };
+
+  const handleAssignPlayerModal = (ri, ci, team, slot, playerId, isNewParticipant) => {
+    onPlayerSelect(ri, ci, team, slot, isNewParticipant ? `add_${playerId}` : playerId);
+  };
+
+  const handleClearSlotModal = (ri, ci, team, slot) => {
+    onPlayerSelect(ri, ci, team, slot, '');
+  };
 
   const byId = useMemo(() => {
     const m = {}; members.forEach(p => m[p.id] = p); return m;
@@ -1074,7 +1091,7 @@ export default function BracketTab({
                                 )}
                               </div>
 
-                              <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 {hasScore ? (
                                   <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 700 }}>
                                     ✅ 경기 완료 ({sc.a} : {sc.b})
@@ -1087,6 +1104,29 @@ export default function BracketTab({
                                   <span style={{ fontSize: '11.5px', color: 'var(--txt3)' }}>
                                     ⏳ 대기 중
                                   </span>
+                                )}
+
+                                {isAdmin && !isReadOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openPlayerModal(ri, currentCi, 'a', 0)}
+                                    style={{
+                                      background: '#ffffff',
+                                      border: '1px solid #bfdbfe',
+                                      borderRadius: '6px',
+                                      padding: '2px 7px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      color: '#1d4ed8',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px'
+                                    }}
+                                    title="이 경기의 선수 배정 및 추가 모달 열기"
+                                  >
+                                    <span>👥</span> 선수 배정
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -1114,31 +1154,49 @@ export default function BracketTab({
                                     const isFemale = player?.gender === 'F';
                                     const isMale = player?.gender === 'M';
                                     return (
-                                      <select
+                                      <button
                                         key={slot}
+                                        type="button"
                                         disabled={isReadOnly || !isAdmin}
-                                        title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
-                                        className={`${styles.playerSel} ${styles.bgTeamA}`}
+                                        title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : "선수 배정 및 추가 모달 열기")}
+                                        className={`${styles.playerSlotBtn} ${styles.bgTeamA}`}
                                         style={{
                                           width: '100%',
                                           minWidth: 0,
                                           maxWidth: '100%',
                                           height: '28px',
                                           fontSize: '12px',
-                                          padding: '2px 4px',
+                                          padding: '2px 6px',
                                           borderRadius: '6px',
                                           boxSizing: 'border-box',
                                           fontWeight: player ? 600 : 'normal',
-                                          color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt)',
-                                          borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : undefined,
-                                          backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : undefined,
+                                          color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt3)',
+                                          borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : 'rgba(203, 213, 225, 0.7)',
+                                          backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : 'rgba(248, 250, 252, 0.6)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          cursor: (isReadOnly || !isAdmin) ? 'default' : 'pointer',
+                                          borderStyle: player ? 'solid' : 'dashed',
                                           ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 700 } : {})
                                         }}
-                                        value={pId || ''}
-                                        onChange={e => onPlayerSelect(ri, currentCi, 'a', slot, e.target.value)}
+                                        onClick={() => openPlayerModal(ri, currentCi, 'a', slot)}
                                       >
-                                        {playerOptions(pId)}
-                                      </select>
+                                        {player ? (
+                                          <>
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                            </span>
+                                            {isAdmin && !isReadOnly && (
+                                              <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '3px', flexShrink: 0 }}>✏️</span>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--txt3)', fontSize: '11px', fontStyle: 'italic', margin: '0 auto' }}>
+                                            <span>➕</span> 선수 추가
+                                          </span>
+                                        )}
+                                      </button>
                                     );
                                   })}
                                 </div>
@@ -1186,31 +1244,49 @@ export default function BracketTab({
                                     const isFemale = player?.gender === 'F';
                                     const isMale = player?.gender === 'M';
                                     return (
-                                      <select
+                                      <button
                                         key={slot}
+                                        type="button"
                                         disabled={isReadOnly || !isAdmin}
-                                        title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
-                                        className={`${styles.playerSel} ${styles.bgTeamB}`}
+                                        title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : "선수 배정 및 추가 모달 열기")}
+                                        className={`${styles.playerSlotBtn} ${styles.bgTeamB}`}
                                         style={{
                                           width: '100%',
                                           minWidth: 0,
                                           maxWidth: '100%',
                                           height: '28px',
                                           fontSize: '12px',
-                                          padding: '2px 4px',
+                                          padding: '2px 6px',
                                           borderRadius: '6px',
                                           boxSizing: 'border-box',
                                           fontWeight: player ? 600 : 'normal',
-                                          color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt)',
-                                          borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : undefined,
-                                          backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : undefined,
+                                          color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt3)',
+                                          borderColor: isFemale ? '#fbcfe8' : isMale ? '#fecdd3' : 'rgba(203, 213, 225, 0.7)',
+                                          backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : 'rgba(248, 250, 252, 0.6)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          cursor: (isReadOnly || !isAdmin) ? 'default' : 'pointer',
+                                          borderStyle: player ? 'solid' : 'dashed',
                                           ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 700 } : {})
                                         }}
-                                        value={pId || ''}
-                                        onChange={e => onPlayerSelect(ri, currentCi, 'b', slot, e.target.value)}
+                                        onClick={() => openPlayerModal(ri, currentCi, 'b', slot)}
                                       >
-                                        {playerOptions(pId)}
-                                      </select>
+                                        {player ? (
+                                          <>
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                            </span>
+                                            {isAdmin && !isReadOnly && (
+                                              <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '3px', flexShrink: 0 }}>✏️</span>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--txt3)', fontSize: '11px', fontStyle: 'italic', margin: '0 auto' }}>
+                                            <span>➕</span> 선수 추가
+                                          </span>
+                                        )}
+                                      </button>
                                     );
                                   })}
                                 </div>
@@ -1297,22 +1373,33 @@ export default function BracketTab({
                                 const isFemale = player?.gender === 'F';
                                 const isMale = player?.gender === 'M';
                                 return (
-                                  <select 
+                                  <button 
                                     key={slot} 
+                                    type="button"
                                     disabled={isReadOnly || !isAdmin}
-                                    title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
-                                    className={`${styles.playerSel} ${styles.bgTeamA}`}
+                                    title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : "선수 배정 및 추가 모달 열기")}
+                                    className={`${styles.playerSlotBtn} ${styles.bgTeamA}`}
                                     style={{
                                       fontWeight: player ? 600 : 'normal',
-                                      color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt)',
-                                      borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : undefined,
-                                      backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : undefined,
+                                      color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt3)',
+                                      borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : 'rgba(203, 213, 225, 0.7)',
+                                      backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : 'rgba(248, 250, 252, 0.6)',
+                                      cursor: (isReadOnly || !isAdmin) ? 'default' : 'pointer',
+                                      borderStyle: player ? 'solid' : 'dashed',
                                       ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {})
                                     }}
-                                    value={pId || ''}
-                                    onChange={e => onPlayerSelect(ri, ci, 'a', slot, e.target.value)}>
-                                    {playerOptions(pId)}
-                                  </select>
+                                    onClick={() => openPlayerModal(ri, ci, 'a', slot)}
+                                  >
+                                    {player ? (
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: 'var(--txt3)', fontStyle: 'italic' }}>
+                                        + 추가
+                                      </span>
+                                    )}
+                                  </button>
                                 );
                               })}
                             </div>
@@ -1343,22 +1430,33 @@ export default function BracketTab({
                                 const isFemale = player?.gender === 'F';
                                 const isMale = player?.gender === 'M';
                                 return (
-                                  <select 
+                                  <button 
                                     key={slot} 
+                                    type="button"
                                     disabled={isReadOnly || !isAdmin}
-                                    title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : undefined)}
-                                    className={`${styles.playerSel} ${styles.bgTeamB}`}
+                                    title={!isAdmin ? "경기 선수 변경은 운영진만 가능합니다." : (isReadOnly ? "종료된 경기는 수정할 수 없습니다." : "선수 배정 및 추가 모달 열기")}
+                                    className={`${styles.playerSlotBtn} ${styles.bgTeamB}`}
                                     style={{
                                       fontWeight: player ? 600 : 'normal',
-                                      color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt)',
-                                      borderColor: isFemale ? '#fbcfe8' : isMale ? '#bfdbfe' : undefined,
-                                      backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : undefined,
+                                      color: isFemale ? '#be185d' : isMale ? '#1d4ed8' : 'var(--txt3)',
+                                      borderColor: isFemale ? '#fbcfe8' : isMale ? '#fecdd3' : 'rgba(203, 213, 225, 0.7)',
+                                      backgroundColor: isFemale ? 'rgba(253, 242, 248, 0.7)' : isMale ? 'rgba(239, 246, 255, 0.7)' : 'rgba(248, 250, 252, 0.6)',
+                                      cursor: (isReadOnly || !isAdmin) ? 'default' : 'pointer',
+                                      borderStyle: player ? 'solid' : 'dashed',
                                       ...(isDup ? { borderColor: '#ef4444', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 'bold' } : {})
                                     }}
-                                    value={pId || ''}
-                                    onChange={e => onPlayerSelect(ri, ci, 'b', slot, e.target.value)}>
-                                    {playerOptions(pId)}
-                                  </select>
+                                    onClick={() => openPlayerModal(ri, ci, 'b', slot)}
+                                  >
+                                    {player ? (
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {getDisplayNameWithGuest(player)} ({isFemale ? '여' : '남'})
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: 'var(--txt3)', fontStyle: 'italic' }}>
+                                        + 추가
+                                      </span>
+                                    )}
+                                  </button>
                                 );
                               })}
                             </div>
@@ -2106,7 +2204,22 @@ export default function BracketTab({
         </div>
       )}
 
-      {/* 4. 정회원 현장/추가 참가 등록 모달 */}
+      {/* 4. 경기 선수 배정 및 추가 전용 모달 */}
+      <MatchPlayerSelectModal
+        isOpen={showPlayerModal}
+        onClose={() => setShowPlayerModal(false)}
+        target={playerModalTarget}
+        schedule={schedule}
+        members={members}
+        participants={participants}
+        scores={scores}
+        onAssignPlayer={handleAssignPlayerModal}
+        onClearSlot={handleClearSlotModal}
+        isAdmin={isAdmin}
+        isReadOnly={isReadOnly}
+      />
+
+      {/* 5. 정회원 현장/추가 참가 등록 모달 */}
       <AddMemberToBracketModal
         isOpen={showAddMemberModal}
         onClose={() => setShowAddMemberModal(false)}

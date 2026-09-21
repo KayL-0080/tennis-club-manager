@@ -102,6 +102,7 @@ export default function AddMemberToBracketModal({
       if (roleFilter === 'REGULAR') {
         return REGULAR_ROLES.includes(m.role) || !m.role;
       }
+      if (roleFilter === 'GUEST') return checkIsGuest(m);
       if (roleFilter === 'M') return m.gender === 'M';
       if (roleFilter === 'F') return m.gender === 'F';
       return true;
@@ -333,6 +334,7 @@ export default function AddMemberToBracketModal({
                   {[
                     { key: 'REGULAR', label: '⭐ 정회원/임원' },
                     { key: 'ALL', label: `전체 (${unjoinedMembers.length})` },
+                    { key: 'GUEST', label: '게스트' },
                     { key: 'M', label: '남성' },
                     { key: 'F', label: '여성' },
                   ].map(f => (
