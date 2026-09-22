@@ -85,7 +85,7 @@ export default function VotesPage() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [meetingRules, setMeetingRules] = useState([]);
   const [newRuleDay, setNewRuleDay] = useState(2); // 2 = 화요일
-  const [newRuleTitle, setNewRuleTitle] = useState('정기 모임 (화)');
+  const [newRuleTitle, setNewRuleTitle] = useState('정기모임');
   const [newRuleStartTime, setNewRuleStartTime] = useState('18:00');
   const [newRuleEndTime, setNewRuleEndTime] = useState('20:00');
   const [newRuleLocation, setNewRuleLocation] = useState('별도 테니스장');
@@ -93,6 +93,13 @@ export default function VotesPage() {
 
   const DAY_NAMES = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
   const DAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const formatRuleTitle = (rawTitle) => {
+    if (!rawTitle) return '정기모임';
+    const clean = rawTitle.replace(/\s*\([월화수목금토일](?:요일)?\)/g, '').trim();
+    if (clean === '정기 모임' || !clean) return '정기모임';
+    return clean;
+  };
 
   const openModal = useCallback((e, updateUrl = true) => {
     setSelectedEvent(e);
@@ -210,7 +217,7 @@ export default function VotesPage() {
                 if (!evts.find(e => e.date === dateStr)) {
                   toCreate.push({
                     date: dateStr,
-                    title: rule.title || `정기 모임 (${rule.dayName || DAY_SHORT[day]})`,
+                    title: formatRuleTitle(rule.title),
                     startTime: rule.startTime || '19:00',
                     endTime: rule.endTime || '22:00',
                     location: rule.location || '그린테니스장',
@@ -249,7 +256,7 @@ export default function VotesPage() {
       id: 'rule_' + Date.now(),
       day: dayNum,
       dayName: DAY_NAMES[dayNum],
-      title: newRuleTitle || `정기 모임 (${DAY_SHORT[dayNum]})`,
+      title: formatRuleTitle(newRuleTitle),
       startTime: newRuleStartTime,
       endTime: newRuleEndTime,
       location: newRuleLocation || '그린테니스장',
@@ -770,7 +777,7 @@ export default function VotesPage() {
                         onChange={e => {
                           const d = Number(e.target.value);
                           setNewRuleDay(d);
-                          setNewRuleTitle(`정기 모임 (${DAY_SHORT[d]})`);
+                          setNewRuleTitle('정기모임');
                         }}
                       >
                         {DAY_NAMES.map((name, idx) => (
@@ -785,7 +792,7 @@ export default function VotesPage() {
                         className="input input-sm" 
                         value={newRuleTitle} 
                         onChange={e => setNewRuleTitle(e.target.value)} 
-                        placeholder="예: 정기 모임 (화)" 
+                        placeholder="예: 정기모임" 
                       />
                     </div>
                   </div>
