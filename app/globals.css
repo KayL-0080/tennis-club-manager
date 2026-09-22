@@ -239,10 +239,13 @@ body {
 
 /* Success Button: iOS Emerald Green */
 .btn-success {
-  background: linear-gradient(135deg, var(--ios-green) 0%, #28a745 100%);
+  background: linear-gradient(135deg, var(--ios-green) 0%, #16a34a 100%);
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 4px 14px rgba(52, 199, 89, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+.btn-success:hover:not(:disabled) {
+  box-shadow: 0 6px 18px rgba(52, 199, 89, 0.45);
 }
 
 .btn-sm   { font-size: .78rem; padding: 6px 14px; border-radius: var(--radius-full); }

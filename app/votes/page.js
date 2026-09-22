@@ -647,7 +647,7 @@ export default function VotesPage() {
                           </>
                         ) : (
                           <>
-                            <span style={{ color: '#0066ff', fontWeight: 700 }}>참석: {attCount}명</span>
+                            <span style={{ color: '#16a34a', fontWeight: 700 }}>참석: {attCount}명</span>
                             <span style={{ color: '#ef4444', fontWeight: 700 }}>불참: {absCount}명</span>
                             <span style={{ color: '#94a3b8', fontWeight: 500 }}>미정: {unkCount}명</span>
                           </>
@@ -1106,8 +1106,19 @@ export default function VotesPage() {
 
                                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                                   <button 
-                                    className={`btn btn-sm ${status === 'Y' ? 'btn-primary' : 'btn-secondary'}`}
-                                    style={{ opacity: status === 'Y' ? 1 : 0.6, padding: '4px 10px', fontSize: '12px', fontWeight: 700 }}
+                                    className={`btn btn-sm ${status === 'Y' ? 'btn-success' : 'btn-secondary'}`}
+                                    style={{ 
+                                      opacity: status === 'Y' ? 1 : 0.6, 
+                                      padding: '4px 10px', 
+                                      fontSize: '12px', 
+                                      fontWeight: 700,
+                                      ...(status === 'Y' ? {
+                                        background: 'linear-gradient(135deg, var(--ios-green) 0%, #16a34a 100%)',
+                                        borderColor: 'rgba(22, 163, 74, 0.4)',
+                                        color: '#ffffff',
+                                        boxShadow: '0 2px 8px rgba(34, 197, 94, 0.35)'
+                                      } : {})
+                                    }}
                                     disabled={isVoteDisabled}
                                     onClick={() => handleToggleAttendance(m.id, 'Y')}
                                   >참석</button>
