@@ -1,6 +1,6 @@
 // components/tabs/SettingsTab.js — 오늘 참가자 선택 + 라운드/코트 + 특별조건 + 대진표 생성
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { generateSchedule, makeEmptyMatch, calculateRecommendedSettings } from '@/lib/scheduler';
 import { addMember } from '@/lib/firestore';
 import styles from './tabs.module.css';
@@ -36,9 +36,62 @@ export default function SettingsTab({
   const [selectedToAdd, setSelectedToAdd] = useState([]);
   const [recExplanation, setRecExplanation] = useState('');
   const [recNotice, setRecNotice] = useState('');
-  
+  const lastAutoSyncedDateRef = useRef(null);
+
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestForm, setGuestForm] = useState({ name: '', gender: 'M', ntrp: 2.0 });
+
+  // 🗓️ 경기날짜가 정기모임 투표날짜와 일치할 경우 시작/종료시간 자동 동기화
+  useEffect(() => {
+    if (!matchDate || !events || events.length === 0) return;
+    const evt = events.find(e => e.date === matchDate);
+    if (evt && lastAutoSyncedDateRef.current !== matchDate) {
+      lastAutoSyncedDateRef.current = matchDate;
+      const sTime = evt.startTime || startTime;
+      const eTime = evt.endTime || endTime;
+      let needUpdate = false;
+      if (evt.startTime && evt.startTime !== startTime) {
+        setStartTime(evt.startTime);
+        needUpdate = true;
+      }
+      if (evt.endTime && evt.endTime !== endTime) {
+        setEndTime(evt.endTime);
+        needUpdate = true;
+      }
+      if (needUpdate) {
+        if (participants.length > 0) {
+          applyRecommendation(participants, sTime, eTime, courts);
+        } else {
+          const rec = calculateRecommendedSettings({ startTime: sTime, endTime: eTime, courts, participants, members });
+          setRounds(rec.rounds);
+        }
+        setRecNotice(`🗓️ ${matchDate} 정기모임 투표 시간(${sTime} ~ ${eTime})이 시작/종료시간에 자동 반영되었습니다.`);
+        setTimeout(() => setRecNotice(''), 4000);
+      }
+    } else if (!evt) {
+      lastAutoSyncedDateRef.current = matchDate;
+    }
+  }, [matchDate, events]);
+
+  const handleMatchDateChange = (newDate) => {
+    setMatchDate(newDate);
+    const evt = events.find(e => e.date === newDate);
+    if (evt) {
+      lastAutoSyncedDateRef.current = newDate;
+      const sTime = evt.startTime || startTime;
+      const eTime = evt.endTime || endTime;
+      if (evt.startTime) setStartTime(evt.startTime);
+      if (evt.endTime) setEndTime(evt.endTime);
+      if (participants.length > 0) {
+        applyRecommendation(participants, sTime, eTime, courts);
+      } else {
+        const rec = calculateRecommendedSettings({ startTime: sTime, endTime: eTime, courts, participants, members });
+        setRounds(rec.rounds);
+      }
+      setRecNotice(`🗓️ ${newDate} 정기모임 투표 시간(${sTime} ~ ${eTime})이 시작/종료시간에 자동 반영되었습니다.`);
+      setTimeout(() => setRecNotice(''), 4000);
+    }
+  };
 
   // 경기 시간(분 및 포맷) 계산
   const calcDuration = (start, end) => {
@@ -326,11 +379,30 @@ export default function SettingsTab({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
           <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>1단계: 경기 일시 및 시간 설정</h2>
           {matchedEvent && (
-            <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', fontWeight: 'bold' }}>
-              🗓️ 정기모임 투표 연동 ({matchedEvent.startTime || '19:00'} ~ {matchedEvent.endTime || '22:00'})
+            <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', background: 'rgba(22, 163, 74, 0.12)', color: '#15803d', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              🗓️ 정기모임 투표 시간 연동됨 ({matchedEvent.startTime || startTime} ~ {matchedEvent.endTime || endTime})
             </span>
           )}
         </div>
+
+        {recNotice && (
+          <div style={{
+            margin: '0 0 14px 0',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            background: '#f0fdf4',
+            border: '1px solid #86efac',
+            color: '#166534',
+            fontSize: '13px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span>✨</span>
+            <span>{recNotice}</span>
+          </div>
+        )}
         
         <div className={styles.step1DateTimeContainer} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
           {/* 1. 경기 날짜 (카드 전체 폭 100%) */}
@@ -342,7 +414,7 @@ export default function SettingsTab({
               className={styles.step1Input}
               type="date"
               value={matchDate}
-              onChange={e => setMatchDate(e.target.value)}
+              onChange={e => handleMatchDateChange(e.target.value)}
               style={{ display: 'block', width: '100%', minWidth: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
             />
           </div>

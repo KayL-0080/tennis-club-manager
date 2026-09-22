@@ -62,7 +62,15 @@ export default function Dashboard() {
         }
       }
       if (cachedMbrs) setMembers(JSON.parse(cachedMbrs));
-      if (cachedEvts) setEvents(JSON.parse(cachedEvts));
+      if (cachedEvts) {
+        const parsedEvts = JSON.parse(cachedEvts);
+        setEvents(parsedEvts);
+        const matched = parsedEvts?.find(e => e.date === defaultDate);
+        if (matched) {
+          if (matched.startTime) setStartTime(matched.startTime);
+          if (matched.endTime) setEndTime(matched.endTime);
+        }
+      }
       if (cachedTrnms) setTournaments(JSON.parse(cachedTrnms));
     } catch (e) {
       console.warn('Cache restoration error:', e);
@@ -83,6 +91,13 @@ export default function Dashboard() {
       setSchedules(data);
       setEvents(evts);
       setTournaments(trnms || []);
+
+      // 경기날짜가 정기모임 투표날짜와 같을 경우 시작/종료시간 자동 동기화
+      const matchedEvt = evts?.find(e => e.date === matchDate);
+      if (matchedEvt) {
+        if (matchedEvt.startTime) setStartTime(matchedEvt.startTime);
+        if (matchedEvt.endTime) setEndTime(matchedEvt.endTime);
+      }
 
       // 최신 데이터를 로컬 캐시에 저장
       try {
@@ -115,6 +130,9 @@ export default function Dashboard() {
     try {
       const r = schedRounds.length;
       const c = schedRounds[0]?.length ?? 0;
+      const matchedEvt = events?.find(e => e.date === matchDate);
+      const finalStartTime = startTime || matchedEvt?.startTime || '09:00';
+      const finalEndTime = endTime || matchedEvt?.endTime || '12:00';
       
       const payload = {
         title: `대진표 ${matchDate || new Date().toLocaleDateString('ko-KR')}`,
@@ -128,8 +146,8 @@ export default function Dashboard() {
         mixedCount,
         jointCount,
         allowSingles,
-        startTime,
-        endTime,
+        startTime: finalStartTime,
+        endTime: finalEndTime,
         usePenalty,
         schedule: schedRounds,
         scores: {},
@@ -167,6 +185,9 @@ export default function Dashboard() {
     try {
       const r = schedRounds.length;
       const c = schedRounds[0]?.length ?? 0;
+      const matchedEvt = events?.find(e => e.date === matchDate);
+      const finalStartTime = startTime || matchedEvt?.startTime || '09:00';
+      const finalEndTime = endTime || matchedEvt?.endTime || '12:00';
       
       const payload = {
         title: `대진표 ${matchDate || new Date().toLocaleDateString('ko-KR')}`,
@@ -180,8 +201,8 @@ export default function Dashboard() {
         mixedCount,
         jointCount,
         allowSingles,
-        startTime,
-        endTime,
+        startTime: finalStartTime,
+        endTime: finalEndTime,
         usePenalty,
         schedule: schedRounds,
         scores: {},
@@ -365,7 +386,14 @@ export default function Dashboard() {
                 {isAdmin && activeTab === 'list' && (
                   <button 
                     className={`btn btn-primary ${styles.heroBtn} ${styles.heroBtnPrimary}`} 
-                    onClick={() => setActiveTab('settings')}
+                    onClick={() => {
+                      const matched = events?.find(e => e.date === matchDate);
+                      if (matched) {
+                        if (matched.startTime) setStartTime(matched.startTime);
+                        if (matched.endTime) setEndTime(matched.endTime);
+                      }
+                      setActiveTab('settings');
+                    }}
                     title="새 경기 대진표 만들기"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
