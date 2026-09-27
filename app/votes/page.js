@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -50,6 +50,50 @@ const formatVoteTimeFull = (isoString) => {
   }
 };
 
+// 현재 월의 모든 투표가 완료(마감 또는 과거 일자)되었는지 판별하여 다음달 또는 적절한 표시 월 결정
+const resolveInitialMonth = (evts) => {
+  const today = formatDateToYMD();
+  const currentMonth = today.substring(0, 7);
+  if (!evts || evts.length === 0) return currentMonth;
+
+  // 현재 월의 이벤트들
+  const currentEvents = evts.filter(e => e.date && e.date.substring(0, 7) === currentMonth);
+  
+  // 투표 종료 여부 판별 (과거 일정이거나 투표 마감시간 경과)
+  const isVoteFinished = (e) => {
+    if (!e || !e.date) return true;
+    if (e.date < today) return true;
+    const [y, m, d] = e.date.split('-').map(Number);
+    const dl = new Date(y, m - 1, d);
+    dl.setDate(dl.getDate() - 1);
+    dl.setHours(18, 0, 0, 0);
+    return new Date() > dl;
+  };
+
+  // 현재 월에 일정이 아예 없거나, 모든 일정이 종료(투표 마감 또는 과거 일자)된 경우
+  const isCurrentMonthAllFinished = currentEvents.length === 0 || currentEvents.every(isVoteFinished);
+
+  if (isCurrentMonthAllFinished) {
+    // 다음 달 (현재 월 + 1개월) 계산
+    const [currY, currM] = currentMonth.split('-').map(Number);
+    const nextDate = new Date(currY, currM, 1);
+    const nextMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+    
+    // 다음 달이나 그 이후에 등록된 일정이 있는지 확인하여 우선 매칭
+    const futureMonths = [...new Set(evts.map(e => e.date?.substring(0, 7)).filter(Boolean))]
+      .filter(m => m > currentMonth)
+      .sort();
+      
+    if (futureMonths.includes(nextMonth) || futureMonths.length === 0) {
+      return nextMonth;
+    } else {
+      return futureMonths[0];
+    }
+  }
+
+  return currentMonth;
+};
+
 export default function VotesPage() {
   const { isAdmin } = useAuth();
   const router = useRouter();
@@ -63,7 +107,21 @@ export default function VotesPage() {
   // Overall Status State
   const [showVoters, setShowVoters] = useState(false);
   const [showNonVoters, setShowNonVoters] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(() => formatDateToYMD().substring(0, 7));
+  const userManuallyChangedMonthRef = useRef(false);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('tcm_cached_events');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return resolveInitialMonth(parsed);
+          }
+        }
+      } catch (e) {}
+    }
+    return formatDateToYMD().substring(0, 7);
+  });
   
   // Member List Filter & Sort in Vote Modal
   const [memberFilter, setMemberFilter] = useState('ALL'); // 'ALL' | 'Y' | 'N' | '?'
@@ -137,6 +195,9 @@ export default function VotesPage() {
         if (Array.isArray(restoredEvents) && restoredEvents.length > 0) {
           setEvents(restoredEvents);
           setFetching(false);
+          if (!userManuallyChangedMonthRef.current) {
+            setSelectedMonth(resolveInitialMonth(restoredEvents));
+          }
         }
       }
       if (cachedMbrs) {
@@ -150,12 +211,14 @@ export default function VotesPage() {
         if (targetId) {
           const found = restoredEvents.find(e => e.id === targetId);
           if (found) {
+            userManuallyChangedMonthRef.current = true;
             if (found.date) setSelectedMonth(found.date.substring(0, 7));
             openModal(found, false);
           } else {
             // 캐시에 없으면 단일 문서만 즉시 직접 조회 (100ms 이내 초고속 모달 오픈)
             getEvent('shared', targetId).then(target => {
               if (target) {
+                userManuallyChangedMonthRef.current = true;
                 setEvents(prev => prev.some(e => e.id === target.id) ? prev : [target, ...prev]);
                 if (target.date) setSelectedMonth(target.date.substring(0, 7));
                 openModal(target, false);
@@ -186,6 +249,9 @@ export default function VotesPage() {
 
       const sortedEvts = evts.sort((a, b) => (a.date > b.date ? 1 : -1));
       setEvents(sortedEvts);
+      if (!userManuallyChangedMonthRef.current && sortedEvts.length > 0) {
+        setSelectedMonth(resolveInitialMonth(sortedEvts));
+      }
       setSelectedEvent(prev => {
         if (!prev?.id) return prev;
         const fresh = sortedEvts.find(e => e.id === prev.id);
@@ -396,6 +462,7 @@ export default function VotesPage() {
     if (targetId) {
       const target = events.find(e => e.id === targetId);
       if (target) {
+        userManuallyChangedMonthRef.current = true;
         if (target.date) {
           const monthStr = target.date.substring(0, 7);
           setSelectedMonth(prev => (prev === 'ALL' ? prev : monthStr));
@@ -409,6 +476,7 @@ export default function VotesPage() {
     } else if (targetDate) {
       const target = events.find(e => e.date === targetDate);
       if (target) {
+        userManuallyChangedMonthRef.current = true;
         setSelectedMonth(prev => (prev === 'ALL' ? prev : targetDate.substring(0, 7)));
         if (!selectedEvent || selectedEvent.date !== targetDate) {
           openModal(target, false);
@@ -464,10 +532,13 @@ export default function VotesPage() {
   
   const upcomingEvents = events.filter(e => e.date.substring(0, 7) >= currentMonthStr);
 
-  const availableMonths = [...new Set(upcomingEvents.map(e => e.date.substring(0, 7)))].sort();
+  const availableMonths = [...new Set([
+    ...upcomingEvents.map(e => e.date.substring(0, 7)),
+    ...(selectedMonth && selectedMonth !== 'ALL' ? [selectedMonth] : [])
+  ])].sort();
   let displayEvents = selectedMonth === 'ALL' 
     ? [...upcomingEvents] 
-    : upcomingEvents.filter(e => e.date.startsWith(selectedMonth));
+    : events.filter(e => e.date.startsWith(selectedMonth));
 
   displayEvents = displayEvents.sort((a, b) => {
     const isAPast = a.date < todayStr;
@@ -502,7 +573,10 @@ export default function VotesPage() {
               <select 
                 className="votes-month-select" 
                 value={selectedMonth} 
-                onChange={e => setSelectedMonth(e.target.value)}
+                onChange={e => {
+                  userManuallyChangedMonthRef.current = true;
+                  setSelectedMonth(e.target.value);
+                }}
               >
                 <option value="ALL">🗓️ 전체 일정</option>
                 {availableMonths.map(m => (
@@ -547,9 +621,18 @@ export default function VotesPage() {
 
         {fetching ? (
           <div className={styles.center}><span className="spinner" /></div>
+        ) : displayEvents.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: '48px 20px', color: '#64748b' }}>
+            <div style={{ fontSize: '36px', marginBottom: '12px' }}>🗓️</div>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+              등록된 투표 일정이 없습니다
+            </div>
+            <div style={{ fontSize: '13.5px' }}>
+              {selectedMonth === 'ALL' ? '진행 예정인 모임 일정이 없습니다.' : `${selectedMonth.split('-')[0]}년 ${selectedMonth.split('-')[1]}월 일정이 없습니다.`}
+            </div>
+          </div>
         ) : (
-          <>
-            <div className={styles.voteGrid}>
+          <div className={styles.voteGrid}>
             {displayEvents.map(e => {
               const attCount = Object.values(e.attendees || {}).filter(v => v === 'Y').length;
               const absCount = Object.values(e.attendees || {}).filter(v => v === 'N').length;
@@ -676,7 +759,6 @@ export default function VotesPage() {
               );
             })}
           </div>
-          </>
         )}
 
       </main>
