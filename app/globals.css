@@ -81,6 +81,7 @@ html {
   -webkit-text-size-adjust: 100%;
   width: 100%;
   overflow-x: hidden;
+  overscroll-behavior-y: contain;
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
@@ -95,6 +96,7 @@ body {
   min-height: 100dvh;
   width: 100%;
   overflow-x: hidden;
+  overscroll-behavior-y: contain;
 }
 
 @media (min-width: 769px) {

@@ -1,6 +1,7 @@
 // app/layout.js
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
+import PullToRefresh from '@/components/PullToRefresh';
 
 export const viewport = {
   width: 'device-width',
@@ -38,7 +39,10 @@ export default function RootLayout({ children }) {
         <meta name="theme-color" content="#ffffff" />
       </head>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <PullToRefresh />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
