@@ -18,7 +18,6 @@ export default function PullToRefresh() {
   const statusRef = useRef('idle');
   const pullDistanceRef = useRef(0);
   const hasVibratedRef = useRef(false);
-  const isMouseDownRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -170,93 +169,17 @@ export default function PullToRefresh() {
       }
     };
 
-    // ── OPTIONAL MOUSE DRAG SUPPORT (FOR MOBILE DEVTOOLS EMULATION & TESTING) ──
-    const handleMouseDown = (e) => {
-      if (statusRef.current === 'refreshing') return;
-      if (e.button !== 0) return; // Only left click
-      if (window.innerWidth > 800) return; // Only enable on mobile-sized viewports
-
-      const isAtTop = window.scrollY <= 0 && document.documentElement.scrollTop <= 0;
-      if (!isAtTop) return;
-      if (isInteractiveOrScrolledChild(e.target)) return;
-
-      startYRef.current = e.clientY;
-      startXRef.current = e.clientX;
-      isMouseDownRef.current = true;
-      hasVibratedRef.current = false;
-    };
-
-    const handleMouseMove = (e) => {
-      if (!isMouseDownRef.current || statusRef.current === 'refreshing') return;
-
-      const deltaY = e.clientY - startYRef.current;
-      const deltaX = e.clientX - startXRef.current;
-
-      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 8) {
-        isMouseDownRef.current = false;
-        isPullingRef.current = false;
-        setIsPulling(false);
-        setPullDistance(0);
-        setStatus('idle');
-        return;
-      }
-
-      if (deltaY < 0 || window.scrollY > 0 || document.documentElement.scrollTop > 0) {
-        isMouseDownRef.current = false;
-        isPullingRef.current = false;
-        setIsPulling(false);
-        setPullDistance(0);
-        setStatus('idle');
-        return;
-      }
-
-      if (deltaY > 10) {
-        isPullingRef.current = true;
-        setIsPulling(true);
-
-        const damped = Math.min(MAX_PULL, (deltaY - 10) * 0.42);
-        pullDistanceRef.current = damped;
-        setPullDistance(damped);
-
-        if (damped >= PULL_THRESHOLD) {
-          if (statusRef.current !== 'ready') {
-            statusRef.current = 'ready';
-            setStatus('ready');
-          }
-        } else {
-          if (statusRef.current !== 'pulling') {
-            statusRef.current = 'pulling';
-            setStatus('pulling');
-          }
-        }
-      }
-    };
-
-    const handleMouseUp = () => {
-      if (!isMouseDownRef.current) return;
-      isMouseDownRef.current = false;
-      handleTouchEnd();
-    };
-
     // Attach listeners with { passive: false } on touchmove so preventDefault works reliably
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd, { passive: true });
     window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
 
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
     return () => {
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', handleTouchEnd);
-
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
     };
   }, []);
 

@@ -77,11 +77,9 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { 
   font-size: 16px; 
-  scroll-behavior: smooth; 
   -webkit-text-size-adjust: 100%;
   width: 100%;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
+  overflow-x: clip;
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
@@ -95,8 +93,7 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
+  overflow-x: clip;
 }
 
 @media (min-width: 769px) {
