@@ -10,7 +10,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
-import { getAdmins, subscribeClubPermissions } from '@/lib/firestore';
+import { getAdmins, subscribeClubPermissions, getSuperAdminMapping } from '@/lib/firestore';
 import { DEFAULT_PERMISSIONS } from '@/lib/permissions';
 
 const AuthContext = createContext(null);
@@ -20,6 +20,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [adminMember, setAdminMember] = useState(null);
   const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS);
 
   useEffect(() => {
@@ -36,20 +37,33 @@ export function AuthProvider({ children }) {
         if (u.email === 'leeky1537@gmail.com') {
           setIsSuperAdmin(true);
           setIsAdmin(true);
+          try {
+            const superMapping = await getSuperAdminMapping();
+            setAdminMember(superMapping || null);
+          } catch (e) {
+            console.error('Error fetching super admin mapping', e);
+          }
         } else {
           setIsSuperAdmin(false);
           try {
             const admins = await getAdmins();
-            const found = admins.some(a => a.email === u.email);
-            setIsAdmin(found);
+            const found = admins.find(a => a.email && a.email.toLowerCase() === u.email.toLowerCase());
+            setIsAdmin(Boolean(found));
+            if (found && found.memberId) {
+              setAdminMember({ memberId: found.memberId, memberName: found.memberName, memberRole: found.memberRole });
+            } else {
+              setAdminMember(null);
+            }
           } catch (e) {
             console.error('Error fetching admins', e);
             setIsAdmin(false);
+            setAdminMember(null);
           }
         }
       } else {
         setIsAdmin(false);
         setIsSuperAdmin(false);
+        setAdminMember(null);
       }
       setLoading(false);
     });
@@ -77,6 +91,7 @@ export function AuthProvider({ children }) {
       user,
       isAdmin,
       isSuperAdmin,
+      adminMember,
       permissions,
       can,
       loading,

@@ -9,7 +9,7 @@ import { HomeIcon, StatsIcon, VoteIcon, TrophyIcon, MembersIcon, ManualIcon, Ins
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
-  const { user, isAdmin, isSuperAdmin, logout } = useAuth();
+  const { user, isAdmin, isSuperAdmin, adminMember, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [showManual, setShowManual] = useState(false);
@@ -206,8 +206,17 @@ export default function Navbar() {
             {user ? (
               <div className={styles.userContainer}>
                 <div className={styles.userInfo}>
-                  <span className={styles.avatar}>{(user.displayName || user.email)?.[0]?.toUpperCase()}</span>
-                  <span className={styles.displayName}>{user.displayName || user.email}</span>
+                  <span className={styles.avatar}>{(adminMember?.memberName || user.displayName || user.email)?.[0]?.toUpperCase()}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <span className={styles.displayName}>
+                      {adminMember?.memberName ? `${adminMember.memberName}${adminMember.memberRole ? ` (${adminMember.memberRole})` : ''}` : (user.displayName || user.email)}
+                    </span>
+                    {adminMember?.memberName && (
+                      <span style={{ fontSize: '10.5px', color: 'var(--txt3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {user.email}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <button 
                   className="btn btn-secondary btn-sm" 
@@ -260,8 +269,8 @@ export default function Navbar() {
                     👑
                   </button>
                 )}
-                <span className={styles.avatar} style={{ width: '26px', height: '26px', fontSize: '11px' }}>
-                  {(user.displayName || user.email)?.[0]?.toUpperCase()}
+                <span className={styles.avatar} style={{ width: '26px', height: '26px', fontSize: '11px' }} title={adminMember?.memberName ? `${adminMember.memberName} (${user.email})` : user.email}>
+                  {(adminMember?.memberName || user.displayName || user.email)?.[0]?.toUpperCase()}
                 </span>
                 <button
                   type="button"

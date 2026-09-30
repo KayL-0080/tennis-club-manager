@@ -5,13 +5,36 @@ import { useAuth } from '@/contexts/AuthContext';
 import { 
   getAdmins, 
   addAdmin, 
+  updateAdmin,
   deleteAdmin, 
   getClubPermissions, 
-  updateClubPermissions 
+  updateClubPermissions,
+  getMembers,
+  getSuperAdminMapping,
+  updateSuperAdminMapping
 } from '@/lib/firestore';
 import { PERMISSION_CATEGORIES, DEFAULT_PERMISSIONS } from '@/lib/permissions';
 import Navbar from '@/components/Navbar';
 import styles from '../dashboard/dashboard.module.css';
+
+const EXECUTIVE_ROLES = ['회장', '부회장', '총무', '경기이사', '운영이사', '고문'];
+
+const getRolePriority = (role) => {
+  const map = { '회장': 1, '부회장': 2, '총무': 3, '경기이사': 4, '운영이사': 5, '고문': 6 };
+  return map[role] || 99;
+};
+
+const getRoleIcon = (role) => {
+  switch (role) {
+    case '회장': return '👑';
+    case '부회장': return '🥈';
+    case '총무': return '💰';
+    case '경기이사': return '🎾';
+    case '운영이사': return '📋';
+    case '고문': return '🎖️';
+    default: return '👤';
+  }
+};
 
 export default function AdminsPage() {
   const { user, isAdmin, isSuperAdmin, loading } = useAuth();
@@ -27,9 +50,12 @@ export default function AdminsPage() {
   const [savingKey, setSavingKey] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
 
-  // 운영진 목록 상태
+  // 운영진 목록 및 회원 매핑 상태
   const [admins, setAdmins] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [superAdminMapping, setSuperAdminMapping] = useState(null);
   const [email, setEmail] = useState('');
+  const [addMemberId, setAddMemberId] = useState('');
   const [busy, setBusy] = useState(false);
 
   // 접근 권한 체크: 최고 관리자 또는 등록된 운영진만 접근 가능
@@ -44,12 +70,16 @@ export default function AdminsPage() {
   const loadInitialData = async () => {
     try {
       setLoadingPerms(true);
-      const [permsData, adminsData] = await Promise.all([
+      const [permsData, adminsData, membersData, superAdminData] = await Promise.all([
         getClubPermissions(),
-        getAdmins()
+        getAdmins(),
+        getMembers('shared'),
+        getSuperAdminMapping()
       ]);
       setPermissions(permsData || DEFAULT_PERMISSIONS);
       setAdmins(adminsData || []);
+      setMembers(membersData || []);
+      setSuperAdminMapping(superAdminData || null);
     } catch (e) {
       console.error('Failed to load initial data:', e);
     } finally {
@@ -117,20 +147,121 @@ export default function AdminsPage() {
     }
   };
 
-  // 운영진 계정 추가 (최고 관리자 전용 권장)
+  // 운영진 계정 추가 및 회원 매핑
   const handleAddAdmin = async (e) => {
     e.preventDefault();
     if (!email.trim()) return;
     setBusy(true);
     try {
-      await addAdmin(email.trim());
+      const cleanEmail = email.trim().toLowerCase();
+      // 중복 체크
+      if (cleanEmail === 'leeky1537@gmail.com' || admins.some(a => a.email.toLowerCase() === cleanEmail)) {
+        alert('이미 등록된 운영진 이메일입니다.');
+        setBusy(false);
+        return;
+      }
+
+      const selectedMember = members.find(m => m.id === addMemberId);
+      const memberData = selectedMember ? {
+        memberId: selectedMember.id,
+        memberName: selectedMember.name,
+        memberRole: selectedMember.role
+      } : {};
+
+      await addAdmin(cleanEmail, memberData);
       setEmail('');
+      setAddMemberId('');
       const data = await getAdmins();
       setAdmins(data);
-      showToast('운영진 계정이 성공적으로 등록되었습니다.');
+      showToast(selectedMember 
+        ? `운영진 계정(${cleanEmail})이 추가되고 [${selectedMember.name}] 회원과 매핑되었습니다.` 
+        : `운영진 계정(${cleanEmail})이 등록되었습니다.`);
     } catch (e) {
       console.error(e);
       alert('운영진 추가 실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 일반 운영진 계정과 회원 매핑/수정
+  const handleMapAdmin = async (adminId, memberId) => {
+    setBusy(true);
+    try {
+      const selectedMember = members.find(m => m.id === memberId);
+      const updateData = {
+        memberId: memberId || null,
+        memberName: selectedMember ? selectedMember.name : null,
+        memberRole: selectedMember ? selectedMember.role : null,
+      };
+      await updateAdmin(adminId, updateData);
+      setAdmins(prev => prev.map(a => a.id === adminId ? { ...a, ...updateData } : a));
+      showToast(selectedMember 
+        ? `[${selectedMember.name} (${selectedMember.role || '회원'})] 회원과 매핑되었습니다.` 
+        : '회원 매핑이 해제되었습니다.');
+    } catch (e) {
+      console.error('Failed to map admin:', e);
+      alert('회원 매핑 저장 실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 최고 관리자(Super Admin)와 회원 매핑
+  const handleMapSuperAdmin = async (memberId) => {
+    setBusy(true);
+    try {
+      const selectedMember = members.find(m => m.id === memberId);
+      const updateData = {
+        memberId: memberId || null,
+        memberName: selectedMember ? selectedMember.name : null,
+        memberRole: selectedMember ? selectedMember.role : null,
+      };
+      await updateSuperAdminMapping(updateData);
+      setSuperAdminMapping(updateData);
+      showToast(selectedMember 
+        ? `최고 관리자가 [${selectedMember.name} (${selectedMember.role || '회원'})] 회원과 매핑되었습니다.` 
+        : '최고 관리자 회원 매핑이 해제되었습니다.');
+    } catch (e) {
+      console.error('Failed to map super admin:', e);
+      alert('최고 관리자 회원 매핑 저장 실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 임원진 보드에서 특정 계정과 직책 회원 빠른 연동/해제
+  const handleLinkExecutive = async (execMemberId, selectedAdminValue) => {
+    setBusy(true);
+    try {
+      const execMember = members.find(m => m.id === execMemberId);
+      if (!execMember) return;
+
+      // 1. 최고 관리자 선택
+      if (selectedAdminValue === 'SUPER_ADMIN') {
+        await handleMapSuperAdmin(execMemberId);
+        return;
+      }
+
+      // 2. 연결 해제
+      if (!selectedAdminValue) {
+        // Super Admin에서 해제
+        if (superAdminMapping?.memberId === execMemberId) {
+          await handleMapSuperAdmin('');
+        }
+        // 일반 admin에서 해제
+        const matchedAdmin = admins.find(a => a.memberId === execMemberId);
+        if (matchedAdmin) {
+          await handleMapAdmin(matchedAdmin.id, '');
+        }
+        return;
+      }
+
+      // 3. 특정 일반 admin 선택
+      await handleMapAdmin(selectedAdminValue, execMemberId);
+    } catch (e) {
+      console.error('Failed to link executive:', e);
+      alert('임원진 연동 저장 실패');
     } finally {
       setBusy(false);
     }
@@ -172,10 +303,22 @@ export default function AdminsPage() {
     ? PERMISSION_CATEGORIES 
     : PERMISSION_CATEGORIES.filter(c => c.id === categoryFilter);
 
+  // 임원진 및 회원 정렬 목록
+  const currentExecutives = members.filter(m => 
+    EXECUTIVE_ROLES.includes(m.role) || (typeof m.role === 'string' && m.role.includes('이사'))
+  ).sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role));
+
+  const sortedAllMembers = [...members].sort((a, b) => {
+    const pA = getRolePriority(a.role);
+    const pB = getRolePriority(b.role);
+    if (pA !== pB) return pA - pB;
+    return (a.name || '').localeCompare(b.name || '', 'ko');
+  });
+
   return (
     <div className={styles.page}>
       <Navbar />
-      <main className={styles.main} style={{ maxWidth: '840px', paddingBottom: '80px' }}>
+      <main className={styles.main} style={{ maxWidth: '860px', paddingBottom: '80px' }}>
         
         {/* 토스트 메시지 피드백 */}
         {toastMessage && (
@@ -207,10 +350,10 @@ export default function AdminsPage() {
           <div>
             <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>🛡️</span>
-              <span>운영진 권한 관리</span>
+              <span>운영진 권한 & 계정 관리</span>
             </h1>
             <p className={styles.sub}>
-              운영진과 일반 사용자의 기능별 권한 차이를 비교하고, 필요 시 각 기능을 일반 회원에게 실시간 오픈할 수 있습니다.
+              운영진과 일반 사용자의 기능별 권한 차이를 비교하고, 현재 클럽 임원진과 관리자 계정을 실시간 매핑합니다.
             </p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>
@@ -252,7 +395,7 @@ export default function AdminsPage() {
             }}
             onClick={() => setActiveTab('accounts')}
           >
-            👥 운영진 계정 관리 ({admins.length}명)
+            👥 운영진 계정 & 회원 매핑 ({admins.length + 1}명)
           </button>
         </div>
 
@@ -527,51 +670,274 @@ export default function AdminsPage() {
         )}
 
         {/* ══════════════════════════════════════════════════════════
-            탭 2: 운영진 계정 관리
+            탭 2: 운영진 계정 관리 & 회원 매핑
         ══════════════════════════════════════════════════════════ */}
         {activeTab === 'accounts' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
-            {/* 최고 관리자 안내 배너 */}
+            {/* ── 1. 현재 동호회 임원진(운영진) 계정 연동 현황 보드 ── */}
             <div className="card" style={{ 
-              padding: '18px 22px', 
-              background: 'linear-gradient(135deg, rgba(254,249,195,0.6) 0%, rgba(255,255,255,0.9) 100%)',
-              border: '1px solid #fef08a'
+              padding: '24px',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(240,249,255,0.85) 100%)',
+              border: '1.5px solid rgba(0, 122, 255, 0.25)',
+              boxShadow: '0 6px 24px rgba(0, 122, 255, 0.08)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '24px' }}>👑</span>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: '14.5px', color: '#854d0e' }}>
-                    최고 관리자 (Super Admin)
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '22px' }}>📋</span>
+                  <div>
+                    <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
+                      현재 동호회 임원진(운영진) 계정 연동 현황
+                    </h2>
+                    <p style={{ fontSize: '12.5px', color: 'var(--txt2)', margin: '3px 0 0 0' }}>
+                      회원 명부(직책)에 임명된 현직 임원진과 관리자 구글 로그인 계정의 실시간 매핑 상태입니다.
+                    </p>
                   </div>
-                  <div style={{ fontSize: '13px', color: '#a16207', marginTop: '2px' }}>
-                    <strong>leeky1537@gmail.com</strong> (시스템 영구 최고 권한 보유)
+                </div>
+                <span className="badge badge-blue" style={{ fontSize: '12px', padding: '4px 10px' }}>
+                  임원진 {currentExecutives.length}명
+                </span>
+              </div>
+
+              {currentExecutives.length === 0 ? (
+                <div style={{ 
+                  padding: '24px', 
+                  backgroundColor: 'rgba(0,0,0,0.02)', 
+                  borderRadius: '12px', 
+                  textAlign: 'center',
+                  border: '1px dashed var(--border)'
+                }}>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--txt2)' }}>
+                    ℹ️ 현재 회원 명부에 임원진 직책(회장, 부회장, 총무, 경기이사, 운영이사 등)이 부여된 회원이 없습니다.<br />
+                    <strong>[회원 관리]</strong> 메뉴에서 회원의 직책을 지정하시거나, 아래 운영진 목록에서 일반 회원을 직접 매핑하실 수 있습니다.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                  {currentExecutives.map(exec => {
+                    const isSuper = superAdminMapping?.memberId === exec.id;
+                    const matchedAdmin = admins.find(a => a.memberId === exec.id);
+                    const isLinked = isSuper || Boolean(matchedAdmin);
+                    const linkedEmail = isSuper ? 'leeky1537@gmail.com' : matchedAdmin?.email;
+                    const currentValue = isSuper ? 'SUPER_ADMIN' : (matchedAdmin?.id || '');
+
+                    return (
+                      <div 
+                        key={exec.id}
+                        style={{
+                          padding: '14px 16px',
+                          borderRadius: '12px',
+                          backgroundColor: isLinked ? '#ffffff' : '#fefce8',
+                          border: `1.5px solid ${isLinked ? '#bfdbfe' : '#fef08a'}`,
+                          boxShadow: isLinked ? '0 2px 8px rgba(37,99,235,0.06)' : 'none',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px'
+                        }}
+                      >
+                        {/* 임원 프로필 헤더 */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '18px' }}>{getRoleIcon(exec.role)}</span>
+                            <div>
+                              <span style={{ 
+                                display: 'inline-block',
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                color: '#1e40af',
+                                backgroundColor: '#dbeafe',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                marginRight: '6px'
+                              }}>
+                                {exec.role}
+                              </span>
+                              <strong style={{ fontSize: '14.5px', color: 'var(--txt)' }}>
+                                {exec.name}
+                              </strong>
+                            </div>
+                          </div>
+
+                          <span style={{ fontSize: '11.5px', color: 'var(--txt3)', fontWeight: 600 }}>
+                            {exec.gender === 'F' ? '여' : '남'} / NTRP {exec.ntrp || '-'}
+                          </span>
+                        </div>
+
+                        {/* 매핑된 계정 상태 배너 */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 10px',
+                          borderRadius: '8px',
+                          backgroundColor: isLinked ? '#f0fdf4' : '#fffbeb',
+                          border: `1px solid ${isLinked ? '#bbf7d0' : '#fde68a'}`,
+                          fontSize: '12px'
+                        }}>
+                          <span>{isLinked ? '🔗' : '⚠️'}</span>
+                          <span style={{ 
+                            fontWeight: 700, 
+                            color: isLinked ? '#15803d' : '#b45309',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            flex: 1
+                          }}>
+                            {isLinked ? `${linkedEmail} ${isSuper ? '(최고 관리자)' : ''}` : '관리자 계정 미연동'}
+                          </span>
+                        </div>
+
+                        {/* 계정 매핑 셀렉터 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--txt3)', flexShrink: 0 }}>
+                            계정 연결:
+                          </label>
+                          <select
+                            className="select"
+                            value={currentValue}
+                            onChange={(e) => handleLinkExecutive(exec.id, e.target.value)}
+                            disabled={busy}
+                            style={{ 
+                              flex: 1, 
+                              fontSize: '12px', 
+                              padding: '4px 8px',
+                              height: '30px',
+                              borderRadius: '6px',
+                              borderColor: isLinked ? '#cbd5e1' : '#f59e0b'
+                            }}
+                          >
+                            <option value="">-- 미연동 (해제) --</option>
+                            <option value="SUPER_ADMIN">👑 leeky1537@gmail.com (최고 관리자)</option>
+                            {admins.map(a => (
+                              <option key={a.id} value={a.id}>
+                                🛡️ {a.email} {a.memberId === exec.id ? '(현재 연결됨)' : (a.memberName ? `(${a.memberName})` : '')}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ── 2. 최고 관리자 (Super Admin) 및 회원 매핑 카드 ── */}
+            <div className="card" style={{ 
+              padding: '20px 24px', 
+              background: 'linear-gradient(135deg, rgba(254,249,195,0.7) 0%, rgba(255,255,255,0.95) 100%)',
+              border: '1.5px solid #fef08a',
+              boxShadow: '0 4px 16px rgba(234, 179, 8, 0.1)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '28px' }}>👑</span>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '15px', color: '#854d0e' }}>
+                        최고 관리자 (Super Admin)
+                      </span>
+                      <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontSize: '11px', padding: '2px 8px' }}>
+                        시스템 영구 최고 권한
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '13.5px', color: '#a16207', marginTop: '2px', fontWeight: 600 }}>
+                      leeky1537@gmail.com
+                    </div>
                   </div>
+                </div>
+
+                {/* 최고 관리자 회원 매핑 선택기 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '240px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#854d0e', flexShrink: 0 }}>
+                    👤 매핑 회원:
+                  </span>
+                  <select
+                    className="select"
+                    value={superAdminMapping?.memberId || ''}
+                    onChange={(e) => handleMapSuperAdmin(e.target.value)}
+                    disabled={busy}
+                    style={{
+                      flex: 1,
+                      fontSize: '12.5px',
+                      padding: '5px 10px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #fde68a',
+                      backgroundColor: '#ffffff',
+                      fontWeight: superAdminMapping?.memberId ? 700 : 500
+                    }}
+                  >
+                    <option value="">-- 미매핑 (최고 관리자 본인 회원 선택) --</option>
+                    {currentExecutives.length > 0 && (
+                      <optgroup label="👑 현재 클럽 임원진 (운영진)">
+                        {currentExecutives.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.role || '임원'}) - NTRP {m.ntrp || '-'}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="👥 전체 클럽 회원">
+                      {sortedAllMembers.filter(m => !EXECUTIVE_ROLES.includes(m.role)).map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.role || '정회원'}) - NTRP {m.ntrp || '-'}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
                 </div>
               </div>
             </div>
 
-            {/* 새 운영진 추가 (최고 관리자 전용 권한 부여) */}
+            {/* ── 3. 새 운영진 추가 및 회원 매핑 (최고 관리자 전용) ── */}
             {isSuperAdmin ? (
               <div className="card" style={{ padding: '24px' }}>
-                <h2 style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 12px 0', color: 'var(--txt)' }}>
-                  ➕ 새 운영진 권한 추가
+                <h2 style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 6px 0', color: 'var(--txt)' }}>
+                  ➕ 새 운영진 권한 추가 및 회원 매핑
                 </h2>
-                <p style={{ fontSize: '13px', color: 'var(--txt2)', margin: '0 0 16px 0' }}>
-                  추가된 이메일 계정은 로그인 시 모든 클럽 관리 기능 및 운영자 모드를 이용할 수 있습니다.
+                <p style={{ fontSize: '12.5px', color: 'var(--txt2)', margin: '0 0 16px 0' }}>
+                  새로운 운영진의 구글 이메일을 등록하고, 동호회 회원 명부의 해당 회원과 바로 연결할 수 있습니다.
                 </p>
-                <form onSubmit={handleAddAdmin} style={{ display: 'flex', gap: '8px' }}>
+                <form onSubmit={handleAddAdmin} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <input 
                     type="email" 
                     className="input" 
-                    placeholder="추가할 운영진 구글 이메일 주소 입력" 
+                    placeholder="운영진 구글 이메일 주소 입력 (예: name@gmail.com)" 
                     value={email} 
                     onChange={e => setEmail(e.target.value)} 
                     required
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, minWidth: '220px' }}
                   />
-                  <button type="submit" className="btn btn-primary" disabled={busy}>
-                    추가하기
+
+                  {/* 매핑할 회원 선택 */}
+                  <select
+                    className="select"
+                    value={addMemberId}
+                    onChange={e => setAddMemberId(e.target.value)}
+                    style={{ flex: 1, minWidth: '180px' }}
+                  >
+                    <option value="">-- 매핑할 회원 선택 (선택 사항) --</option>
+                    {currentExecutives.length > 0 && (
+                      <optgroup label="👑 현재 클럽 임원진">
+                        {currentExecutives.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.role || '임원'}) - NTRP {m.ntrp || '-'}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="👥 전체 클럽 회원">
+                      {sortedAllMembers.filter(m => !EXECUTIVE_ROLES.includes(m.role)).map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.role || '정회원'}) - NTRP {m.ntrp || '-'}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+
+                  <button type="submit" className="btn btn-primary" disabled={busy} style={{ flexShrink: 0 }}>
+                    추가 및 매핑하기
                   </button>
                 </form>
               </div>
@@ -583,15 +949,15 @@ export default function AdminsPage() {
               </div>
             )}
 
-            {/* 등록된 운영진 계정 목록 */}
+            {/* ── 4. 등록된 운영진 계정 목록 및 개별 회원 매핑 관리 ── */}
             <div className="card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
                 <div>
                   <h2 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
-                    👥 등록된 클럽 운영진 목록
+                    👥 등록된 클럽 운영진 목록 및 회원 매핑
                   </h2>
                   <p style={{ fontSize: '12.5px', color: 'var(--txt3)', margin: '4px 0 0 0' }}>
-                    클럽 설정 및 대진표, 회비, 모임을 함께 관리하는 운영자 계정입니다.
+                    각 운영자 구글 계정이 동호회의 어떤 회원과 연결되어 있는지 확인하고 변경할 수 있습니다.
                   </p>
                 </div>
                 <span className="badge badge-blue" style={{ fontSize: '12px', padding: '4px 10px' }}>
@@ -604,40 +970,108 @@ export default function AdminsPage() {
                   추가 등록된 운영진 계정이 없습니다.
                 </p>
               ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {admins.map(admin => (
-                    <li key={admin.id} style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center', 
-                      padding: '14px 18px', 
-                      borderRadius: '12px',
-                      backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                      border: '1px solid var(--border)' 
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '18px' }}>🛡️</span>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--txt)' }}>
-                            {admin.email}
-                          </div>
-                          <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>
-                            클럽 관리자 권한
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {admins.map(admin => {
+                    const liveMember = members.find(m => m.id === admin.memberId);
+                    const isMapped = Boolean(admin.memberId && liveMember);
+
+                    return (
+                      <li key={admin.id} style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        padding: '16px 18px', 
+                        borderRadius: '12px',
+                        backgroundColor: isMapped ? '#ffffff' : '#f8fafc',
+                        border: `1.5px solid ${isMapped ? '#cbd5e1' : '#e2e8f0'}`,
+                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.02)',
+                        gap: '14px',
+                        flexWrap: 'wrap'
+                      }}>
+                        {/* 관리자 구글 계정 정보 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '220px' }}>
+                          <span style={{ fontSize: '20px' }}>🛡️</span>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--txt)' }}>
+                              {admin.email}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '2px' }}>
+                              클럽 관리자 권한
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      {isSuperAdmin && (
-                        <button 
-                          className="btn btn-danger btn-sm" 
-                          onClick={() => handleDeleteAdmin(admin.id, admin.email)} 
-                          disabled={busy}
-                          style={{ fontSize: '12px', padding: '4px 10px' }}
-                        >
-                          권한 삭제
-                        </button>
-                      )}
-                    </li>
-                  ))}
+
+                        {/* 매핑 회원 선택 및 배지 영역 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '240px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--txt2)', whiteSpace: 'nowrap' }}>
+                              매핑 회원:
+                            </span>
+                            <select
+                              className="select"
+                              value={admin.memberId || ''}
+                              onChange={(e) => handleMapAdmin(admin.id, e.target.value)}
+                              disabled={busy}
+                              style={{
+                                fontSize: '12px',
+                                padding: '5px 10px',
+                                borderRadius: '8px',
+                                minWidth: '180px',
+                                border: `1.5px solid ${isMapped ? '#93c5fd' : '#e2e8f0'}`,
+                                backgroundColor: isMapped ? '#eff6ff' : '#ffffff',
+                                color: isMapped ? '#1e40af' : '#64748b',
+                                fontWeight: isMapped ? 700 : 500
+                              }}
+                            >
+                              <option value="">⚠️ 미매핑 회원 (선택하여 연결)</option>
+                              {currentExecutives.length > 0 && (
+                                <optgroup label="👑 현재 클럽 임원진 (운영진)">
+                                  {currentExecutives.map(m => (
+                                    <option key={m.id} value={m.id}>
+                                      {m.name} ({m.role || '임원'}) - NTRP {m.ntrp || '-'}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              <optgroup label="👥 전체 클럽 회원 명단">
+                                {sortedAllMembers.filter(m => !EXECUTIVE_ROLES.includes(m.role)).map(m => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.name} ({m.role || '정회원'}) - NTRP {m.ntrp || '-'}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            </select>
+                          </div>
+
+                          {/* 매핑 완료 시 회원 칩 */}
+                          {isMapped && (
+                            <span className="badge" style={{ 
+                              backgroundColor: '#f0fdf4', 
+                              color: '#15803d', 
+                              border: '1px solid #bbf7d0',
+                              fontSize: '11.5px',
+                              padding: '4px 8px',
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap'
+                            }}>
+                              👤 {liveMember.name} ({liveMember.role || '회원'})
+                            </span>
+                          )}
+
+                          {isSuperAdmin && (
+                            <button 
+                              className="btn btn-danger btn-sm" 
+                              onClick={() => handleDeleteAdmin(admin.id, admin.email)} 
+                              disabled={busy}
+                              style={{ fontSize: '12px', padding: '4px 10px', flexShrink: 0 }}
+                            >
+                              권한 삭제
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
