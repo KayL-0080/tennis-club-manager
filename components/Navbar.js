@@ -9,7 +9,7 @@ import { HomeIcon, StatsIcon, VoteIcon, TrophyIcon, MembersIcon, ManualIcon, Ins
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
-  const { user, isAdmin, isSuperAdmin, adminMember, logout } = useAuth();
+  const { user, isAdmin, isSuperAdmin, adminMember, clubProfile, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [showManual, setShowManual] = useState(false);
@@ -73,7 +73,7 @@ export default function Navbar() {
         if (choice.outcome === 'accepted') {
           setDeferredPrompt(null);
           setIsInstalled(true);
-          alert('🎉 홈 화면에 테친회 앱이 성공적으로 추가되었습니다!');
+          alert(`🎉 홈 화면에 ${clubProfile?.name || '테친회'} 앱이 성공적으로 추가되었습니다!`);
           return;
         }
       } catch (err) {
@@ -107,8 +107,8 @@ export default function Navbar() {
             <button className={styles.logo} onClick={() => router.push('/dashboard')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <img 
-                  src="/apple-touch-icon.png" 
-                  alt="테친회" 
+                  src={clubProfile?.logoUrl || '/apple-touch-icon.png'} 
+                  alt={clubProfile?.name || '테친회'} 
                   style={{ 
                     width: '32px', 
                     height: '32px', 
@@ -121,7 +121,7 @@ export default function Navbar() {
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                   <span className={styles.logoText}>Tennis Match</span>
-                  <span className={styles.logoSub}>테친회</span>
+                  <span className={styles.logoSub}>{clubProfile?.name || '테친회'}</span>
                 </div>
               </div>
             </button>
@@ -370,7 +370,7 @@ export default function Navbar() {
         onInstallSuccess={() => {
           setIsInstalled(true);
           setDeferredPrompt(null);
-          alert('🎉 홈 화면에 테친회 앱이 성공적으로 추가되었습니다!');
+          alert(`🎉 홈 화면에 ${clubProfile?.name || '테친회'} 앱이 성공적으로 추가되었습니다!`);
         }}
       />
     </>

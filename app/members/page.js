@@ -15,7 +15,7 @@ import ClubBylawsModal from '@/components/ClubBylawsModal';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function MembersPage() {
-  const { isAdmin, can } = useAuth();
+  const { isAdmin, can, clubProfile } = useAuth();
   const canEditMember = can ? can('editMember') : false;
   const canManageFee = can ? can('manageFee') : false;
   const canCourtFinance = can ? can('courtFinance') : false;
@@ -384,7 +384,7 @@ export default function MembersPage() {
                 isAdmin={isAdmin}
                 canEditMember={canEditMember}
                 canManageFee={canManageFee}
-                currentClub={currentClub}
+                currentClub={{ ...currentClub, name: clubProfile?.name || currentClub?.name || '클럽' }}
                 onBulkUpdateFeeStatus={handleBulkFeeUpdate}
               />
             </>

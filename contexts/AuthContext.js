@@ -10,7 +10,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
-import { getAdmins, subscribeClubPermissions, getSuperAdminMapping } from '@/lib/firestore';
+import { getAdmins, subscribeClubPermissions, getSuperAdminMapping, subscribeClubProfile, DEFAULT_CLUB_PROFILE } from '@/lib/firestore';
 import { DEFAULT_PERMISSIONS } from '@/lib/permissions';
 
 const AuthContext = createContext(null);
@@ -22,12 +22,34 @@ export function AuthProvider({ children }) {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [adminMember, setAdminMember] = useState(null);
   const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS);
+  const [clubProfile, setClubProfile] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('tcm_cached_club_profile');
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return DEFAULT_CLUB_PROFILE;
+  });
 
   useEffect(() => {
     const unsubPerms = subscribeClubPermissions((p) => {
       if (p) setPermissions(p);
     });
-    return () => unsubPerms();
+    const unsubProfile = subscribeClubProfile((cp) => {
+      if (cp) {
+        setClubProfile(cp);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('tcm_cached_club_profile', JSON.stringify(cp));
+          } catch (e) {}
+        }
+      }
+    });
+    return () => {
+      unsubPerms();
+      unsubProfile();
+    };
   }, []);
 
   useEffect(() => {
@@ -92,6 +114,7 @@ export function AuthProvider({ children }) {
       isAdmin,
       isSuperAdmin,
       adminMember,
+      clubProfile,
       permissions,
       can,
       loading,

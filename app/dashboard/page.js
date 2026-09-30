@@ -17,7 +17,7 @@ const formatDateToYMD = (d = new Date()) => {
 };
 
 export default function Dashboard() {
-  const { user, isAdmin, can, loading } = useAuth();
+  const { user, isAdmin, can, clubProfile, loading } = useAuth();
   const canCreateSchedule = can ? can('createSchedule') : false;
   const router = useRouter();
   
@@ -298,16 +298,16 @@ export default function Dashboard() {
             <div className={styles.heroContent}>
               <div className={styles.heroTag} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 <img 
-                  src="/apple-touch-icon.png" 
-                  alt="테친회" 
+                  src={clubProfile?.logoUrl || '/apple-touch-icon.png'} 
+                  alt={clubProfile?.name || '테친회'} 
                   style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} 
                 />
-                <span>TENNIS CRAZY CLUB</span>
+                <span>{clubProfile?.englishName || 'TENNIS CRAZY CLUB'}</span>
               </div>
               <h1 className={styles.heroTitle}>
-                테니스 매치 <span className={styles.heroTitleBlue}>&amp; 대진표 매니저</span>
+                {clubProfile?.name || '테니스 매치'} <span className={styles.heroTitleBlue}>&amp; 대진표 매니저</span>
               </h1>
-              <p className={styles.heroSub}>NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리</p>
+              <p className={styles.heroSub}>{clubProfile?.description || 'NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리'}</p>
               
               {/* 모바일 및 반응형 3개 Stat Cards (media_1789963425923.png 기준 일치) */}
               <div className={styles.heroStatCards}>

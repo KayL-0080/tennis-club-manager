@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import styles from './page.module.css';
 
 export default function AuthPage() {
-  const { user, loading, login, signup, loginWithGoogle } = useAuth();
+  const { user, loading, login, signup, loginWithGoogle, clubProfile } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
@@ -84,8 +84,8 @@ export default function AuthPage() {
         {/* 로고 */}
         <div style={{ textAlign: 'center', marginBottom: '24px', cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
           <img 
-            src="/apple-touch-icon.png" 
-            alt="테친회 로고" 
+            src={clubProfile?.logoUrl || '/apple-touch-icon.png'} 
+            alt={`${clubProfile?.name || '테친회'} 로고`} 
             style={{ 
               width: '72px', 
               height: '72px', 
@@ -97,7 +97,9 @@ export default function AuthPage() {
             }} 
           />
           <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 900, color: 'var(--txt)', letterSpacing: '-0.02em' }}>Tennis Match</h1>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: 'var(--txt2)', fontWeight: 600 }}>TENNIS CRAZY CLUB — 테친회</p>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: 'var(--txt2)', fontWeight: 600 }}>
+            {clubProfile?.englishName || 'TENNIS CRAZY CLUB'} — {clubProfile?.name || '테친회'}
+          </p>
         </div>
 
         {/* 탭 & 로그인 카드 */}

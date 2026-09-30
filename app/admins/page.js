@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -11,7 +11,10 @@ import {
   updateClubPermissions,
   getMembers,
   getSuperAdminMapping,
-  updateSuperAdminMapping
+  updateSuperAdminMapping,
+  getClubProfile,
+  updateClubProfile,
+  DEFAULT_CLUB_PROFILE
 } from '@/lib/firestore';
 import { PERMISSION_CATEGORIES, DEFAULT_PERMISSIONS } from '@/lib/permissions';
 import Navbar from '@/components/Navbar';
@@ -40,9 +43,18 @@ export default function AdminsPage() {
   const { user, isAdmin, isSuperAdmin, loading } = useAuth();
   const router = useRouter();
 
-  // 탭 상태: 'permissions' (권한 비교 및 오픈 설정) | 'accounts' (운영진 계정 목록)
-  const [activeTab, setActiveTab] = useState('permissions');
+  // 탭 상태: 'profile' (클럽 정보 및 대표이미지) | 'permissions' (권한 비교 및 오픈 설정) | 'accounts' (운영진 계정 목록)
+  const [activeTab, setActiveTab] = useState('profile');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
+
+  // 클럽 기본 프로필 및 대표 이미지 상태
+  const [clubProfile, setClubProfile] = useState(DEFAULT_CLUB_PROFILE);
+  const [formName, setFormName] = useState('테친회');
+  const [formEnglishName, setFormEnglishName] = useState('TENNIS CRAZY CLUB');
+  const [formDescription, setFormDescription] = useState('NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리');
+  const [formLogoUrl, setFormLogoUrl] = useState('/apple-touch-icon.png');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const fileInputRef = useRef(null);
 
   // 권한 설정 상태
   const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS);
@@ -67,19 +79,55 @@ export default function AdminsPage() {
     }
   }, [loading, isAdmin, isSuperAdmin, router]);
 
+  const PRESET_EMBLEMS = [
+    { id: 'default', name: '기본 캐릭터', icon: '🎾', url: '/apple-touch-icon.png' },
+    { 
+      id: 'trophy', 
+      name: '골드 트로피', 
+      icon: '🏆', 
+      url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%231e3a8a"/><stop offset="100%" stop-color="%230f172a"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23g1)"/><circle cx="50" cy="50" r="46" fill="none" stroke="%23fbbf24" stroke-width="2"/><text x="50" y="62" font-size="44" text-anchor="middle">🏆</text></svg>' 
+    },
+    { 
+      id: 'tennis', 
+      name: '에메랄드 코트', 
+      icon: '🎾', 
+      url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23047857"/><stop offset="100%" stop-color="%23064e3b"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23g2)"/><circle cx="50" cy="50" r="46" fill="none" stroke="%23a7f3d0" stroke-width="2"/><text x="50" y="62" font-size="44" text-anchor="middle">🎾</text></svg>' 
+    },
+    { 
+      id: 'crown', 
+      name: '로열 크라운', 
+      icon: '👑', 
+      url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%237c3aed"/><stop offset="100%" stop-color="%234c1d95"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23g3)"/><circle cx="50" cy="50" r="46" fill="none" stroke="%23fbcfe8" stroke-width="2"/><text x="50" y="62" font-size="44" text-anchor="middle">👑</text></svg>' 
+    },
+    { 
+      id: 'lion', 
+      name: '레드 라이온', 
+      icon: '🦁', 
+      url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23b91c1c"/><stop offset="100%" stop-color="%237f1d1d"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23g4)"/><circle cx="50" cy="50" r="46" fill="none" stroke="%23fed7aa" stroke-width="2"/><text x="50" y="62" font-size="44" text-anchor="middle">🦁</text></svg>' 
+    },
+  ];
+
   const loadInitialData = async () => {
     try {
       setLoadingPerms(true);
-      const [permsData, adminsData, membersData, superAdminData] = await Promise.all([
+      const [permsData, adminsData, membersData, superAdminData, profileData] = await Promise.all([
         getClubPermissions(),
         getAdmins(),
         getMembers('shared'),
-        getSuperAdminMapping()
+        getSuperAdminMapping(),
+        getClubProfile()
       ]);
       setPermissions(permsData || DEFAULT_PERMISSIONS);
       setAdmins(adminsData || []);
       setMembers(membersData || []);
       setSuperAdminMapping(superAdminData || null);
+      if (profileData) {
+        setClubProfile(profileData);
+        setFormName(profileData.name || '테친회');
+        setFormEnglishName(profileData.englishName || 'TENNIS CRAZY CLUB');
+        setFormDescription(profileData.description || 'NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리');
+        setFormLogoUrl(profileData.logoUrl || '/apple-touch-icon.png');
+      }
     } catch (e) {
       console.error('Failed to load initial data:', e);
     } finally {
@@ -92,6 +140,67 @@ export default function AdminsPage() {
     setTimeout(() => {
       setToastMessage('');
     }, 2800);
+  };
+
+  // 클럽 대표 이미지 파일 업로드 핸들러 (자동 320x320 정사각형 크롭 및 Canvas 압축)
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일(PNG, JPG, WebP 등)만 선택해주세요.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 320;
+        const canvas = document.createElement('canvas');
+        const minSide = Math.min(img.width, img.height);
+        const sx = (img.width - minSide) / 2;
+        const sy = (img.height - minSide) / 2;
+        canvas.width = maxDim;
+        canvas.height = maxDim;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, maxDim, maxDim);
+
+        const dataUrl = canvas.toDataURL('image/png', 0.9);
+        setFormLogoUrl(dataUrl);
+        showToast('이미지가 선택되었습니다. 하단 [저장하기]를 누르면 적용됩니다.');
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 클럽 정보 및 대표이미지 저장 핸들러
+  const handleSaveProfile = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!formName.trim()) {
+      alert('클럽 공식 명칭을 입력해주세요.');
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      const payload = {
+        name: formName.trim(),
+        englishName: (formEnglishName || '').trim(),
+        description: (formDescription || '').trim(),
+        logoUrl: formLogoUrl || '/apple-touch-icon.png'
+      };
+      await updateClubProfile(payload);
+      setClubProfile(payload);
+      showToast('🎉 클럽 정보 및 대표이미지가 성공적으로 저장되었습니다!');
+    } catch (err) {
+      console.error('Failed to update club profile:', err);
+      alert('클럽 정보 저장에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   // 단일 권한 토글 핸들러
@@ -350,10 +459,10 @@ export default function AdminsPage() {
           <div>
             <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>🛡️</span>
-              <span>운영진 권한 & 계정 관리</span>
+              <span>운영진 관리 & 클럽 설정</span>
             </h1>
             <p className={styles.sub}>
-              운영진과 일반 사용자의 기능별 권한 차이를 비교하고, 현재 클럽 임원진과 관리자 계정을 실시간 매핑합니다.
+              클럽명과 대표 이미지 설정, 운영진과 일반 사용자 기능별 권한 비교/오픈 제어, 운영진 계정-회원 연동을 관리합니다.
             </p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>
@@ -361,7 +470,7 @@ export default function AdminsPage() {
           </button>
         </div>
 
-        {/* 메인 탭 전환: 기능별 권한 비교 및 오픈 vs 운영진 계정 관리 */}
+        {/* 메인 탭 전환: 클럽 정보 & 대표이미지 vs 기능별 권한 비교 vs 운영진 계정 관리 */}
         <div style={{
           display: 'flex',
           gap: '8px',
@@ -369,8 +478,25 @@ export default function AdminsPage() {
           padding: '4px',
           borderRadius: 'var(--radius-full)',
           marginBottom: '20px',
-          width: 'fit-content'
+          width: 'fit-content',
+          maxWidth: '100%',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch'
         }}>
+          <button
+            type="button"
+            className={`btn btn-sm ${activeTab === 'profile' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              borderRadius: 'var(--radius-full)',
+              padding: '8px 18px',
+              fontWeight: activeTab === 'profile' ? 700 : 500,
+              fontSize: '13px',
+              whiteSpace: 'nowrap'
+            }}
+            onClick={() => setActiveTab('profile')}
+          >
+            🏷️ 클럽 정보 & 대표이미지
+          </button>
           <button
             type="button"
             className={`btn btn-sm ${activeTab === 'permissions' ? 'btn-primary' : 'btn-secondary'}`}
@@ -378,7 +504,8 @@ export default function AdminsPage() {
               borderRadius: 'var(--radius-full)',
               padding: '8px 18px',
               fontWeight: activeTab === 'permissions' ? 700 : 500,
-              fontSize: '13px'
+              fontSize: '13px',
+              whiteSpace: 'nowrap'
             }}
             onClick={() => setActiveTab('permissions')}
           >
@@ -391,7 +518,8 @@ export default function AdminsPage() {
               borderRadius: 'var(--radius-full)',
               padding: '8px 18px',
               fontWeight: activeTab === 'accounts' ? 700 : 500,
-              fontSize: '13px'
+              fontSize: '13px',
+              whiteSpace: 'nowrap'
             }}
             onClick={() => setActiveTab('accounts')}
           >
@@ -400,7 +528,352 @@ export default function AdminsPage() {
         </div>
 
         {/* ══════════════════════════════════════════════════════════
-            탭 1: 기능별 권한 비교 및 오픈 설정
+            탭 1: 클럽 기본 정보 및 대표이미지 설정
+        ══════════════════════════════════════════════════════════ */}
+        {activeTab === 'profile' && (
+          <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            
+            {/* 안내 브리핑 카드 */}
+            <div className="card" style={{
+              padding: '20px',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(240,249,255,0.92) 100%)',
+              border: '1px solid rgba(0, 122, 255, 0.2)',
+              boxShadow: '0 4px 20px rgba(0, 122, 255, 0.06)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '24px' }}>🏷️</span>
+                <div>
+                  <h3 style={{ fontSize: '15.5px', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
+                    클럽 브랜드 및 대표 이미지 설정
+                  </h3>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: 'var(--txt2)', lineHeight: 1.5 }}>
+                    동호회 이름과 대표 엠블럼(로고)을 변경하면 상단 네비게이션, 대시보드 배너, 로그인 화면, 모바일 웹 앱 아이콘에 실시간으로 즉시 반영됩니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 대표이미지 설정 및 실시간 프리뷰 카드 */}
+            <div className="card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🎨</span>
+                  <span>클럽 대표이미지 (엠블럼 / 로고)</span>
+                </h3>
+                <span style={{ fontSize: '12px', color: 'var(--txt3)' }}>
+                  권장: 정사각형 이미지 (PNG, JPG, WebP)
+                </span>
+              </div>
+
+              {/* 실시간 UI 미리보기 영역 */}
+              <div style={{
+                backgroundColor: '#f8fafc',
+                borderRadius: '16px',
+                padding: '20px',
+                border: '1px solid #e2e8f0',
+                marginBottom: '20px'
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  👀 실제 서비스 적용 미리보기 (Live Preview)
+                </div>
+                
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '14px'
+                }}>
+                  {/* 미리보기 1: 네비게이션 헤더 */}
+                  <div style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                  }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, marginBottom: '8px' }}>
+                      ① 상단 네비게이션 로고
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <img 
+                        src={formLogoUrl || '/apple-touch-icon.png'} 
+                        alt="미리보기"
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                          border: '1.5px solid #fff',
+                          backgroundColor: '#f1f5f9'
+                        }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>Tennis Match</span>
+                        <span style={{ fontSize: '11.5px', color: '#007aff', fontWeight: 700 }}>{formName || '테친회'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 미리보기 2: 대시보드 히어로 배너 태그 */}
+                  <div style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                  }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, marginBottom: '8px' }}>
+                      ② 메인 히어로 배너 태그
+                    </div>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      backgroundColor: 'rgba(37,99,235,0.08)',
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      border: '1px solid rgba(37,99,235,0.18)'
+                    }}>
+                      <img 
+                        src={formLogoUrl || '/apple-touch-icon.png'} 
+                        alt="미리보기"
+                        style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                      <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#1d4ed8' }}>
+                        {formEnglishName || 'TENNIS CRAZY CLUB'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 미리보기 3: 모바일 홈 화면 앱 아이콘 */}
+                  <div style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <img 
+                      src={formLogoUrl || '/apple-touch-icon.png'} 
+                      alt="앱 아이콘 미리보기"
+                      style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '14px',
+                        objectFit: 'cover',
+                        boxShadow: '0 4px 14px rgba(0,0,0,0.16)',
+                        border: '1px solid rgba(0,0,0,0.06)'
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>③ 모바일 앱 아이콘</div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{formName || '테친회'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 이미지 변경 방법 선택 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* 1. 기기에서 직접 파일 업로드 */}
+                <div style={{
+                  border: '1.5px dashed #cbd5e1',
+                  borderRadius: '14px',
+                  padding: '18px 16px',
+                  textAlign: 'center',
+                  backgroundColor: '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    accept="image/*" 
+                    style={{ display: 'none' }}
+                    onChange={handleImageFileChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 22px',
+                      borderRadius: '10px',
+                      fontSize: '13.5px',
+                      fontWeight: 800,
+                      backgroundColor: '#eff6ff',
+                      color: '#1d4ed8',
+                      border: '1px solid #93c5fd',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(29, 78, 216, 0.1)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span>📁 내 기기에서 이미지 파일 선택 (사진 올리기)</span>
+                  </button>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>
+                    스마트폰 사진첩 또는 컴퓨터에서 원하는 사진을 선택하면 정사각형(320×320)으로 자동 크롭 &amp; 최적화 압축됩니다.
+                  </span>
+                </div>
+
+                {/* 2. 추천 엠블럼 프리셋 */}
+                <div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--txt2)', marginBottom: '8px' }}>
+                    ✨ 또는 추천 엠블럼 프리셋에서 바로 선택:
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {PRESET_EMBLEMS.map(preset => {
+                      const isSelected = formLogoUrl === preset.url;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            setFormLogoUrl(preset.url);
+                            showToast(`[${preset.name}] 엠블럼이 선택되었습니다.`);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            borderRadius: '10px',
+                            fontSize: '12.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            backgroundColor: isSelected ? '#eff6ff' : '#ffffff',
+                            color: isSelected ? '#1d4ed8' : '#475569',
+                            border: isSelected ? '2px solid #3b82f6' : '1px solid #cbd5e1',
+                            boxShadow: isSelected ? '0 0 0 2px rgba(59,130,246,0.2)' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <img 
+                            src={preset.url} 
+                            alt={preset.name} 
+                            style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                          <span>{preset.name}</span>
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormLogoUrl('/apple-touch-icon.png');
+                        showToast('기본 캐릭터 로고로 선택되었습니다.');
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        backgroundColor: '#f1f5f9',
+                        color: '#64748b',
+                        border: '1px solid #e2e8f0',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🔄 기본으로 초기화
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* 클럽 기본 정보 입력 카드 */}
+            <div className="card" style={{ padding: '24px' }}>
+              <h3 style={{ margin: '0 0 18px 0', fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📝</span>
+                <span>클럽 기본 명칭 &amp; 슬로건</span>
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>
+                    클럽 공식 명칭 (한글) *
+                  </label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="예: 테친회"
+                    required
+                    style={{ fontWeight: 700, fontSize: '14.5px' }}
+                  />
+                  <span style={{ fontSize: '12px', color: 'var(--txt3)', marginTop: '4px', display: 'block' }}>
+                    상단 로고 타이틀, 브라우저 탭, 회비 안내문, 포스터 등에 표시되는 클럽의 대표 이름입니다.
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>
+                    클럽 영문 / 서브 명칭
+                  </label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    value={formEnglishName}
+                    onChange={(e) => setFormEnglishName(e.target.value)}
+                    placeholder="예: TENNIS CRAZY CLUB"
+                    style={{ fontSize: '13.5px' }}
+                  />
+                  <span style={{ fontSize: '12px', color: 'var(--txt3)', marginTop: '4px', display: 'block' }}>
+                    메인 히어로 배너 태그 및 로그인 화면 등에 표시되는 영문/서브 타이틀입니다.
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>
+                    클럽 소개 슬로건
+                  </label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    placeholder="예: NTRP 밸런스를 고려한 스마트 대진표 자동 생성 및 정기 대회 관리"
+                    style={{ fontSize: '13.5px' }}
+                  />
+                  <span style={{ fontSize: '12px', color: 'var(--txt3)', marginTop: '4px', display: 'block' }}>
+                    메인 대시보드 화면 상단에 노출되는 한 줄 소개 문구입니다.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 저장 버튼 */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="submit"
+                disabled={savingProfile}
+                className="btn btn-primary"
+                style={{
+                  padding: '12px 28px',
+                  borderRadius: '12px',
+                  fontSize: '14.5px',
+                  fontWeight: 800,
+                  boxShadow: '0 4px 14px rgba(0, 122, 255, 0.3)'
+                }}
+              >
+                {savingProfile ? '저장 중...' : '💾 클럽명 & 대표이미지 저장하기'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════
+            탭 2: 기능별 권한 비교 및 오픈 설정
         ══════════════════════════════════════════════════════════ */}
         {activeTab === 'permissions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
