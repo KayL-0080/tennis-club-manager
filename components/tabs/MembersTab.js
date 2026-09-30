@@ -39,13 +39,19 @@ export default function MembersTab({
   onSave, 
   onAdd, 
   onDelete, 
-  isAdmin, 
+  isAdmin = false, 
+  canEditMember = false,
   canManageFee = false,
   currentClub, 
   onBulkUpdateFeeStatus 
 }) {
+  const hasEditPerm = isAdmin || Boolean(canEditMember);
   const hasFeePerm = isAdmin || Boolean(canManageFee);
-  // ── 정렬 로직 (직책 > 성별 남성 우선 > NTRP 높은 순) ──
+  const showNtrp = Boolean(isAdmin);
+  const showFee = Boolean(hasFeePerm);
+  const totalColumns = 6 + (showNtrp ? 1 : 0) + (showFee ? 1 : 0) + (hasEditPerm ? 1 : 0);
+
+  // ── 정렬 로직 (직책 > 성별 남성 우선 > 운영자: NTRP 높은 순 / 일반: 이름 가나다 순) ──
   const sortedMembers = [...members].sort((a, b) => {
     const rolePriority = { '회장': 1, '부회장': 2, '총무': 3, '경기이사': 4, '운영이사': 5, '고문': 6, '정회원': 10, '준회원': 998, '게스트': 999 };
     const pA = rolePriority[a.role] || 99;
@@ -53,6 +59,9 @@ export default function MembersTab({
     if (pA !== pB) return pA - pB;
 
     if (a.gender !== b.gender) return a.gender === 'M' ? -1 : 1;
+    if (!showNtrp) {
+      return (a.name || '').localeCompare(b.name || '', 'ko');
+    }
     return (b.ntrp || 0) - (a.ntrp || 0);
   });
 
@@ -192,7 +201,7 @@ export default function MembersTab({
 
           {/* 우측 상단 액션 버튼 */}
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {isAdmin && (
+            {hasEditPerm && (
               <>
                 <button
                   type="button"
@@ -445,7 +454,7 @@ export default function MembersTab({
           background: '#ffffff',
           boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)'
         }}>
-          <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', textAlign: 'center', margin: 0 }}>
+          <table style={{ width: '100%', minWidth: (showNtrp || showFee || hasEditPerm) ? '700px' : '480px', borderCollapse: 'collapse', textAlign: 'center', margin: 0 }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontSize: '12.5px', fontWeight: 700 }}>
                 <th style={{ width: '52px', padding: '12px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>번호</th>
@@ -454,9 +463,13 @@ export default function MembersTab({
                 <th style={{ width: '60px', padding: '12px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>성별</th>
                 <th style={{ width: '75px', padding: '12px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>생년</th>
                 <th style={{ width: '100px', padding: '12px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>테니스 시작</th>
-                <th style={{ width: '75px', padding: '12px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>NTRP</th>
-                <th style={{ width: '95px', padding: '12px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>회비 납부</th>
-                {isAdmin && (
+                {showNtrp && (
+                  <th style={{ width: '75px', padding: '12px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>NTRP</th>
+                )}
+                {showFee && (
+                  <th style={{ width: '95px', padding: '12px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>회비 납부</th>
+                )}
+                {hasEditPerm && (
                   <th style={{ width: '105px', padding: '12px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>관리</th>
                 )}
               </tr>
@@ -464,7 +477,7 @@ export default function MembersTab({
             <tbody>
               {displayedMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} style={{ padding: '36px 16px', color: '#64748b', fontSize: '13.5px' }}>
+                  <td colSpan={totalColumns} style={{ padding: '36px 16px', color: '#64748b', fontSize: '13.5px' }}>
                     <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔍</div>
                     <div style={{ fontWeight: 700, color: '#334155', marginBottom: '4px' }}>조건에 일치하는 회원이 없습니다.</div>
                     <button 
@@ -482,7 +495,7 @@ export default function MembersTab({
                   const isFemale = p.gender === 'F';
 
                   // ── 빠른 편집 모드 활성화 시 (인라인 편집) ──
-                  if (isAdmin && isQuickEdit) {
+                  if (hasEditPerm && isQuickEdit) {
                     return (
                       <tr 
                         key={p.id}
@@ -666,25 +679,27 @@ export default function MembersTab({
                         {p.tennisStartedAt || '-'}
                       </td>
 
-                      {/* 7. NTRP */}
-                      <td style={{ padding: '12px 6px', whiteSpace: 'nowrap' }}>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '2.5px 8px',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: 800,
-                          backgroundColor: '#f0fdf4',
-                          color: '#15803d',
-                          border: '1px solid #bbf7d0'
-                        }}>
-                          {p.ntrp !== undefined && p.ntrp !== null ? Number(p.ntrp).toFixed(1) : '-'}
-                        </span>
-                      </td>
+                      {/* 7. NTRP (운영자 모드 전용) */}
+                      {showNtrp && (
+                        <td style={{ padding: '12px 6px', whiteSpace: 'nowrap' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2.5px 8px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            backgroundColor: '#f0fdf4',
+                            color: '#15803d',
+                            border: '1px solid #bbf7d0'
+                          }}>
+                            {p.ntrp !== undefined && p.ntrp !== null ? Number(p.ntrp).toFixed(1) : '-'}
+                          </span>
+                        </td>
+                      )}
 
-                      {/* 8. 회비 납부 (운영자는 원클릭 토글 버튼, 일반회원은 배지) */}
-                      <td style={{ padding: '12px 8px', whiteSpace: 'nowrap' }}>
-                        {hasFeePerm ? (
+                      {/* 8. 회비 납부 (운영자 모드 전용: 원클릭 토글 버튼) */}
+                      {showFee && (
+                        <td style={{ padding: '12px 8px', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
                             onClick={() => handleToggleFee(p)}
@@ -708,26 +723,11 @@ export default function MembersTab({
                             <span>{p.feePaid ? '✅' : '💰'}</span>
                             <span>{p.feePaid ? '완납' : '미납'}</span>
                           </button>
-                        ) : (
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '11.5px',
-                            fontWeight: 700,
-                            backgroundColor: p.feePaid ? '#dcfce7' : '#fee2e2',
-                            color: p.feePaid ? '#15803d' : '#dc2626',
-                            border: `1px solid ${p.feePaid ? '#86efac' : '#fca5a5'}`
-                          }}>
-                            {p.feePaid ? '✅ 완납' : '미납'}
-                          </span>
-                        )}
-                      </td>
+                        </td>
+                      )}
 
                       {/* 9. 관리 (운영자 전용 액션) */}
-                      {isAdmin && (
+                      {hasEditPerm && (
                         <td style={{ padding: '12px 8px', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                             <button
@@ -783,7 +783,7 @@ export default function MembersTab({
         </div>
 
         {/* ── 4. 하단 액션 툴바 (운영자 전용) ── */}
-        {isAdmin ? (
+        {hasEditPerm ? (
           <div className={styles.memberFooterBar} style={{ marginTop: '16px' }}>
             {/* 회원 추가 액션 */}
             <div className={styles.memberAddArea}>

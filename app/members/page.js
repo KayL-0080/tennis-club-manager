@@ -381,8 +381,9 @@ export default function MembersPage() {
                 onSave={handleSaveMember}
                 onAdd={handleAddMember}
                 onDelete={handleDeleteMember}
-                isAdmin={isAdmin || canEditMember}
-                canManageFee={isAdmin || canManageFee}
+                isAdmin={isAdmin}
+                canEditMember={canEditMember}
+                canManageFee={canManageFee}
                 currentClub={currentClub}
                 onBulkUpdateFeeStatus={handleBulkFeeUpdate}
               />
