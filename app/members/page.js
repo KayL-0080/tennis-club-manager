@@ -15,7 +15,12 @@ import ClubBylawsModal from '@/components/ClubBylawsModal';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function MembersPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, can } = useAuth();
+  const canEditMember = can ? can('editMember') : false;
+  const canManageFee = can ? can('manageFee') : false;
+  const canCourtFinance = can ? can('courtFinance') : false;
+  const canViewBylaws = can ? can('viewBylaws') : false;
+  const canEditBylaws = can ? can('editBylaws') : false;
   const router = useRouter();
   const [showRolesModal, setShowRolesModal] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
@@ -58,7 +63,7 @@ export default function MembersPage() {
   }, []);
 
   const handleBulkFeeUpdate = async (status) => {
-    if (!isAdmin) return;
+    if (!isAdmin && !canManageFee) return;
     if (!confirm(`전체 회원의 회비 납부 상태를 '${status ? '납부완료' : '미납'}'으로 일괄 변경하시겠습니까?`)) return;
     
     setMembers(prev => prev.map(m => ({ ...m, feePaid: status })));
@@ -73,7 +78,7 @@ export default function MembersPage() {
   };
 
   const handleSaveFinanceInfo = async () => {
-    if (!isAdmin) return;
+    if (!isAdmin && !canManageFee) return;
     try {
       const data = { feeCycle, feeAmount, bankAccount, accountHolder };
       await updateClubSettings(data);
@@ -86,7 +91,7 @@ export default function MembersPage() {
   };
 
   const handleSaveFullSettings = async (newData) => {
-    if (!isAdmin) return;
+    if (!isAdmin && !canCourtFinance) return;
     await updateClubSettings(newData);
     setCurrentClub(prev => ({ ...prev, ...newData }));
     if (newData.feeCycle) setFeeCycle(newData.feeCycle);
@@ -98,18 +103,18 @@ export default function MembersPage() {
   };
 
   const handleSaveMember = async (memberId, data) => {
-    if (!isAdmin) return;
+    if (!isAdmin && !canEditMember) return;
     await updateMember('shared', memberId, data);
   };
 
   const handleAddMember = async (memberData) => {
-    if (!isAdmin) return;
+    if (!isAdmin && !canEditMember) return;
     const fid = await addMember('shared', memberData);
     setMembers(prev => [...prev, { id: fid, ...memberData }]);
   };
 
   const handleDeleteMember = async (memberId) => {
-    if (!isAdmin) return;
+    if (!isAdmin && !canEditMember) return;
     if (!confirm('이 회원을 삭제할까요?')) return;
     await deleteMember('shared', memberId);
     setMembers(prev => prev.filter(m => m.id !== memberId));
@@ -169,7 +174,7 @@ export default function MembersPage() {
               <IconClipboardList size={15} color="#1d4ed8" />
               <span>직책별 주요 업무</span>
             </button>
-            {isAdmin && (
+            {(isAdmin || canViewBylaws) && (
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
@@ -193,9 +198,9 @@ export default function MembersPage() {
                 <span>동호회 회칙</span>
               </button>
             )}
-            {isAdmin ? (
+            {(isAdmin || canEditMember) ? (
               <span className="badge badge-blue" style={{ fontSize: '12px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                👑 운영자 모드
+                {isAdmin ? '👑 운영자 모드' : '✏️ 회원 관리 모드'}
               </span>
             ) : (
               <button
@@ -262,7 +267,7 @@ export default function MembersPage() {
                     🙋 게스트 {guestCount}명
                   </span>
                 )}
-                {isAdmin && (
+                {(isAdmin || canManageFee) && (
                   <span className="badge" style={{ background: unpaidCount === 0 ? '#f0fdf4' : '#fef2f2', color: unpaidCount === 0 ? '#15803d' : '#b91c1c', border: `1px solid ${unpaidCount === 0 ? '#bbf7d0' : '#fecaca'}`, padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}>
                     {unpaidCount === 0 ? '✅ 회비 전원 완납' : `💰 미납 ${unpaidCount}명`}
                   </span>
@@ -272,7 +277,7 @@ export default function MembersPage() {
           </div>
 
           {/* ── 2. 서브 탭 전환 버튼 (운영자 전용: 회원 명단 관리 / 코트비 & 최적 인원 산출기) ── */}
-          {isAdmin && (
+          {(isAdmin || canCourtFinance) && (
             <div style={{
               display: 'flex',
               gap: '8px',
@@ -337,9 +342,9 @@ export default function MembersPage() {
           )}
 
           {/* ── 3. 회원 명단 탭 (일반 사용자는 기본 표시, 운영자는 members 탭일 때 표시) ── */}
-          {(!isAdmin || activeSubTab === 'members') && (
+          {(!isAdmin && !canCourtFinance || activeSubTab === 'members') && (
             <>
-              {isAdmin && (
+              {(isAdmin || canManageFee) && (
                 <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)', margin: 0, letterSpacing: '-0.02em' }}>💰 클럽 회비 / 계좌 설정</h3>
@@ -376,7 +381,8 @@ export default function MembersPage() {
                 onSave={handleSaveMember}
                 onAdd={handleAddMember}
                 onDelete={handleDeleteMember}
-                isAdmin={isAdmin}
+                isAdmin={isAdmin || canEditMember}
+                canManageFee={isAdmin || canManageFee}
                 currentClub={currentClub}
                 onBulkUpdateFeeStatus={handleBulkFeeUpdate}
               />
@@ -384,10 +390,10 @@ export default function MembersPage() {
           )}
 
           {/* ── 4. 코트비 & 최적 인원 산출기 탭 (운영자 전용) ── */}
-          {isAdmin && activeSubTab === 'finance' && (
+          {(isAdmin || canCourtFinance) && activeSubTab === 'finance' && (
             <FinanceCalculator
               members={members}
-              isAdmin={isAdmin}
+              isAdmin={isAdmin || canCourtFinance}
               currentClub={currentClub}
               onSaveSettings={handleSaveFullSettings}
             />
@@ -402,12 +408,12 @@ export default function MembersPage() {
         onClose={() => setShowRolesModal(false)}
       />
 
-      {/* ── 동호회 회칙 및 개정 이력 관리 모달 (운영자 전용) ── */}
-      {isAdmin && (
+      {/* ── 동호회 회칙 및 개정 이력 관리 모달 (열람 가능) ── */}
+      {(isAdmin || canViewBylaws) && (
         <ClubBylawsModal
           isOpen={showRulesModal}
           onClose={() => setShowRulesModal(false)}
-          isAdmin={isAdmin}
+          isAdmin={isAdmin || canEditBylaws}
         />
       )}
     </div>

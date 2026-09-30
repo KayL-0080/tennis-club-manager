@@ -17,7 +17,8 @@ const formatDateToYMD = (d = new Date()) => {
 };
 
 export default function Dashboard() {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, can, loading } = useAuth();
+  const canCreateSchedule = can ? can('createSchedule') : false;
   const router = useRouter();
   
   const [activeTab, setActiveTab] = useState('list'); // 'list' | 'settings'
@@ -122,8 +123,8 @@ export default function Dashboard() {
   useEffect(() => { load(); }, [load]);
 
   const handleScheduleGenerated = async (schedRounds, genStats) => {
-    if (!isAdmin) {
-      alert('대진표 생성 권한이 없습니다 (운영진 전용).');
+    if (!isAdmin && !canCreateSchedule) {
+      alert('대진표 생성 권한이 없습니다.');
       return;
     }
     setCreating(true);
@@ -383,7 +384,7 @@ export default function Dashboard() {
                     <span>대진표 목록</span>
                   </button>
                 )}
-                {isAdmin && activeTab === 'list' && (
+                {(isAdmin || canCreateSchedule) && activeTab === 'list' && (
                   <button 
                     className={`btn btn-primary ${styles.heroBtn} ${styles.heroBtnPrimary}`} 
                     onClick={() => {
@@ -650,7 +651,7 @@ export default function Dashboard() {
               )}
             </div>
           )
-        ) : isAdmin ? (
+        ) : (isAdmin || canCreateSchedule) ? (
           <div style={{ marginTop: '20px' }}>
             <SettingsTab
               events={events}

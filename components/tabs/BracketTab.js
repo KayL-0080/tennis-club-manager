@@ -84,15 +84,18 @@ export default function BracketTab({
   clubSettings,
   matchDate,
   title,
-  onSave, onPrint, isAdmin, isReadOnly, isPastMatch,
+  onSave, onPrint, isAdmin, canEditPlayer = false, canEditScore = false, isReadOnly, isPastMatch,
 }) {
+  const hasPlayerEditPerm = isAdmin || Boolean(canEditPlayer);
+  const hasScoreEditPerm = isAdmin || Boolean(canEditScore);
+
   const [playerFilter, setPlayerFilter] = useState('ALL'); // 'ALL' | 'IN_PROGRESS' | 'DONE' | 'WAITING'
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [playerModalTarget, setPlayerModalTarget] = useState(null);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
 
   const openPlayerModal = (ri, ci, team, slot) => {
-    if (isReadOnly || !isAdmin) return;
+    if (isReadOnly || !hasPlayerEditPerm) return;
     setPlayerModalTarget({ ri, ci, team: team || 'a', slot: slot ?? 0 });
     setShowPlayerModal(true);
   };
@@ -167,7 +170,7 @@ export default function BracketTab({
   );
 
   const handleDragEnd = (event) => {
-    if (isReadOnly || !isAdmin) return;
+    if (isReadOnly || !hasPlayerEditPerm) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -239,7 +242,7 @@ export default function BracketTab({
 
   /* ── 이벤트 핸들러 (입력 즉시 자동 저장 및 실시간 동기화) ── */
   const onPlayerSelect = (ri, ci, team, slot, value) => {
-    if (isReadOnly || !isAdmin) return;
+    if (isReadOnly || !hasPlayerEditPerm) return;
     let actualValue = value;
     let isNewParticipant = false;
 
@@ -319,7 +322,7 @@ export default function BracketTab({
 
   /* ── ➕ 정회원 대진표 현장/추가 참가 등록 핸들러 ── */
   const handleAddParticipants = (newMemberIds, targetGames = 3) => {
-    if (isReadOnly || !isAdmin) return;
+    if (isReadOnly || !hasPlayerEditPerm) return;
     const toAdd = newMemberIds.filter(id => !participants.some(p => p.playerId === id));
     if (toAdd.length === 0) return;
     const newEntries = toAdd.map(id => ({ playerId: id, target: targetGames || 3 }));
@@ -329,7 +332,7 @@ export default function BracketTab({
   };
 
   const handleRemoveParticipant = (memberId) => {
-    if (isReadOnly || !isAdmin) return;
+    if (isReadOnly || !hasPlayerEditPerm) return;
     const playedCount = (todayRows.find(r => r.id === memberId)?.played) || 0;
     if (playedCount > 0) {
       alert('이미 완료된 경기 기록이 있는 선수는 대진표 참가자에서 제외할 수 없습니다.');
@@ -395,7 +398,7 @@ export default function BracketTab({
   };
 
   const onScore = (ri, ci, team, value) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !hasScoreEditPerm) return;
     const key = `${ri}-${ci}`;
     let nextVal = value === '' ? null : Number(value);
     if (nextVal !== null) {
@@ -411,7 +414,7 @@ export default function BracketTab({
 
   /* ── 라운드/코트 편집 ── */
   const addRound = () => {
-    if (isReadOnly || !isAdmin) return;
+    if (isReadOnly || !hasPlayerEditPerm) return;
     const newRound = Array.from({ length: courts }, makeEmptyMatch);
     const next = [...schedule, newRound];
     setSchedule(next);
@@ -419,7 +422,7 @@ export default function BracketTab({
     if (onSave) onSave({ schedule: next, scheduleRounds_: (scheduleRounds || schedule.length) + 1 });
   };
   const removeRound = () => {
-    if (isReadOnly || !isAdmin) return;
+    if (isReadOnly || !hasPlayerEditPerm) return;
     if (!confirm('마지막 라운드를 삭제할까요?')) return;
     const ri = schedule.length - 1;
     const nextScores = { ...scores };

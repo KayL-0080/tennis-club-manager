@@ -9,7 +9,7 @@ import { HomeIcon, StatsIcon, VoteIcon, TrophyIcon, MembersIcon, ManualIcon, Ins
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
-  const { user, isSuperAdmin, logout } = useAuth();
+  const { user, isAdmin, isSuperAdmin, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [showManual, setShowManual] = useState(false);
@@ -182,7 +182,7 @@ export default function Navbar() {
               );
             })}
 
-            {user && isSuperAdmin && (
+            {user && (isAdmin || isSuperAdmin) && (
               <button
                 className={`btn btn-sm ${pathname === '/admins' ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ 
@@ -235,6 +235,31 @@ export default function Navbar() {
           <div className={styles.mobileUserSection}>
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {(isAdmin || isSuperAdmin) && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ 
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '28px', 
+                      padding: 0,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      color: pathname === '/admins' ? '#1d4ed8' : '#475569',
+                      backgroundColor: pathname === '/admins' ? '#eff6ff' : undefined,
+                      borderColor: pathname === '/admins' ? '#bfdbfe' : undefined,
+                      fontSize: '13px'
+                    }}
+                    onClick={() => router.push('/admins')}
+                    title="운영진 관리"
+                    aria-label="운영진 관리"
+                  >
+                    👑
+                  </button>
+                )}
                 <span className={styles.avatar} style={{ width: '26px', height: '26px', fontSize: '11px' }}>
                   {(user.displayName || user.email)?.[0]?.toUpperCase()}
                 </span>

@@ -9,7 +9,8 @@ import { PageHeaderIcon, TrophyIcon, StatsIcon } from '@/components/Icons';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function StatsPage() {
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin, can, loading } = useAuth();
+  const canRankingRules = can ? can('rankingRules') : false;
   const router = useRouter();
   
   const [fetching, setFetching] = useState(true);
@@ -86,7 +87,7 @@ export default function StatsPage() {
 
   const handleSaveRules = async (e) => {
     e.preventDefault();
-    if (!isAdmin) {
+    if (!isAdmin && !canRankingRules) {
       alert('운영진만 산정 기준을 변경할 수 있습니다.');
       return;
     }
@@ -231,7 +232,7 @@ export default function StatsPage() {
             <p className={styles.sub}>조회 기간 동안의 클럽 정기 모임 및 분기 대회 결과를 통합 집계합니다.</p>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {isAdmin && (
+            {(isAdmin || canRankingRules) && (
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
@@ -520,7 +521,7 @@ export default function StatsPage() {
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {isAdmin && (
+              {(isAdmin || canRankingRules) && (
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"

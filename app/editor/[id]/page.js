@@ -13,7 +13,7 @@ import styles from './editor.module.css';
 
 export default function EditorPage({ params }) {
   const { id } = use(params);
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin, can, loading } = useAuth();
   const router = useRouter();
 
   const [fetching, setFetching] = useState(true);
@@ -114,8 +114,9 @@ export default function EditorPage({ params }) {
     if (!id) return;
     setSaving(true);
 
-    // 대진표 선수/경기 배정 수정 권한은 운영진 전용 (일반 회원은 스코어 입력만 반영)
-    const currentSchedule = (!isAdmin && schedule) ? schedule : (overrides.schedule !== undefined ? overrides.schedule : schedule);
+    // 대진표 선수/경기 배정 수정 권한
+    const canEditPlayer = can ? can('editMatchPlayer') : false;
+    const currentSchedule = (!isAdmin && !canEditPlayer && schedule) ? schedule : (overrides.schedule !== undefined ? overrides.schedule : schedule);
     const currentScores = overrides.scores !== undefined ? overrides.scores : scores;
     
     // Auto-save history entry for current bracket
@@ -187,7 +188,9 @@ export default function EditorPage({ params }) {
 
   const todayStr = new Date().toLocaleDateString('en-CA');
   const isPastMatch = Boolean(matchDate && matchDate < todayStr);
-  const isReadOnly = isPastMatch && !isAdmin;
+  const canEditScore = can ? can('editMatchScore') : false;
+  const canEditPlayer = can ? can('editMatchPlayer') : false;
+  const isReadOnly = (isPastMatch && !isAdmin) || (!isAdmin && !canEditScore);
 
   return (
     <div className={styles.page}>
@@ -230,9 +233,14 @@ export default function EditorPage({ params }) {
                     color: '#64748b',
                     border: '1px solid #e2e8f0',
                   }}
-                  title="대진표 선수 수정은 운영진만 가능합니다. 점수 입력은 가능합니다."
                 >
-                  🔒 선수 수정: 운영진 전용 (스코어 입력 가능)
+                  {canEditPlayer && canEditScore
+                    ? '🌐 전체 권한 오픈 모드 (선수/점수 입력 가능)'
+                    : canEditScore
+                    ? '🔒 선수 수정: 운영진 전용 (스코어 입력 가능)'
+                    : canEditPlayer
+                    ? '🔒 스코어 수정: 운영진 전용 (선수 배정 가능)'
+                    : '🔒 읽기 전용 모드 (운영진 전용)'}
                 </span>
               ) : null}
               <span className={styles.saveLabel}>
@@ -265,6 +273,8 @@ export default function EditorPage({ params }) {
             onSave={save}
             onPrint={() => window.print()}
             isAdmin={isAdmin}
+            canEditPlayer={canEditPlayer}
+            canEditScore={canEditScore}
             isReadOnly={isReadOnly}
             isPastMatch={isPastMatch}
           />

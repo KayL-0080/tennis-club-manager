@@ -12,7 +12,9 @@ import PlayingPhase from './PlayingPhase';
 import CompletedPhase from './CompletedPhase';
 
 export default function TournamentDetailPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, can } = useAuth();
+  const canManageTournament = can ? can('manageTournament') : false;
+  const hasTournamentPerm = isAdmin || canManageTournament;
   const router = useRouter();
   const { id } = useParams();
   
@@ -105,8 +107,8 @@ export default function TournamentDetailPage() {
         </div>
 
         {tournament.status === 'draft' && (
-          isAdmin ? (
-            <DraftPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={isAdmin} />
+          hasTournamentPerm ? (
+            <DraftPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={hasTournamentPerm} />
           ) : (
             <div className="card" style={{ padding: '40px 24px', textAlign: 'center' }}>
               <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📝</div>
@@ -121,13 +123,13 @@ export default function TournamentDetailPage() {
           )
         )}
         {tournament.status === 'picking' && (
-          <PickingPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={isAdmin} />
+          <PickingPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={hasTournamentPerm} />
         )}
         {tournament.status === 'playing' && (
-          <PlayingPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={isAdmin} />
+          <PlayingPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={hasTournamentPerm} />
         )}
         {tournament.status === 'completed' && (
-          <CompletedPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={isAdmin} />
+          <CompletedPhase tournament={tournament} members={members} onUpdate={handleUpdate} isAdmin={hasTournamentPerm} />
         )}
       </main>
     </div>

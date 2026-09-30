@@ -95,7 +95,10 @@ const resolveInitialMonth = (evts) => {
 };
 
 export default function VotesPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, can } = useAuth();
+  const canCreateVote = can ? can('createVote') : false;
+  const canVoteSettings = can ? can('voteSettings') : false;
+  const canClosedOverride = can ? can('voteClosedOverride') : false;
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
@@ -387,7 +390,7 @@ export default function VotesPage() {
       deadline.setHours(18, 0, 0, 0);
       const isClosed = new Date() > deadline;
 
-      if (!isAdmin && isClosed) {
+      if (!isAdmin && !canClosedOverride && isClosed) {
         alert('투표가 마감되었습니다. (운영진만 마감 후 수정이 가능합니다)');
         return;
       }
@@ -586,34 +589,38 @@ export default function VotesPage() {
                 ))}
               </select>
             </div>
-            {isAdmin && (
+            {(isAdmin || canVoteSettings || canCreateVote) && (
               <div className="votes-action-buttons">
-                <button 
-                  type="button"
-                  className="btn btn-secondary votes-action-btn" 
-                  onClick={() => setShowSettingsModal(true)}
-                >
-                  ⚙️ 클럽 모임 설정
-                </button>
-                <button 
-                  type="button"
-                  className="btn btn-primary votes-action-btn" 
-                  style={{ 
-                    boxShadow: '0 2px 8px rgba(0, 122, 255, 0.25)',
-                    fontWeight: 700
-                  }} 
-                  onClick={() => {
-                    setSelectedEvent(null);
-                    setEditTitle('새 투표');
-                    setEditDate(formatDateToYMD());
-                    setEditStartTime('19:00');
-                    setEditEndTime('22:00');
-                    setEditLocation('그린테니스장');
-                    setIsEditing(true);
-                  }}
-                >
-                  + 새 투표 만들기
-                </button>
+                {(isAdmin || canVoteSettings) && (
+                  <button 
+                    type="button"
+                    className="btn btn-secondary votes-action-btn" 
+                    onClick={() => setShowSettingsModal(true)}
+                  >
+                    ⚙️ 클럽 모임 설정
+                  </button>
+                )}
+                {(isAdmin || canCreateVote) && (
+                  <button 
+                    type="button"
+                    className="btn btn-primary votes-action-btn" 
+                    style={{ 
+                      boxShadow: '0 2px 8px rgba(0, 122, 255, 0.25)',
+                      fontWeight: 700
+                    }} 
+                    onClick={() => {
+                      setSelectedEvent(null);
+                      setEditTitle('새 투표');
+                      setEditDate(formatDateToYMD());
+                      setEditStartTime('19:00');
+                      setEditEndTime('22:00');
+                      setEditLocation('그린테니스장');
+                      setIsEditing(true);
+                    }}
+                  >
+                    + 새 투표 만들기
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1015,7 +1022,7 @@ export default function VotesPage() {
                         </p>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
-                        {isAdmin && (
+                        {(isAdmin || canCreateVote) && (
                           <>
                             <button className="btn btn-secondary btn-sm" onClick={() => setIsEditing(true)}>수정</button>
                             <button className="btn btn-danger btn-sm" onClick={removeEvent}>삭제</button>
@@ -1106,8 +1113,8 @@ export default function VotesPage() {
 
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                           {isClosed && (
-                            <span style={{ color: isAdmin ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12px', fontWeight: 600, marginRight: '4px' }}>
-                              {isAdmin ? '마감됨 (운영진 수정 가능)' : '투표 마감됨'}
+                            <span style={{ color: (isAdmin || canClosedOverride) ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12px', fontWeight: 600, marginRight: '4px' }}>
+                              {(isAdmin || canClosedOverride) ? '마감됨 (수정 가능)' : '투표 마감됨'}
                             </span>
                           )}
                           <button
@@ -1138,7 +1145,7 @@ export default function VotesPage() {
                         ) : (
                           displayedMembers.map(m => {
                             const status = activeAttendees[m.id] || '?';
-                            const isVoteDisabled = !isAdmin && isClosed;
+                            const isVoteDisabled = !isAdmin && !canClosedOverride && isClosed;
                             const timeIso = activeTimestamps[m.id];
                             const timeStr = formatVoteTime(timeIso);
                             const fullTimeStr = formatVoteTimeFull(timeIso);

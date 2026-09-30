@@ -40,9 +40,11 @@ export default function MembersTab({
   onAdd, 
   onDelete, 
   isAdmin, 
+  canManageFee = false,
   currentClub, 
   onBulkUpdateFeeStatus 
 }) {
+  const hasFeePerm = isAdmin || Boolean(canManageFee);
   // ── 정렬 로직 (직책 > 성별 남성 우선 > NTRP 높은 순) ──
   const sortedMembers = [...members].sort((a, b) => {
     const rolePriority = { '회장': 1, '부회장': 2, '총무': 3, '경기이사': 4, '운영이사': 5, '고문': 6, '정회원': 10, '준회원': 998, '게스트': 999 };
@@ -103,7 +105,7 @@ export default function MembersTab({
 
   // ── 회비 원클릭 토글 ──
   const handleToggleFee = async (m) => {
-    if (!isAdmin) return;
+    if (!hasFeePerm) return;
     const newStatus = !m.feePaid;
     onUpdateLocal(m.id, { feePaid: newStatus });
     await onSave(m.id, { feePaid: newStatus });
@@ -360,7 +362,7 @@ export default function MembersTab({
                 게스트 ({guestCount})
               </button>
             )}
-            {isAdmin && unpaidCount > 0 && (
+            {hasFeePerm && unpaidCount > 0 && (
               <button
                 type="button"
                 onClick={() => setFilterRole('UNPAID')}
@@ -682,7 +684,7 @@ export default function MembersTab({
 
                       {/* 8. 회비 납부 (운영자는 원클릭 토글 버튼, 일반회원은 배지) */}
                       <td style={{ padding: '12px 8px', whiteSpace: 'nowrap' }}>
-                        {isAdmin ? (
+                        {hasFeePerm ? (
                           <button
                             type="button"
                             onClick={() => handleToggleFee(p)}

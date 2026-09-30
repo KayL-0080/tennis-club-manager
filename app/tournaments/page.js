@@ -9,7 +9,8 @@ import { PageHeaderIcon, TrophyIcon } from '@/components/Icons';
 import styles from '../dashboard/dashboard.module.css';
 
 export default function TournamentsPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, can } = useAuth();
+  const canManageTournament = can ? can('manageTournament') : false;
   const router = useRouter();
   
   const [tournaments, setTournaments] = useState([]);
@@ -48,7 +49,7 @@ export default function TournamentsPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!isAdmin) return;
+    if (!isAdmin && !canManageTournament) return;
     if (!newTitle.trim() || !newDate) {
       alert('대회명과 날짜를 입력해주세요.');
       return;
@@ -84,7 +85,7 @@ export default function TournamentsPage() {
   };
 
   const handleDelete = async (id, title) => {
-    if (!isAdmin) return;
+    if (!isAdmin && !canManageTournament) return;
     if (!confirm('정말로 대회 [' + title + ']을 삭제하시겠습니까?')) return;
     try {
       await deleteTournament('shared', id);
@@ -115,7 +116,7 @@ export default function TournamentsPage() {
             </h1>
             <p className={styles.sub}>동호회 자체 대회를 개설하고 팀/개인전 대진표를 관리합니다.</p>
           </div>
-          {isAdmin && (
+          {(isAdmin || canManageTournament) && (
             <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
               + 새 대회 생성
             </button>
@@ -193,7 +194,7 @@ export default function TournamentsPage() {
                       📤 결과 공유
                     </button>
                   )}
-                  {isAdmin && (
+                  {(isAdmin || canManageTournament) && (
                     <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleDelete(t.id, t.title); }}>삭제</button>
                   )}
                 </div>
