@@ -757,7 +757,7 @@ export function WeatherDetailModal({
     <div
       className="modal-overlay"
       onClick={onClose}
-      style={{ zIndex: 1200 }}
+      style={{ zIndex: 2000000 }}
     >
       <div
         className="modal-content"

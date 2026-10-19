@@ -1304,7 +1304,7 @@ export default function VotesPage() {
 
       {/* 투표 독려 모달 */}
       {showReminderModal && (
-        <div className="modal-overlay" onClick={() => setShowReminderModal(false)}>
+        <div className="modal-overlay" onClick={() => setShowReminderModal(false)} style={{ zIndex: 2000000 }}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', width: '100%' }}>
             <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>투표 독려 메시지 공유</h2>
