@@ -480,11 +480,16 @@ export function extractEventWeather(weatherByDate, event) {
 
 // Open-Meteo API 호출 및 캐시 훅
 const memoryWeatherCache = {};
+const inFlightWeatherRequests = new Set();
 
-export function useWeatherForecast(defaultRegionKey = 'seoul') {
+export function useWeatherForecast(events = [], defaultRegionKey = 'seoul') {
   const [regionKey, setRegionKey] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('tcm_weather_region') || defaultRegionKey;
+      try {
+        return localStorage.getItem('tcm_weather_region') || defaultRegionKey;
+      } catch (e) {
+        return defaultRegionKey;
+      }
     }
     return defaultRegionKey;
   });
@@ -505,7 +510,8 @@ export function useWeatherForecast(defaultRegionKey = 'seoul') {
     const cacheKey = `${targetRegion.key}_${new Date().toISOString().slice(0, 13)}`; // 1시간 단위 캐시 키
 
     if (memoryWeatherCache[cacheKey]) {
-      setWeatherMap(prev => ({ ...prev, [targetRegion.key]: memoryWeatherCache[cacheKey] }));
+      const cachedData = memoryWeatherCache[cacheKey];
+      setWeatherMap(prev => (prev[targetRegion.key] === cachedData ? prev : { ...prev, [targetRegion.key]: cachedData }));
       return;
     }
 
@@ -515,11 +521,16 @@ export function useWeatherForecast(defaultRegionKey = 'seoul') {
         if (saved) {
           const parsed = JSON.parse(saved);
           memoryWeatherCache[cacheKey] = parsed;
-          setWeatherMap(prev => ({ ...prev, [targetRegion.key]: parsed }));
+          setWeatherMap(prev => (prev[targetRegion.key] === parsed ? prev : { ...prev, [targetRegion.key]: parsed }));
           return;
         }
       } catch (e) {}
     }
+
+    if (inFlightWeatherRequests.has(cacheKey)) {
+      return;
+    }
+    inFlightWeatherRequests.add(cacheKey);
 
     setLoadingWeather(true);
     try {
@@ -564,7 +575,7 @@ export function useWeatherForecast(defaultRegionKey = 'seoul') {
       }
 
       memoryWeatherCache[cacheKey] = byDate;
-      setWeatherMap(prev => ({ ...prev, [targetRegion.key]: byDate }));
+      setWeatherMap(prev => (prev[targetRegion.key] === byDate ? prev : { ...prev, [targetRegion.key]: byDate }));
 
       if (typeof window !== 'undefined') {
         try {
@@ -574,28 +585,38 @@ export function useWeatherForecast(defaultRegionKey = 'seoul') {
     } catch (err) {
       console.warn('Weather fetch warning:', err);
     } finally {
+      inFlightWeatherRequests.delete(cacheKey);
       setLoadingWeather(false);
     }
   }, []);
 
+  // 필요한 지역(기본 선택 지역 + 일정들의 장소 매칭 지역)을 useEffect에서만 안전하게 비동기 로드
   useEffect(() => {
-    fetchRegionWeather(regionKey);
-  }, [regionKey, fetchRegionWeather]);
+    const neededRegionKeys = new Set([regionKey]);
+    if (Array.isArray(events)) {
+      for (const evt of events) {
+        if (evt?.location) {
+          const matched = resolveRegionForLocation(evt.location, regionKey);
+          if (matched?.key) neededRegionKeys.add(matched.key);
+        }
+      }
+    }
+    neededRegionKeys.forEach(rKey => {
+      fetchRegionWeather(rKey);
+    });
+  }, [regionKey, events, fetchRegionWeather]);
 
-  // 특정 일정의 장소(location)에 매칭되는 지역이 있으면 자동으로 함께 로드
+  // 렌더링 중에 호출되는 순수 함수 (절대 내부에서 setState나 fetch를 호출하지 않음)
   const getWeatherForEvent = useCallback((event) => {
     if (!event) return null;
     const matchedRegion = resolveRegionForLocation(event.location, regionKey);
     const regionData = weatherMap[matchedRegion.key] || weatherMap[regionKey];
-    if (!weatherMap[matchedRegion.key]) {
-      fetchRegionWeather(matchedRegion.key);
-    }
     const summary = extractEventWeather(regionData, event);
     return {
       ...summary,
       region: matchedRegion,
     };
-  }, [weatherMap, regionKey, fetchRegionWeather]);
+  }, [weatherMap, regionKey]);
 
   return {
     regionKey,

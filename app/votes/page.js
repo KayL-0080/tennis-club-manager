@@ -109,7 +109,7 @@ export default function VotesPage() {
   const [selectedEvent, setSelectedEvent] = useState(null);
 
   // Weather Forecast Hook & Modal State
-  const { regionKey, changeRegion, getWeatherForEvent } = useWeatherForecast();
+  const { regionKey, changeRegion, getWeatherForEvent } = useWeatherForecast(events);
   const [weatherModalEvent, setWeatherModalEvent] = useState(null);
 
   // Overall Status State
