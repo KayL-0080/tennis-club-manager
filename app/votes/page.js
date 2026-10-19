@@ -8,6 +8,7 @@ import {
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import { PageHeaderIcon, VoteIcon } from '@/components/Icons';
+import { useWeatherForecast, VoteCardWeatherBadge, WeatherDetailModal } from '@/components/WeatherModal';
 import styles from '../dashboard/dashboard.module.css';
 
 const formatDateToYMD = (d = new Date()) => {
@@ -106,6 +107,10 @@ export default function VotesPage() {
   const [members, setMembers] = useState([]);
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
+
+  // Weather Forecast Hook & Modal State
+  const { regionKey, changeRegion, getWeatherForEvent } = useWeatherForecast();
+  const [weatherModalEvent, setWeatherModalEvent] = useState(null);
 
   // Overall Status State
   const [showVoters, setShowVoters] = useState(false);
@@ -500,11 +505,15 @@ export default function VotesPage() {
 
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
     const shareUrl = `${origin}/votes?id=${currentEvt.id}`;
+    const evtWeather = getWeatherForEvent(currentEvt);
+    const weatherLine = evtWeather?.available
+      ? `\n🌤️ 예상날씨: ${evtWeather.meta.label} ${evtWeather.avgTemp}°C (강수확률 ${evtWeather.maxPop}%)`
+      : '';
 
     const text = `[투표 현황] ${currentEvt.title}
 📅 ${currentEvt.date}
 ⏰ ${currentEvt.startTime} ~ ${currentEvt.endTime}
-📍 ${currentEvt.location}
+📍 ${currentEvt.location}${weatherLine}
 
 ✅ 참석 (${attendees.length}명): ${attendees.length ? attendees.join(', ') : '없음'}
 ❌ 불참 (${absentees.length}명): ${absentees.length ? absentees.join(', ') : '없음'}
@@ -654,6 +663,7 @@ export default function VotesPage() {
               const eventDayName = dayNames[new Date(y, m - 1, d).getDay()];
               
               const isPast = e.date < todayStr;
+              const weatherInfo = getWeatherForEvent(e);
               
               return (
                 <div 
@@ -685,8 +695,8 @@ export default function VotesPage() {
 
                   <div style={{ padding: isPast ? '14px 16px' : '12px 16px 14px 16px' }}>
                     {/* Row 1: 아이콘 & 타이틀 & 날짜 */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                         <div style={{
                           width: '36px',
                           height: '36px',
@@ -704,7 +714,10 @@ export default function VotesPage() {
                           fontSize: '15.5px', 
                           fontWeight: 800, 
                           color: isPast ? '#334155' : '#0f172a',
-                          letterSpacing: '-0.02em'
+                          letterSpacing: '-0.02em',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
                         }}>
                           {e.title}
                         </span>
@@ -721,16 +734,24 @@ export default function VotesPage() {
                       </div>
                     </div>
 
-                    {/* Row 2: 시간 & 장소 */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '12.5px', color: '#475569', fontWeight: 600 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span>⏰</span>
-                        <span>{e.startTime} ~ {e.endTime}</span>
+                    {/* Row 2: 시간 & 장소 & 예상 날씨 아이콘 버튼 */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '12.5px', color: '#475569', fontWeight: 600, gap: '8px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>⏰</span>
+                          <span>{e.startTime} ~ {e.endTime}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>📍</span>
+                          <span>{e.location || '그린테니스장'}</span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span>📍</span>
-                        <span>{e.location || '그린테니스장'}</span>
-                      </div>
+
+                      <VoteCardWeatherBadge
+                        event={e}
+                        weatherInfo={weatherInfo}
+                        onClick={(evt) => setWeatherModalEvent(evt)}
+                      />
                     </div>
 
                     {/* Row 3: 투표 현황 & 마감 상태 */}
@@ -1014,10 +1035,17 @@ export default function VotesPage() {
                         <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--navy)', marginBottom: '4px', wordBreak: 'keep-all' }}>
                           {activeEvent.title}
                         </h2>
-                        <p style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--navy)', wordBreak: 'keep-all', marginBottom: '8px' }}>
-                          {activeEvent.date} ({dayNames[new Date(y, m - 1, d).getDay()]})
-                        </p>
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', wordBreak: 'keep-all' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--navy)', wordBreak: 'keep-all' }}>
+                            {activeEvent.date} ({dayNames[new Date(y, m - 1, d).getDay()]})
+                          </span>
+                          <VoteCardWeatherBadge
+                            event={activeEvent}
+                            weatherInfo={getWeatherForEvent(activeEvent)}
+                            onClick={(evt) => setWeatherModalEvent(evt)}
+                          />
+                        </div>
+                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', wordBreak: 'keep-all', margin: 0 }}>
                           ⏰ {activeEvent.startTime} ~ {activeEvent.endTime} <br/> 📍 {activeEvent.location}
                         </p>
                       </div>
@@ -1261,6 +1289,17 @@ export default function VotesPage() {
 
           </div>
         </div>
+      )}
+
+      {/* 상세 시간대별 날씨 모달 */}
+      {weatherModalEvent && (
+        <WeatherDetailModal
+          event={weatherModalEvent}
+          weatherInfo={getWeatherForEvent(weatherModalEvent)}
+          regionKey={regionKey}
+          onChangeRegion={changeRegion}
+          onClose={() => setWeatherModalEvent(null)}
+        />
       )}
 
       {/* 투표 독려 모달 */}
