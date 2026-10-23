@@ -403,10 +403,15 @@ export default function VotesPage() {
 
     const activeEvt = events.find(e => e.id === selectedEvent.id) || selectedEvent;
     const eventId = activeEvt.id;
-    const currentStatus = activeEvt.attendees?.[memberId] || '?';
-    if (currentStatus === status) return; // No change
+    const rawStatus = activeEvt.attendees?.[memberId];
+    const hasVotedBefore = rawStatus === 'Y' || rawStatus === 'N' || Boolean(activeEvt.attendanceTimestamps?.[memberId]);
+    const currentStatus = rawStatus || '?';
+    if (currentStatus === status && hasVotedBefore) return; // No change
 
-    if (!confirm('참석 투표를 변경하시겠습니까?')) return;
+    // 최초 투표 이후에 투표를 변경하려고 할 때만 확인 메세지 표시
+    if (hasVotedBefore) {
+      if (!confirm('참석 투표를 변경하시겠습니까?')) return;
+    }
 
     const now = new Date().toISOString();
 
