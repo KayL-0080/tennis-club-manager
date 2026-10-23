@@ -401,15 +401,18 @@ export default function VotesPage() {
       }
     }
 
-    const eventId = selectedEvent.id;
-    const currentStatus = selectedEvent.attendees?.[memberId] || '?';
+    const activeEvt = events.find(e => e.id === selectedEvent.id) || selectedEvent;
+    const eventId = activeEvt.id;
+    const currentStatus = activeEvt.attendees?.[memberId] || '?';
     if (currentStatus === status) return; // No change
+
+    if (!confirm('참석 투표를 변경하시겠습니까?')) return;
 
     const now = new Date().toISOString();
 
     // 1. 낙관적 로컬 상태 업데이트: 오직 해당 회원(memberId)의 상태 및 일시만 갱신
-    const newAttendees = { ...(selectedEvent.attendees || {}), [memberId]: status };
-    const newTimestamps = { ...(selectedEvent.attendanceTimestamps || {}), [memberId]: now };
+    const newAttendees = { ...(activeEvt.attendees || {}), [memberId]: status };
+    const newTimestamps = { ...(activeEvt.attendanceTimestamps || {}), [memberId]: now };
 
     setSelectedEvent(prev => (prev && prev.id === eventId ? { ...prev, attendees: newAttendees, attendanceTimestamps: newTimestamps } : prev));
     setEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendees: newAttendees, attendanceTimestamps: newTimestamps } : e));
