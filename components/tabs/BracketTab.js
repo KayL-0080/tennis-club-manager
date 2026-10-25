@@ -1076,7 +1076,7 @@ export default function BracketTab({
                           >
                             {/* 카드 상단: 라운드 번호 & 상태 배지 */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                 <span style={{ 
                                   fontWeight: 800, 
                                   fontSize: '13px', 
@@ -1087,6 +1087,21 @@ export default function BracketTab({
                                 }}>
                                   {ri + 1}라운드 ({ri + 1}R)
                                 </span>
+                                {m.groupTag === 'upper' && (
+                                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '6px', backgroundColor: '#ffedd5', color: '#c2410c', border: '1px solid #fdba74' }}>
+                                    🔥 상위그룹 대진
+                                  </span>
+                                )}
+                                {m.groupTag === 'lower' && (
+                                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '6px', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
+                                    🌱 하위그룹 대진
+                                  </span>
+                                )}
+                                {m.groupTag === 'mixed_group' && (
+                                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '6px', backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                    🤝 상·하위 혼합 대진
+                                  </span>
+                                )}
                                 {isCurrentActive && (
                                   <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 7px', fontWeight: 700 }}>
                                     🔥 현재 진행 중
@@ -1400,6 +1415,25 @@ export default function BracketTab({
                       const winB = hasScore && Number(sc.b) > Number(sc.a);
                       return (
                         <td key={ci} className={styles.matchCell}>
+                          {m.groupTag && (
+                            <div style={{ marginBottom: '4px', textAlign: 'center' }}>
+                              {m.groupTag === 'upper' && (
+                                <span style={{ fontSize: '10px', fontWeight: 800, padding: '1px 6px', borderRadius: '6px', backgroundColor: '#ffedd5', color: '#c2410c', border: '1px solid #fdba74', display: 'inline-block' }}>
+                                  🔥 상위그룹 대진
+                                </span>
+                              )}
+                              {m.groupTag === 'lower' && (
+                                <span style={{ fontSize: '10px', fontWeight: 800, padding: '1px 6px', borderRadius: '6px', backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', display: 'inline-block' }}>
+                                  🌱 하위그룹 대진
+                                </span>
+                              )}
+                              {m.groupTag === 'mixed_group' && (
+                                <span style={{ fontSize: '10px', fontWeight: 800, padding: '1px 6px', borderRadius: '6px', backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', display: 'inline-block' }}>
+                                  🤝 상·하위 혼합 대진
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <div className={`${styles.matchCellContent} ${courts === 1 ? styles.singleCourt : ''}`}>
                             {/* 팀 A */}
                             <div className={`${styles.teamLine} ${winA ? styles.winner : ''}`}>

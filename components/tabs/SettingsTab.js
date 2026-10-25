@@ -1,7 +1,7 @@
 // components/tabs/SettingsTab.js — 오늘 참가자 선택 + 라운드/코트 + 특별조건 + 대진표 생성
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { generateSchedule, makeEmptyMatch, calculateRecommendedSettings } from '@/lib/scheduler';
+import { generateSchedule, makeEmptyMatch, calculateRecommendedSettings, splitPlayersByNtrp, calcDefaultSplitRounds } from '@/lib/scheduler';
 import { addMember } from '@/lib/firestore';
 import styles from './tabs.module.css';
 
@@ -26,6 +26,8 @@ export default function SettingsTab({
   allowSingles, setAllowSingles,
   startTime, setStartTime, endTime, setEndTime,
   usePenalty = false, setUsePenalty,
+  ntrpSplitMode: propNtrpSplitMode, setNtrpSplitMode: propSetNtrpSplitMode,
+  ntrpSplitRounds: propNtrpSplitRounds, setNtrpSplitRounds: propSetNtrpSplitRounds,
   groups, setGroups,
   onScheduleGenerated, onScheduleManual, onSave, onSaveAndExit, onGoto, onReloadMembers
 }) {
@@ -37,6 +39,23 @@ export default function SettingsTab({
   const [recExplanation, setRecExplanation] = useState('');
   const [recNotice, setRecNotice] = useState('');
   const lastAutoSyncedDateRef = useRef(null);
+
+  const [localNtrpSplitMode, setLocalNtrpSplitMode] = useState(false);
+  const [localNtrpSplitRounds, setLocalNtrpSplitRounds] = useState(() => calcDefaultSplitRounds(startTime, endTime, rounds));
+  const [sortByNtrp, setSortByNtrp] = useState(false);
+
+  const effectiveSplitMode = propNtrpSplitMode !== undefined ? propNtrpSplitMode : localNtrpSplitMode;
+  const setEffectiveSplitMode = propSetNtrpSplitMode || setLocalNtrpSplitMode;
+  const effectiveSplitRounds = propNtrpSplitRounds !== undefined
+    ? Math.max(1, Math.min(Math.max(1, (rounds || 2) - 1), Number(propNtrpSplitRounds) || 1))
+    : Math.max(1, Math.min(Math.max(1, (rounds || 2) - 1), Number(localNtrpSplitRounds) || 1));
+  const setEffectiveSplitRounds = propSetNtrpSplitRounds || setLocalNtrpSplitRounds;
+
+  // 시작/종료 시간이나 총 라운드 수가 변경될 때 앞 2시간 기준 분리 라운드 자동 업데이트
+  useEffect(() => {
+    const autoR = calcDefaultSplitRounds(startTime, endTime, rounds);
+    setEffectiveSplitRounds(autoR);
+  }, [startTime, endTime, rounds]);
 
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestForm, setGuestForm] = useState({ name: '', gender: 'M', ntrp: 2.0 });
@@ -227,11 +246,20 @@ export default function SettingsTab({
     }
     
     if (confirm(`투표에서 참석으로 표시된 ${attendingIds.length}명을 불러오시겠습니까?\n(기존 참가자 목록이 교체되며 3단계 설정이 추천값으로 세팅됩니다.)`)) {
-      const newPts = attendingIds.map(id => ({ playerId: id, target: 0 }));
+      // NTRP 높은 순서대로 정렬하여 참가자 목록 구성
+      const sortedIds = attendingIds.slice().sort((idA, idB) => {
+        const mA = members.find(m => m.id === idA);
+        const mB = members.find(m => m.id === idB);
+        const diff = Number(mB?.ntrp || 0) - Number(mA?.ntrp || 0);
+        if (diff !== 0) return diff;
+        return (mA?.name || '').localeCompare(mB?.name || '', 'ko');
+      });
+      const newPts = sortedIds.map(id => ({ playerId: id, target: 0 }));
       const sTime = matchedEvent.startTime || startTime;
       const eTime = matchedEvent.endTime || endTime;
       if (matchedEvent.startTime) setStartTime(matchedEvent.startTime);
       if (matchedEvent.endTime) setEndTime(matchedEvent.endTime);
+      setSortByNtrp(true);
       applyRecommendation(newPts, sTime, eTime, courts);
     }
   };
@@ -286,6 +314,9 @@ export default function SettingsTab({
     return m ? { ...m, target: pt.target } : null;
   }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
 
+  const ntrpSplitInfo = splitPlayersByNtrp(entries);
+  const displayEntries = (effectiveSplitMode || sortByNtrp) ? ntrpSplitInfo.sorted : entries;
+
   const maleCount = entries.filter(e => e.gender === 'M').length;
   const femaleCount = entries.filter(e => e.gender === 'F').length;
 
@@ -314,7 +345,11 @@ export default function SettingsTab({
         groups: activeGroups, 
         mensDoublesCount, womensDoublesCount, mixedCount, jointCount, 
         singlesPerRound,
-        noFF: true 
+        noFF: true,
+        ntrpSplitMode: effectiveSplitMode,
+        splitRounds: effectiveSplitRounds,
+        startTime,
+        endTime
       };
       const { result, attempts, failReasons } = generateSchedule(entries, rounds, courts, opts, 2500, 3000);
       setGenerating(false);
@@ -346,7 +381,12 @@ export default function SettingsTab({
         setWarnMsg(`조건을 만족하는 대진표를 찾지 못했습니다. 아래 추천 해결 조건을 참고하여 설정을 조정해보세요.\n\n[주요 실패 원인 분석]\n${reasonsText}\n\n💡 [추천 해결 가이드]\n1. '목표 게임수 자동 균등배분' 버튼을 눌러 참가자들의 목표 게임수 합계와 필요 게임수를 일치시켜 보세요.\n2. 특정 인원의 '목표 게임수'가 전체 '라운드 수'보다 크지 않도록 조절하세요. (한 사람이 같은 라운드에 두 번 뛸 수는 없습니다.)\n3. 여성 회원 수가 적다면 '혼복 게임 수'를 줄이거나 없애서 대진 조건을 완화해 보세요.`);
         return;
       }
-      onScheduleGenerated(result.scheduleRounds, { dupCount: result.dupCount, ntrpDiffSum: result.ntrpDiffSum });
+      onScheduleGenerated(result.scheduleRounds, {
+        dupCount: result.dupCount,
+        ntrpDiffSum: result.ntrpDiffSum,
+        ntrpSplitMode: !!effectiveSplitMode,
+        splitRounds: effectiveSplitMode ? effectiveSplitRounds : null
+      });
       onGoto('bracket');
     }, 50);
   };
@@ -686,29 +726,189 @@ export default function SettingsTab({
               : '✓ 체크 해제됨: 벌칙금 정산소 대신 선수별 경기 진행/완료 현황이 표시됩니다.'}
           </span>
         </div>
+
+        {/* 🏆 NTRP 상위/하위 그룹 분리 후 혼합 대진 옵션 설정 */}
+        <div style={{
+          marginTop: '12px',
+          padding: '14px 16px',
+          borderRadius: '10px',
+          backgroundColor: effectiveSplitMode ? 'rgba(37, 99, 235, 0.06)' : 'var(--bg)',
+          border: `1.5px solid ${effectiveSplitMode ? 'rgba(37, 99, 235, 0.38)' : 'var(--border)'}`,
+          transition: 'all 0.2s ease'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, fontWeight: 800, fontSize: '13.8px', color: 'var(--txt)' }}>
+              <input
+                type="checkbox"
+                checked={!!effectiveSplitMode}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setEffectiveSplitMode(checked);
+                  if (checked) {
+                    setSortByNtrp(true);
+                    setEffectiveSplitRounds(calcDefaultSplitRounds(startTime, endTime, rounds));
+                  }
+                }}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              🏆 NTRP 상위/하위 그룹 분리 후 혼합 대진 적용 <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#2563eb' }}>(앞 2시간 수준별 대진 + 이후 시간 혼합 대진)</span>
+            </label>
+            <span style={{ fontSize: '12px', color: effectiveSplitMode ? '#1d4ed8' : 'var(--txt3)', fontWeight: 700 }}>
+              {effectiveSplitMode
+                ? `✓ 적용됨: 1R~${effectiveSplitRounds}R 상·하위 그룹별 대진 → ${effectiveSplitRounds + 1}R~${rounds}R 그룹 혼합 대진`
+                : '✓ 미적용 (일반 전체 혼합 대진)'}
+            </span>
+          </div>
+
+          {effectiveSplitMode && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed rgba(37, 99, 235, 0.25)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', fontSize: '12.5px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700, color: '#1e40af' }}>⏱️ 구간별 라운드 배정:</span>
+                  <span style={{ padding: '3px 8px', borderRadius: '6px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontWeight: 700 }}>
+                    앞 2시간 (그룹별 대진): 1R ~
+                    <select
+                      className="input input-sm"
+                      value={effectiveSplitRounds}
+                      onChange={e => setEffectiveSplitRounds(parseInt(e.target.value) || 1)}
+                      style={{ width: '54px', margin: '0 4px', padding: '1px 4px', height: '24px', fontWeight: 800, display: 'inline-block' }}
+                    >
+                      {numOptions(1, Math.max(1, rounds - 1))}
+                    </select>
+                    R
+                  </span>
+                  <span style={{ color: '#64748b', fontWeight: 800 }}>➔</span>
+                  <span style={{ padding: '3px 8px', borderRadius: '6px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', fontWeight: 700 }}>
+                    이후 ~ 종료시간 ({endTime || '12:00'}): {Math.min(rounds, effectiveSplitRounds + 1)}R ~ {rounds}R (상·하위 혼합 대진)
+                  </span>
+                </div>
+                <span style={{ fontSize: '11.5px', color: '#475569' }}>
+                  * 참가자를 NTRP 순으로 나열해 절반씩 상위/하위 그룹으로 자동 분류합니다.
+                </span>
+              </div>
+
+              {entries.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
+                  {/* 상위그룹 미리보기 */}
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#c2410c', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>🔥 상위그룹 ({ntrpSplitInfo.upperGroup.length}명)</span>
+                      <span style={{ fontSize: '11px', color: '#ea580c' }}>
+                        NTRP {ntrpSplitInfo.upperGroup[ntrpSplitInfo.upperGroup.length - 1]?.ntrp?.toFixed(1) || '-'} ~ {ntrpSplitInfo.upperGroup[0]?.ntrp?.toFixed(1) || '-'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {ntrpSplitInfo.upperGroup.map((p, idx) => (
+                        <span key={p.id} style={{ fontSize: '11.5px', padding: '2px 7px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #fdba74', color: '#9a3412', fontWeight: 700 }}>
+                          {idx + 1}. {p.name} <span style={{ opacity: 0.75 }}>({p.ntrp.toFixed(1)})</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 하위그룹 미리보기 */}
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>🌱 하위그룹 ({ntrpSplitInfo.lowerGroup.length}명)</span>
+                      <span style={{ fontSize: '11px', color: '#16a34a' }}>
+                        NTRP {ntrpSplitInfo.lowerGroup[ntrpSplitInfo.lowerGroup.length - 1]?.ntrp?.toFixed(1) || '-'} ~ {ntrpSplitInfo.lowerGroup[0]?.ntrp?.toFixed(1) || '-'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {ntrpSplitInfo.lowerGroup.map((p, idx) => (
+                        <span key={p.id} style={{ fontSize: '11.5px', padding: '2px 7px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #86efac', color: '#166534', fontWeight: 700 }}>
+                          {ntrpSplitInfo.upperGroup.length + idx + 1}. {p.name} <span style={{ opacity: 0.75 }}>({p.ntrp.toFixed(1)})</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 4단계: 참가자 목표 게임수 설정 및 균등 배분 */}
       <div className={`card ${styles.section}`}>
-        <h2 className={styles.sectionTitle}>4단계: 참가자 목표 게임수 설정 및 균등 배분</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <h2 className={styles.sectionTitle} style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>
+            4단계: 참가자 목표 게임수 설정 및 균등 배분
+          </h2>
+          {entries.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${!(effectiveSplitMode || sortByNtrp) ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setSortByNtrp(false)}
+                disabled={!!effectiveSplitMode}
+                title={effectiveSplitMode ? 'NTRP 그룹 분리 옵션 활성화 중에는 NTRP 순서로 고정됩니다' : '가나다 이름순 정렬'}
+                style={{ fontSize: '11.5px', padding: '3px 9px' }}
+              >
+                가나다순
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${(effectiveSplitMode || sortByNtrp) ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setSortByNtrp(true)}
+                style={{ fontSize: '11.5px', padding: '3px 9px' }}
+              >
+                🏆 NTRP 순 (상·하위 그룹)
+              </button>
+            </div>
+          )}
+        </div>
         <div className="table-wrap" style={{ marginTop: 10 }}>
           <table>
-            <thead><tr><th>이름</th><th>성별</th><th>NTRP</th><th>목표 게임수</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                {(effectiveSplitMode || sortByNtrp) && <th style={{ width: '92px' }}>그룹</th>}
+                <th>이름</th>
+                <th>성별</th>
+                <th>NTRP</th>
+                <th>목표 게임수</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
-              {entries.map(p => (
-                <tr key={p.id}>
-                  <td>{p.name}</td>
-                  <td><span className={`badge ${p.gender === 'F' ? 'badge-purple' : 'badge-blue'}`}>{p.gender === 'F' ? '여' : '남'}</span></td>
-                  <td>{p.ntrp.toFixed(1)}</td>
-                  <td>
-                    <select className="input input-sm" value={p.target} style={{ width: 60 }}
-                      onChange={e => updateTarget(p.id, e.target.value)}>
-                      {numOptions(0, 20)}
-                    </select>
-                  </td>
-                  <td><button className="btn btn-danger btn-sm" onClick={() => removeParticipant(p.id)}>제외</button></td>
-                </tr>
-              ))}
+              {displayEntries.map((p, idx) => {
+                const isUpper = ntrpSplitInfo.upperIds.has(p.id);
+                return (
+                  <tr
+                    key={p.id}
+                    style={(effectiveSplitMode || sortByNtrp) ? {
+                      backgroundColor: isUpper ? 'rgba(255, 247, 237, 0.45)' : 'rgba(240, 253, 244, 0.45)'
+                    } : undefined}
+                  >
+                    {(effectiveSplitMode || sortByNtrp) && (
+                      <td>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          padding: '2px 7px',
+                          borderRadius: '10px',
+                          backgroundColor: isUpper ? '#ffedd5' : '#dcfce7',
+                          color: isUpper ? '#c2410c' : '#15803d',
+                          border: `1px solid ${isUpper ? '#fdba74' : '#86efac'}`,
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {isUpper ? '🔥 상위그룹' : '🌱 하위그룹'}
+                        </span>
+                      </td>
+                    )}
+                    <td style={{ fontWeight: 700 }}>{(effectiveSplitMode || sortByNtrp) ? `${idx + 1}. ${p.name}` : p.name}</td>
+                    <td><span className={`badge ${p.gender === 'F' ? 'badge-purple' : 'badge-blue'}`}>{p.gender === 'F' ? '여' : '남'}</span></td>
+                    <td>{p.ntrp.toFixed(1)}</td>
+                    <td>
+                      <select className="input input-sm" value={p.target} style={{ width: 60 }}
+                        onChange={e => updateTarget(p.id, e.target.value)}>
+                        {numOptions(0, 20)}
+                      </select>
+                    </td>
+                    <td><button className="btn btn-danger btn-sm" onClick={() => removeParticipant(p.id)}>제외</button></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

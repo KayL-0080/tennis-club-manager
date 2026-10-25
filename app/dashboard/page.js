@@ -45,6 +45,8 @@ export default function Dashboard() {
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
   const [usePenalty, setUsePenalty] = useState(false);
+  const [ntrpSplitMode, setNtrpSplitMode] = useState(false);
+  const [ntrpSplitRounds, setNtrpSplitRounds] = useState(4);
 
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -150,6 +152,8 @@ export default function Dashboard() {
         startTime: finalStartTime,
         endTime: finalEndTime,
         usePenalty,
+        ntrpSplitMode: !!(genStats?.ntrpSplitMode ?? ntrpSplitMode),
+        ntrpSplitRounds: (genStats?.ntrpSplitMode ?? ntrpSplitMode) ? (genStats?.splitRounds ?? ntrpSplitRounds) : null,
         schedule: schedRounds,
         scores: {},
         scheduleRounds_: r,
@@ -205,6 +209,8 @@ export default function Dashboard() {
         startTime: finalStartTime,
         endTime: finalEndTime,
         usePenalty,
+        ntrpSplitMode: !!(genStats?.ntrpSplitMode ?? ntrpSplitMode),
+        ntrpSplitRounds: (genStats?.ntrpSplitMode ?? ntrpSplitMode) ? (genStats?.splitRounds ?? ntrpSplitRounds) : null,
         schedule: schedRounds,
         scores: {},
         scheduleRounds_: r,
@@ -668,6 +674,8 @@ export default function Dashboard() {
               startTime={startTime} setStartTime={setStartTime}
               endTime={endTime} setEndTime={setEndTime}
               usePenalty={usePenalty} setUsePenalty={setUsePenalty}
+              ntrpSplitMode={ntrpSplitMode} setNtrpSplitMode={setNtrpSplitMode}
+              ntrpSplitRounds={ntrpSplitRounds} setNtrpSplitRounds={setNtrpSplitRounds}
               groups={groups} setGroups={setGroups}
               onScheduleGenerated={handleScheduleGenerated}
               onScheduleManual={handleScheduleManual}
@@ -804,7 +812,7 @@ function ScheduleCard({ s, members, isAdmin, onOpen, onDelete, isCompleted }) {
 
         <div className={styles.scheduleInfoRow}>
           <span className={styles.scheduleInfoLabel}>⚖️ 규칙</span>
-          <div className={styles.scheduleInfoVal}>
+          <div className={styles.scheduleInfoVal} style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
             {s.usePenalty ? (
               <span style={{ fontSize: '11.5px', color: '#e11d48', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <span>💸</span> 벌칙금 정산 적용
@@ -812,6 +820,11 @@ function ScheduleCard({ s, members, isAdmin, onOpen, onDelete, isCompleted }) {
             ) : (
               <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <span>🛡️</span> 벌칙금 미적용
+              </span>
+            )}
+            {s.ntrpSplitMode && (
+              <span style={{ fontSize: '11px', color: '#1d4ed8', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '6px', fontWeight: 700 }}>
+                🏆 상·하위 분리 후 혼합 ({s.ntrpSplitRounds ? `1~${s.ntrpSplitRounds}R 그룹별` : '그룹별→혼합'})
               </span>
             )}
           </div>
