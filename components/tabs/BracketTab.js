@@ -132,6 +132,12 @@ export default function BracketTab({
   const [activeOnlyMode, setActiveOnlyMode] = useState(false); // true: 현재 진행중인 경기만, false: 전체 펼쳐보기
   const [collapsedCourts, setCollapsedCourts] = useState({}); // { [courtIdx]: boolean }
 
+  /* ── 🖨️ A4 한장 출력 (라운드별 전체 테이블) 옵션 및 미리보기 상태 ── */
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printOrientation, setPrintOrientation] = useState('portrait'); // 'portrait' | 'landscape'
+  const [printBlankScores, setPrintBlankScores] = useState(false); // true: 현장 수기 기입용 빈 점수칸
+  const [printIncludePlayers, setPrintIncludePlayers] = useState(true); // 하단 참가 선수 명단/경기수 요약 포함
+
   const isCourtCollapsed = (courtIdx) => {
     if (collapsedCourts[courtIdx] !== undefined) {
       return collapsedCourts[courtIdx];
@@ -845,18 +851,33 @@ export default function BracketTab({
             </div>
           )}
 
-          {/* 공유 그룹 */}
+          {/* 공유 & A4 인쇄 그룹 */}
           <div className={styles.toolbarGroup} style={{ justifyContent: 'space-between' }}>
-            <span className={styles.toolbarLabel}>공유</span>
-            <button className="btn btn-secondary btn-sm" onClick={shareNative} style={{ width: '100%' }}>
-              📤 대진표 공유하기
-            </button>
+            <span className={styles.toolbarLabel}>공유 / 출력</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button className="btn btn-secondary btn-sm" onClick={shareNative} style={{ width: '100%' }}>
+                📤 공유하기
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  setViewMode('table');
+                  if (courts >= 3) setPrintOrientation('landscape');
+                  setShowPrintModal(true);
+                }}
+                style={{ width: '100%', fontWeight: 800 }}
+                title="라운드별 전체 테이블 형식으로 A4 1장에 맞춰 출력합니다"
+              >
+                🖨️ A4 한장 출력
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* 대진표 */}
-      <div className={`card ${styles.section}`}>
+      <div className={`card ${styles.section} no-print`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
           <h2 className={styles.sectionTitle} style={{ margin: 0, border: 'none', padding: 0 }}>
             대진표 <span className={styles.sectionNote}>{isReadOnly ? '(종료된 경기 기록)' : '(선수·점수 입력 즉시 전원에게 실시간 반영)'}</span>
@@ -917,6 +938,31 @@ export default function BracketTab({
                 📋 라운드별 전체 테이블
               </button>
             </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                setViewMode('table');
+                if (courts >= 3) setPrintOrientation('landscape');
+                setShowPrintModal(true);
+              }}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: 800,
+                borderRadius: '10px',
+                backgroundColor: '#eff6ff',
+                color: '#1d4ed8',
+                border: '1px solid #93c5fd',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+              title="라운드별 전체 테이블 형식으로 A4 한장에 맞춰 인쇄합니다"
+            >
+              <span>🖨️</span>
+              <span>A4 한장 출력</span>
+            </button>
           </div>
 
           {/* 2. 코트별 뷰 모드 필터 (펼쳐보기 vs 진행중) */}
@@ -1606,7 +1652,7 @@ export default function BracketTab({
 
       {/* 💸 1. 최종 경기 벌칙금(진팀 벌금) 정산소 (usePenalty === true 일 때 표시) */}
       {usePenalty && (
-        <div className={`card ${styles.section}`} style={{ marginTop: '24px', border: '1px solid rgba(225, 29, 72, 0.25)', background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255, 241, 242, 0.4) 100%)' }}>
+        <div className={`card ${styles.section} no-print`} style={{ marginTop: '24px', border: '1px solid rgba(225, 29, 72, 0.25)', background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255, 241, 242, 0.4) 100%)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -1881,7 +1927,7 @@ export default function BracketTab({
 
       {/* 🎾 1. 선수별 경기 진행 현황 (usePenalty === false 일 때 표시) */}
       {!usePenalty && (
-        <div className={`card ${styles.section}`} style={{ marginTop: '24px', border: '1px solid rgba(14, 165, 233, 0.25)', background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(240, 249, 255, 0.6) 100%)' }}>
+        <div className={`card ${styles.section} no-print`} style={{ marginTop: '24px', border: '1px solid rgba(14, 165, 233, 0.25)', background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(240, 249, 255, 0.6) 100%)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -2088,7 +2134,7 @@ export default function BracketTab({
       )}
 
       {/* 2. 오늘 개인 순위표 */}
-      <div className={`card ${styles.section}`}>
+      <div className={`card ${styles.section} no-print`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)' }}>
@@ -2191,7 +2237,7 @@ export default function BracketTab({
 
       {/* 3. 벌칙금 정산 안내 공유 모달 */}
       {showPenaltyShareModal && (
-        <div className="modal-overlay" style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        <div className="modal-overlay no-print" style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="modal-content" style={{ maxWidth: '520px', width: '90%', borderRadius: '20px', padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--txt)' }}>
@@ -2252,6 +2298,465 @@ export default function BracketTab({
         onRemoveParticipant={handleRemoveParticipant}
         isAdmin={isAdmin}
       />
+
+      {/* 🖨️ 6. A4 한장 출력 미리보기 및 인쇄 설정 모달 (화면 전용, 인쇄 시 숨김) */}
+      {showPrintModal && (
+        <div
+          className="modal-overlay no-print"
+          style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 9999 }}
+          onClick={() => setShowPrintModal(false)}
+        >
+          <div
+            className="modal-content"
+            style={{
+              maxWidth: printOrientation === 'landscape' ? '980px' : '780px',
+              width: '96%',
+              maxHeight: '92vh',
+              borderRadius: '20px',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 모달 상단 헤더 및 인쇄 컨트롤 바 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🖨️</span>
+                  <span>라운드별 전체 테이블 — A4 한장 출력</span>
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                  전체 라운드·코트 대진표를 A4 용지 1장에 딱 맞게 압축 정돈하여 출력합니다.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{ fontWeight: 800, padding: '8px 18px', fontSize: '13px' }}
+                  onClick={() => window.print()}
+                >
+                  🖨️ A4 한장 인쇄하기
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowPrintModal(false)}
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+
+            {/* 출력 옵션 선택 바 */}
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '12px',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0'
+            }}>
+              {/* 용지 방향 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>📄 용지 방향:</span>
+                <button
+                  type="button"
+                  onClick={() => setPrintOrientation('portrait')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: printOrientation === 'portrait' ? 800 : 600,
+                    border: printOrientation === 'portrait' ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                    backgroundColor: printOrientation === 'portrait' ? '#eff6ff' : '#ffffff',
+                    color: printOrientation === 'portrait' ? '#1d4ed8' : '#475569',
+                    cursor: 'pointer'
+                  }}
+                >
+                  세로 (1~2코트 추천)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintOrientation('landscape')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: printOrientation === 'landscape' ? 800 : 600,
+                    border: printOrientation === 'landscape' ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                    backgroundColor: printOrientation === 'landscape' ? '#eff6ff' : '#ffffff',
+                    color: printOrientation === 'landscape' ? '#1d4ed8' : '#475569',
+                    cursor: 'pointer'
+                  }}
+                >
+                  가로 (3코트 이상 추천)
+                </button>
+              </div>
+
+              {/* 점수칸 표기 방식 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>✏️ 점수칸:</span>
+                <button
+                  type="button"
+                  onClick={() => setPrintBlankScores(false)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: !printBlankScores ? 800 : 600,
+                    border: !printBlankScores ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                    backgroundColor: !printBlankScores ? '#eff6ff' : '#ffffff',
+                    color: !printBlankScores ? '#1d4ed8' : '#475569',
+                    cursor: 'pointer'
+                  }}
+                >
+                  입력된 점수 반영
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintBlankScores(true)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: printBlankScores ? 800 : 600,
+                    border: printBlankScores ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                    backgroundColor: printBlankScores ? '#eff6ff' : '#ffffff',
+                    color: printBlankScores ? '#1d4ed8' : '#475569',
+                    cursor: 'pointer'
+                  }}
+                >
+                  전체 빈칸 (현장 수기 기록용)
+                </button>
+              </div>
+
+              {/* 참가자 명단 포함 여부 */}
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#334155', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={printIncludePlayers}
+                  onChange={e => setPrintIncludePlayers(e.target.checked)}
+                />
+                <span>하단 참가 선수 명단 표기</span>
+              </label>
+            </div>
+
+            {/* A4 용지 미리보기 영역 */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              backgroundColor: '#e2e8f0',
+              padding: '16px',
+              borderRadius: '12px',
+              border: '1px solid #cbd5e1'
+            }}>
+              <div style={{
+                backgroundColor: '#ffffff',
+                padding: '18px 20px',
+                borderRadius: '6px',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                maxWidth: printOrientation === 'landscape' ? '920px' : '700px',
+                margin: '0 auto'
+              }}>
+                {renderA4PrintContent()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🖨️ 7. 실제 프린터 출력 전용 A4 1장 시트 (@media print 에서만 표시) */}
+      <div className="a4-print-only-sheet">
+        <style>{`
+          @media print {
+            @page {
+              size: A4 ${printOrientation};
+              margin: 7mm;
+            }
+          }
+        `}</style>
+        {renderA4PrintContent()}
+      </div>
     </div>
   );
+
+  /* ── A4 한장 전용 '라운드별 전체 테이블' 렌더러 ── */
+  function renderA4PrintContent() {
+    const totalR = schedule?.length || 0;
+    // 라운드 수에 따른 자동 행 높이/여백 스케일링 (A4 1장 맞춤 보장)
+    const rowPadY = totalR <= 5 ? '8px' : totalR <= 7 ? '6px' : totalR <= 9 ? '4.5px' : '3px';
+    const fontSizePlayer = courts >= 3 ? '11px' : totalR >= 9 ? '11.5px' : '12.5px';
+    const stackTeams = courts >= 3 && printOrientation === 'portrait';
+
+    const formatPlayerCell = (pId) => {
+      const p = byId[pId];
+      if (!p) return '미배정';
+      const g = p.gender === 'F' ? '여' : '남';
+      return `${getDisplayNameWithGuest(p)}(${g})`;
+    };
+
+    return (
+      <div style={{ color: '#0f172a', fontFamily: '"Pretendard", -apple-system, BlinkMacSystemFont, sans-serif', width: '100%' }}>
+        {/* 1. 상단 타이틀 및 경기 요약 헤더 */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          borderBottom: '2.5px solid #0f172a',
+          paddingBottom: '8px',
+          marginBottom: '10px',
+          gap: '12px',
+          flexWrap: 'wrap'
+        }}>
+          <div>
+            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#475569', letterSpacing: '0.03em' }}>
+              🎾 {clubSettings?.name || '테니스 클럽'} 공식 경기 대진표 (라운드별 전체 테이블)
+            </div>
+            <h1 style={{ margin: '2px 0 0 0', fontSize: '19px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
+              {title || '오늘의 테니스 대진표'}
+            </h1>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '11.5px', fontWeight: 700, color: '#1e293b', flexWrap: 'wrap' }}>
+            <span>📅 일자: <strong>{matchDate || new Date().toLocaleDateString('ko-KR')}</strong></span>
+            <span>|</span>
+            <span>🏟️ 코트: <strong>{courts}면</strong></span>
+            <span>|</span>
+            <span>🔄 라운드: <strong>총 {totalR}R</strong></span>
+            <span>|</span>
+            <span>🎾 방식: <strong>{maxGames || 6}게임 선승</strong></span>
+            <span>|</span>
+            <span>👥 참가: <strong>{entries.length}명</strong></span>
+          </div>
+        </div>
+
+        {/* 2. 라운드별 전체 테이블 (핵심 본문) */}
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          tableLayout: 'fixed',
+          border: '1.5px solid #0f172a'
+        }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1.5px solid #0f172a' }}>
+              <th style={{
+                width: '52px',
+                padding: '6px 4px',
+                fontSize: '11.5px',
+                fontWeight: 900,
+                color: '#0f172a',
+                borderRight: '1px solid #64748b',
+                textAlign: 'center'
+              }}>
+                라운드
+              </th>
+              {Array.from({ length: courts }, (_, ci) => (
+                <th
+                  key={ci}
+                  style={{
+                    padding: '6px 8px',
+                    fontSize: '12px',
+                    fontWeight: 900,
+                    color: '#0f172a',
+                    borderRight: ci < courts - 1 ? '1px solid #64748b' : 'none',
+                    textAlign: 'center'
+                  }}
+                >
+                  🎾 {COURT_LABELS[ci]}코트 (A팀 vs B팀)
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(schedule || []).map((round, ri) => (
+              <tr
+                key={ri}
+                style={{
+                  borderBottom: ri < totalR - 1 ? '1px solid #94a3b8' : 'none',
+                  backgroundColor: ri % 2 === 0 ? '#ffffff' : '#f8fafc',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid'
+                }}
+              >
+                {/* 라운드 번호 셀 */}
+                <td style={{
+                  padding: `${rowPadY} 4px`,
+                  fontWeight: 900,
+                  fontSize: '12.5px',
+                  color: '#0f172a',
+                  backgroundColor: '#f1f5f9',
+                  borderRight: '1px solid #64748b',
+                  textAlign: 'center',
+                  verticalAlign: 'middle'
+                }}>
+                  {ri + 1}R
+                </td>
+
+                {/* 각 코트별 경기 셀 */}
+                {Array.from({ length: courts }, (_, ci) => {
+                  const m = round?.[ci];
+                  const key = `${ri}-${ci}`;
+                  const sc = scores?.[key] || { a: null, b: null };
+                  const hasScore = !printBlankScores &&
+                    sc.a !== null && sc.a !== undefined && sc.a !== '' &&
+                    sc.b !== null && sc.b !== undefined && sc.b !== '';
+                  const isEmptyMatch = !m || (!m.teamA?.[0] && !m.teamA?.[1] && !m.teamB?.[0] && !m.teamB?.[1]);
+
+                  return (
+                    <td
+                      key={ci}
+                      style={{
+                        padding: `${rowPadY} 6px`,
+                        borderRight: ci < courts - 1 ? '1px solid #94a3b8' : 'none',
+                        verticalAlign: 'middle',
+                        textAlign: 'center'
+                      }}
+                    >
+                      {isEmptyMatch ? (
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>-</span>
+                      ) : (
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr auto 1fr',
+                          alignItems: 'center',
+                          gap: '6px',
+                          width: '100%'
+                        }}>
+                          {/* A팀 선수 명단 */}
+                          <div style={{
+                            textAlign: 'right',
+                            fontWeight: 800,
+                            fontSize: fontSizePlayer,
+                            color: '#0f172a',
+                            lineHeight: 1.25,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {stackTeams ? (
+                              <>
+                                <div>{formatPlayerCell(m.teamA[0])}</div>
+                                <div>{formatPlayerCell(m.teamA[1])}</div>
+                              </>
+                            ) : (
+                              <span>{formatPlayerCell(m.teamA[0])} · {formatPlayerCell(m.teamA[1])}</span>
+                            )}
+                          </div>
+
+                          {/* 중앙 스코어 기입 박스 */}
+                          <div style={{
+                            minWidth: '54px',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid #475569',
+                            backgroundColor: '#ffffff',
+                            fontWeight: 900,
+                            fontSize: '12px',
+                            color: '#0f172a',
+                            textAlign: 'center',
+                            letterSpacing: '0.05em',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {hasScore ? `${sc.a} : ${sc.b}` : '\u00A0\u00A0\u00A0:\u00A0\u00A0\u00A0'}
+                          </div>
+
+                          {/* B팀 선수 명단 */}
+                          <div style={{
+                            textAlign: 'left',
+                            fontWeight: 800,
+                            fontSize: fontSizePlayer,
+                            color: '#0f172a',
+                            lineHeight: 1.25,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {stackTeams ? (
+                              <>
+                                <div>{formatPlayerCell(m.teamB[0])}</div>
+                                <div>{formatPlayerCell(m.teamB[1])}</div>
+                              </>
+                            ) : (
+                              <span>{formatPlayerCell(m.teamB[0])} · {formatPlayerCell(m.teamB[1])}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* 3. 하단 참가자 명단 요약 및 현장 메모란 */}
+        {printIncludePlayers && entries.length > 0 && (
+          <div style={{
+            marginTop: '10px',
+            padding: '8px 10px',
+            border: '1px solid #64748b',
+            borderRadius: '6px',
+            backgroundColor: '#f8fafc',
+            pageBreakInside: 'avoid',
+            breakInside: 'avoid'
+          }}>
+            <div style={{
+              fontSize: '11px',
+              fontWeight: 900,
+              color: '#0f172a',
+              marginBottom: '5px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span>👥 오늘 참가 선수 명단 및 배정 경기수 (총 {entries.length}명)</span>
+              <span style={{ fontWeight: 600, color: '#475569', fontSize: '10.5px' }}>
+                ※ 괄호 안 숫자는 총 배정 경기수입니다.
+              </span>
+            </div>
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '4px 8px',
+              fontSize: '11px',
+              color: '#1e293b',
+              lineHeight: 1.4
+            }}>
+              {[...entries]
+                .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'))
+                .map((p, idx) => {
+                  const assigned = playerAssignedCounts[p.id] || 0;
+                  return (
+                    <span
+                      key={p.id}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        padding: '1px 6px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <span style={{ color: '#64748b', fontSize: '10px' }}>{idx + 1}.</span>
+                      <span>{getDisplayNameWithGuest(p)}({p.gender === 'F' ? '여' : '남'})</span>
+                      <span style={{ color: '#1d4ed8', fontWeight: 800 }}>{assigned}G</span>
+                    </span>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 }
