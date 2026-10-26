@@ -64,7 +64,17 @@ export default function SettingsTab({
   }, [startTime, endTime, rounds]);
 
   const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestMode, setGuestMode] = useState('POOL'); // 'POOL' (게스트 풀에서 선택) | 'NEW' (신규 게스트 입력)
+  const [selectedGuestsToAdd, setSelectedGuestsToAdd] = useState([]);
   const [guestForm, setGuestForm] = useState({ name: '', gender: 'M', ntrp: 2.0 });
+
+  const isGuestMember = (m) => Boolean(
+    m && (
+      m.role === '게스트' ||
+      (typeof m.role === 'string' && m.role.includes('게스트')) ||
+      m.isGuest === true
+    )
+  );
 
   // 🗓️ 경기날짜가 정기모임 투표날짜와 일치할 경우 시작/종료시간 자동 동기화
   useEffect(() => {
@@ -264,7 +274,15 @@ export default function SettingsTab({
     }
   };
   const addAll = () => {
-    const newPts = members.map(m => ({ playerId: m.id, target: 0 }));
+    const regularIds = members.filter(m => !isGuestMember(m)).map(m => m.id);
+    const existingGuestPts = participants.filter(pt => {
+      const m = members.find(x => x.id === pt.playerId);
+      return isGuestMember(m);
+    });
+    const newPts = [
+      ...regularIds.map(id => ({ playerId: id, target: 0 })),
+      ...existingGuestPts.map(pt => ({ playerId: pt.playerId, target: 0 }))
+    ];
     applyRecommendation(newPts, startTime, endTime, courts);
   };
   const clearAll = () => {
@@ -318,11 +336,31 @@ export default function SettingsTab({
     applyRecommendation(newPts, startTime, endTime, courts);
   };
 
+  const toggleSelectGuestToAdd = (id, isChecked) => {
+    setSelectedGuestsToAdd(prev => isChecked ? [...prev, id] : prev.filter(x => x !== id));
+  };
+
+  const addSelectedGuestsFromPool = () => {
+    if (selectedGuestsToAdd.length === 0) return;
+    const newPts = [
+      ...participants,
+      ...selectedGuestsToAdd.filter(id => !isParticipant(id)).map(id => ({ playerId: id, target: 0 }))
+    ];
+    setSelectedGuestsToAdd([]);
+    setShowGuestForm(false);
+    applyRecommendation(newPts, startTime, endTime, courts);
+  };
+
   const handleAddGuest = async (e) => {
     e.preventDefault();
     if (!guestForm.name.trim()) return;
     try {
-      const newId = await addMember('shared', { ...guestForm, role: '게스트' });
+      const newId = await addMember('shared', {
+        ...guestForm,
+        name: guestForm.name.trim(),
+        role: '게스트',
+        isGuest: true
+      });
       if (onReloadMembers) await onReloadMembers();
       const newPts = [...participants, { playerId: newId, target: 0 }];
       setShowGuestForm(false);
@@ -461,9 +499,19 @@ export default function SettingsTab({
     onGoto('bracket');
   };
 
+  // 2단계 기본 참가자 선택 목록: 정회원(임원·정회원·준회원)만 표시 (게스트 제외)
   const availableToAdd = members
-    .filter(m => !isParticipant(m.id))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter(m => !isGuestMember(m) && !isParticipant(m.id))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+
+  // 게스트 풀에서 아직 오늘 참가자로 선택되지 않은 게스트 목록 (NTRP 높은 순)
+  const availableGuestPool = members
+    .filter(m => isGuestMember(m) && !isParticipant(m.id))
+    .sort((a, b) => (Number(b.ntrp) || 0) - (Number(a.ntrp) || 0) || (a.name || '').localeCompare(b.name || '', 'ko'));
+
+  // 오늘 참가자로 이미 추가된 게스트 목록
+  const participatingGuests = entries.filter(e => isGuestMember(e));
+  const participatingRegularCount = entries.length - participatingGuests.length;
 
   const sumMatches = (mensDoublesCount || 0) + (womensDoublesCount || 0) + (mixedCount || 0) + (jointCount || 0);
   const requiredMatches = rounds * doublesPerRound;
@@ -583,7 +631,7 @@ export default function SettingsTab({
             <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>2단계: 참가자 선택</h2>
             {participants.length > 0 && (
               <span style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '12px', backgroundColor: 'var(--bg)', border: '1px solid var(--border)', fontWeight: '700' }}>
-                👥 총 {participants.length}명 <span style={{ color: '#2563eb' }}>(남 {maleCount}명)</span> · <span style={{ color: '#9333ea' }}>(여 {femaleCount}명)</span>
+                👥 총 {participants.length}명 (정회원 {participatingRegularCount} · 게스트 {participatingGuests.length}) | <span style={{ color: '#2563eb' }}>남 {maleCount}명</span> · <span style={{ color: '#9333ea' }}>여 {femaleCount}명</span>
               </span>
             )}
           </div>
@@ -603,47 +651,280 @@ export default function SettingsTab({
           </div>
         )}
 
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', maxHeight: '150px', overflowY: 'auto', background: 'var(--bg)' }}>
-            {availableToAdd.length === 0 ? <span className="text-muted" style={{ fontSize: 13 }}>추가할 회원이 없습니다.</span> : availableToAdd.map(m => (
-              <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'var(--bg-card)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: 14 }}>
-                <input type="checkbox" checked={selectedToAdd.includes(m.id)} onChange={e => toggleSelectToAdd(m.id, e.target.checked)} />
-                {m.name}
-                <span style={{ fontSize: '10px', color: m.gender === 'F' ? '#9333ea' : '#2563eb', fontWeight: 'bold' }}>
-                  ({m.gender === 'F' ? '여' : '남'})
-                </span>
-              </label>
-            ))}
+        {/* 정회원 선택 영역 (게스트 제외) */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 800, color: '#1e293b' }}>
+              🎾 정회원 명단에서 선택 <span style={{ color: '#64748b', fontWeight: 600 }}>(미선택 정회원 {availableToAdd.length}명)</span>
+            </span>
+            {selectedToAdd.length > 0 && (
+              <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#2563eb' }}>
+                ✓ {selectedToAdd.length}명 선택됨
+              </span>
+            )}
           </div>
-          <button className="btn btn-secondary btn-sm" type="button" onClick={addSelectedParticipants} style={{ marginTop: '8px' }}>
-            + 선택한 인원 참가자로 추가
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', maxHeight: '160px', overflowY: 'auto', background: 'var(--bg)' }}>
+            {availableToAdd.length === 0 ? (
+              <span className="text-muted" style={{ fontSize: 13 }}>추가할 정회원이 없습니다.</span>
+            ) : (
+              availableToAdd.map(m => (
+                <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'var(--bg-card)', padding: '4px 8px', borderRadius: '6px', border: selectedToAdd.includes(m.id) ? '1.5px solid #2563eb' : '1px solid var(--border)', fontSize: 13.5, fontWeight: selectedToAdd.includes(m.id) ? 700 : 500 }}>
+                  <input type="checkbox" checked={selectedToAdd.includes(m.id)} onChange={e => toggleSelectToAdd(m.id, e.target.checked)} />
+                  <span>{m.name}</span>
+                  <span style={{ fontSize: '10.5px', color: m.gender === 'F' ? '#9333ea' : '#2563eb', fontWeight: 'bold' }}>
+                    ({m.gender === 'F' ? '여' : '남'})
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            onClick={addSelectedParticipants}
+            disabled={selectedToAdd.length === 0}
+            style={{ marginTop: '8px', fontWeight: 700 }}
+          >
+            + 선택한 정회원 참가자로 추가 {selectedToAdd.length > 0 ? `(${selectedToAdd.length}명)` : ''}
           </button>
         </div>
+
+        {/* 현재 참가 등록된 게스트 칩 표시 */}
+        {participatingGuests.length > 0 && (
+          <div style={{
+            marginBottom: '12px',
+            padding: '8px 12px',
+            borderRadius: '8px',
+            backgroundColor: '#f5f3ff',
+            border: '1px solid #ddd6fe',
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '6px'
+          }}>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#6d28d9', marginRight: '4px' }}>
+              🙋 참가 게스트 ({participatingGuests.length}명):
+            </span>
+            {participatingGuests.map(g => (
+              <span
+                key={g.id}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #c4b5fd',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#5b21b6'
+                }}
+              >
+                <span>{g.name}({g.gender === 'F' ? '여' : '남'} · NTRP {Number(g.ntrp || 2.0).toFixed(1)})</span>
+                <button
+                  type="button"
+                  onClick={() => removeParticipant(g.id)}
+                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: 900, padding: '0 2px', lineHeight: 1 }}
+                  title="참가 명단에서 제외"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         
-        {/* 게스트 추가 폼 */}
+        {/* 게스트 추가 (게스트 풀 선택 or 신규 게스트 입력) */}
         <div style={{ marginBottom: 12 }}>
           {!showGuestForm ? (
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setShowGuestForm(true)}>
-              👤 게스트 추가
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              onClick={() => {
+                setGuestMode(availableGuestPool.length > 0 ? 'POOL' : 'NEW');
+                setShowGuestForm(true);
+              }}
+              style={{
+                backgroundColor: '#f5f3ff',
+                color: '#6d28d9',
+                borderColor: '#ddd6fe',
+                fontWeight: 800
+              }}
+            >
+              🙋 게스트 추가 (게스트 풀 {availableGuestPool.length}명 / 신규 입력)
             </button>
           ) : (
-            <form onSubmit={handleAddGuest} style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'var(--bg)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
-              <input className="input input-sm" placeholder="게스트 이름" value={guestForm.name} onChange={e => setGuestForm(prev => ({ ...prev, name: e.target.value }))} style={{ width: 100 }} required />
-              <select className="input input-sm" value={guestForm.gender} onChange={e => setGuestForm(prev => ({ ...prev, gender: e.target.value }))} style={{ width: 60 }}>
-                <option value="M">남</option>
-                <option value="F">여</option>
-              </select>
-              <select className="input input-sm" value={guestForm.ntrp} onChange={e => setGuestForm(prev => ({ ...prev, ntrp: parseFloat(e.target.value) }))} style={{ width: 60 }}>
-                {[1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0].map(v => <option key={v} value={v}>{v.toFixed(1)}</option>)}
-              </select>
-              <button className="btn btn-primary btn-sm" type="submit">추가</button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => setShowGuestForm(false)}>취소</button>
-            </form>
+            <div style={{
+              background: '#faf5ff',
+              padding: '14px',
+              borderRadius: '12px',
+              border: '1.5px solid #d8b4fe'
+            }}>
+              {/* 상단 헤더 & 모드 전환 탭 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setGuestMode('POOL')}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: guestMode === 'POOL' ? 800 : 600,
+                      border: guestMode === 'POOL' ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                      backgroundColor: guestMode === 'POOL' ? '#7c3aed' : '#ffffff',
+                      color: guestMode === 'POOL' ? '#ffffff' : '#475569',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    📋 게스트 풀에서 선택 ({availableGuestPool.length}명)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGuestMode('NEW')}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: guestMode === 'NEW' ? 800 : 600,
+                      border: guestMode === 'NEW' ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                      backgroundColor: guestMode === 'NEW' ? '#7c3aed' : '#ffffff',
+                      color: guestMode === 'NEW' ? '#ffffff' : '#475569',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ➕ 신규 게스트 직접 입력
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setShowGuestForm(false);
+                    setSelectedGuestsToAdd([]);
+                  }}
+                >
+                  닫기
+                </button>
+              </div>
+
+              {/* 탭 1: 게스트 풀에서 선택 */}
+              {guestMode === 'POOL' ? (
+                <div>
+                  {availableGuestPool.length === 0 ? (
+                    <div style={{ padding: '16px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e9d5ff', color: '#64748b', fontSize: '13px' }}>
+                      <div style={{ marginBottom: '8px', fontWeight: 700 }}>등록된 대기 게스트가 없습니다.</div>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        style={{ backgroundColor: '#7c3aed', borderColor: '#7c3aed' }}
+                        onClick={() => setGuestMode('NEW')}
+                      >
+                        ➕ 신규 게스트 입력하기
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e9d5ff', maxHeight: '150px', overflowY: 'auto' }}>
+                        {availableGuestPool.map(g => {
+                          const isChecked = selectedGuestsToAdd.includes(g.id);
+                          return (
+                            <label
+                              key={g.id}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                cursor: 'pointer',
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                border: isChecked ? '1.5px solid #7c3aed' : '1px solid #e2e8f0',
+                                backgroundColor: isChecked ? '#f5f3ff' : '#f8fafc',
+                                fontSize: '13px',
+                                fontWeight: isChecked ? 800 : 600
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={e => toggleSelectGuestToAdd(g.id, e.target.checked)}
+                              />
+                              <span>{g.name}</span>
+                              <span style={{ fontSize: '11px', color: g.gender === 'F' ? '#db2777' : '#2563eb', fontWeight: 700 }}>
+                                ({g.gender === 'F' ? '여' : '남'})
+                              </span>
+                              <span style={{ fontSize: '10.5px', padding: '1px 5px', borderRadius: '4px', backgroundColor: '#ede9fe', color: '#6d28d9', fontWeight: 800 }}>
+                                NTRP {Number(g.ntrp || 2.0).toFixed(1)}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                        <span style={{ fontSize: '11.5px', color: '#6d28d9', fontWeight: 600 }}>
+                          💡 명단에 없는 게스트는 상단 [➕ 신규 게스트 직접 입력] 탭에서 추가하세요.
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={selectedGuestsToAdd.length === 0}
+                          onClick={addSelectedGuestsFromPool}
+                          style={{ backgroundColor: '#7c3aed', borderColor: '#7c3aed', fontWeight: 800 }}
+                        >
+                          + 선택한 게스트 참가 추가 {selectedGuestsToAdd.length > 0 ? `(${selectedGuestsToAdd.length}명)` : ''}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                /* 탭 2: 신규 게스트 직접 입력 */
+                <form onSubmit={handleAddGuest} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e9d5ff' }}>
+                  <input
+                    className="input input-sm"
+                    placeholder="신규 게스트 이름"
+                    value={guestForm.name}
+                    onChange={e => setGuestForm(prev => ({ ...prev, name: e.target.value }))}
+                    style={{ width: '130px', fontWeight: 700 }}
+                    required
+                    autoFocus
+                  />
+                  <select
+                    className="input input-sm"
+                    value={guestForm.gender}
+                    onChange={e => setGuestForm(prev => ({ ...prev, gender: e.target.value }))}
+                    style={{ width: '75px', fontWeight: 700 }}
+                  >
+                    <option value="M">남성</option>
+                    <option value="F">여성</option>
+                  </select>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>NTRP:</span>
+                    <select
+                      className="input input-sm"
+                      value={guestForm.ntrp}
+                      onChange={e => setGuestForm(prev => ({ ...prev, ntrp: parseFloat(e.target.value) }))}
+                      style={{ width: '72px', fontWeight: 800 }}
+                    >
+                      {[1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0].map(v => <option key={v} value={v}>{v.toFixed(1)}</option>)}
+                    </select>
+                  </div>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    type="submit"
+                    style={{ backgroundColor: '#7c3aed', borderColor: '#7c3aed', fontWeight: 800 }}
+                  >
+                    ➕ 신규 등록 및 참가 추가
+                  </button>
+                </form>
+              )}
+            </div>
           )}
         </div>
 
         <div className={styles.toolbar} style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '12px' }}>
-          <button className="btn btn-secondary btn-sm" onClick={addAll}>회원 전체 추가</button>
+          <button className="btn btn-secondary btn-sm" onClick={addAll}>정회원 전체 추가</button>
           <button className="btn btn-secondary btn-sm" onClick={clearAll}>참가자 전체 제외</button>
         </div>
       </div>
