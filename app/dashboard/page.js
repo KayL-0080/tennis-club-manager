@@ -35,15 +35,15 @@ export default function Dashboard() {
   const [matchDate, setMatchDate] = useState(defaultDate);
   const [participants, setParticipants] = useState([]);
   const [groups, setGroups] = useState([]);
-  const [rounds, setRounds] = useState(6);
+  const [rounds, setRounds] = useState(7);
   const [courts, setCourts] = useState(2);
   const [mensDoublesCount, setMensDoublesCount] = useState(0);
   const [womensDoublesCount, setWomensDoublesCount] = useState(0);
   const [mixedCount, setMixedCount] = useState(0);
   const [jointCount, setJointCount] = useState(0);
   const [allowSingles, setAllowSingles] = useState(false);
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('12:00');
+  const [startTime, setStartTime] = useState('12:30');
+  const [endTime, setEndTime] = useState('16:00');
   const [usePenalty, setUsePenalty] = useState(false);
   const [maxGames, setMaxGames] = useState(6);
   const [ntrpSplitMode, setNtrpSplitMode] = useState(false);
@@ -135,8 +135,8 @@ export default function Dashboard() {
       const r = schedRounds.length;
       const c = schedRounds[0]?.length ?? 0;
       const matchedEvt = events?.find(e => e.date === matchDate);
-      const finalStartTime = startTime || matchedEvt?.startTime || '09:00';
-      const finalEndTime = endTime || matchedEvt?.endTime || '12:00';
+      const finalStartTime = startTime || matchedEvt?.startTime || '12:30';
+      const finalEndTime = endTime || matchedEvt?.endTime || '16:00';
       
       const payload = {
         title: `대진표 ${matchDate || new Date().toLocaleDateString('ko-KR')}`,
@@ -193,8 +193,8 @@ export default function Dashboard() {
       const r = schedRounds.length;
       const c = schedRounds[0]?.length ?? 0;
       const matchedEvt = events?.find(e => e.date === matchDate);
-      const finalStartTime = startTime || matchedEvt?.startTime || '09:00';
-      const finalEndTime = endTime || matchedEvt?.endTime || '12:00';
+      const finalStartTime = startTime || matchedEvt?.startTime || '12:30';
+      const finalEndTime = endTime || matchedEvt?.endTime || '16:00';
       
       const payload = {
         title: `대진표 ${matchDate || new Date().toLocaleDateString('ko-KR')}`,

@@ -130,7 +130,7 @@ export default function SettingsTab({
 
   // 경기 시간(분 및 포맷) 계산
   const calcDuration = (start, end) => {
-    if (!start || !end) return { text: '3시간 (180분)', diff: 180, hours: 3, mins: 0 };
+    if (!start || !end) return { text: '3시간 30분 (210분)', diff: 210, hours: 3, mins: 30 };
     const [sH, sM] = start.split(':').map(Number);
     const [eH, eM] = end.split(':').map(Number);
     let diff = (eH * 60 + eM) - (sH * 60 + sM);
@@ -243,7 +243,7 @@ export default function SettingsTab({
 
   // 시간 프리셋 적용 (시작 시간 기준)
   const applyDurationPreset = (hoursToAdd, minsToAdd = 0) => {
-    const [sH, sM] = (startTime || '09:00').split(':').map(Number);
+    const [sH, sM] = (startTime || '12:30').split(':').map(Number);
     let totalMinutes = sH * 60 + sM + hoursToAdd * 60 + minsToAdd;
     if (totalMinutes >= 24 * 60) totalMinutes %= 24 * 60;
     const newEH = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
@@ -573,7 +573,7 @@ export default function SettingsTab({
               <input
                 className={styles.step1Input}
                 type="time"
-                value={startTime || '09:00'}
+                value={startTime || '12:30'}
                 onChange={e => handleStartTimeChange(e.target.value)}
                 style={{ display: 'block', width: '100%', minWidth: '100%', maxWidth: '100%', boxSizing: 'border-box', textAlign: 'center' }}
               />
@@ -585,7 +585,7 @@ export default function SettingsTab({
               <input
                 className={styles.step1Input}
                 type="time"
-                value={endTime || '12:00'}
+                value={endTime || '16:00'}
                 onChange={e => handleEndTimeChange(e.target.value)}
                 style={{ display: 'block', width: '100%', minWidth: '100%', maxWidth: '100%', boxSizing: 'border-box', textAlign: 'center' }}
               />
@@ -604,6 +604,7 @@ export default function SettingsTab({
                 { label: '2시간', h: 2, m: 0 },
                 { label: '2.5시간', h: 2, m: 30 },
                 { label: '3시간', h: 3, m: 0 },
+                { label: '3.5시간', h: 3, m: 30 },
                 { label: '4시간', h: 4, m: 0 }
               ].map(preset => {
                 const isActive = preset.h === durationInfo.hours && preset.m === durationInfo.mins;
@@ -613,7 +614,7 @@ export default function SettingsTab({
                     type="button"
                     className={isActive ? styles.step1PresetBtnActive : styles.step1PresetBtn}
                     onClick={() => applyDurationPreset(preset.h, preset.m)}
-                    title={`시작 시간(${startTime || '09:00'}) 기준 ${preset.label} 경기`}
+                    title={`시작 시간(${startTime || '12:30'}) 기준 ${preset.label} 경기`}
                   >
                     {preset.label}
                   </button>
