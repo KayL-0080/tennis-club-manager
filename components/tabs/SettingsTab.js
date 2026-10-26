@@ -26,6 +26,7 @@ export default function SettingsTab({
   allowSingles, setAllowSingles,
   startTime, setStartTime, endTime, setEndTime,
   usePenalty = false, setUsePenalty,
+  maxGames: propMaxGames, setMaxGames: propSetMaxGames,
   ntrpSplitMode: propNtrpSplitMode, setNtrpSplitMode: propSetNtrpSplitMode,
   ntrpSplitRounds: propNtrpSplitRounds, setNtrpSplitRounds: propSetNtrpSplitRounds,
   groups, setGroups,
@@ -39,6 +40,11 @@ export default function SettingsTab({
   const [recExplanation, setRecExplanation] = useState('');
   const [recNotice, setRecNotice] = useState('');
   const lastAutoSyncedDateRef = useRef(null);
+
+  const [localMaxGames, setLocalMaxGames] = useState(6);
+  const [ensureMin4Games, setEnsureMin4Games] = useState(true);
+  const effectiveMaxGames = propMaxGames !== undefined ? propMaxGames : localMaxGames;
+  const setEffectiveMaxGames = propSetMaxGames || setLocalMaxGames;
 
   const [localNtrpSplitMode, setLocalNtrpSplitMode] = useState(false);
   const [localNtrpSplitRounds, setLocalNtrpSplitRounds] = useState(() => calcDefaultSplitRounds(startTime, endTime, rounds));
@@ -142,16 +148,26 @@ export default function SettingsTab({
   };
 
   // 추천 설정 적용 함수
-  const applyRecommendation = (pts = participants, sTime = startTime, eTime = endTime, numCourts = courts) => {
+  const applyRecommendation = (
+    pts = participants,
+    sTime = startTime,
+    eTime = endTime,
+    numCourts = courts,
+    preferredMaxGames = null,
+    min4 = ensureMin4Games
+  ) => {
     const rec = calculateRecommendedSettings({
       startTime: sTime,
       endTime: eTime,
       courts: numCourts,
       participants: pts,
-      members
+      members,
+      preferredMaxGames,
+      ensureMin4Games: min4
     });
 
     setRounds(rec.rounds);
+    if (rec.maxGames) setEffectiveMaxGames(rec.maxGames);
     setMensDoublesCount(rec.mensDoublesCount);
     setWomensDoublesCount(rec.womensDoublesCount);
     setMixedCount(rec.mixedCount);
@@ -162,8 +178,36 @@ export default function SettingsTab({
       const balanced = computeBalancedParticipants(pts, rec.rounds, numCourts, allowSingles);
       setParticipants(balanced);
     }
-    setRecNotice('💡 3단계 설정이 추천값으로 자동 반영되었습니다.');
-    setTimeout(() => setRecNotice(''), 4000);
+    if (rec.autoSwitchedTo5) {
+      setRecNotice(`⚡ 참가자(${pts.length}명) 전원 최소 4게임 보장을 위해 [5게임 선승제 · ${rec.rounds}라운드]로 자동 맞춤 세팅되었습니다.`);
+    } else if (preferredMaxGames === 5 || preferredMaxGames === 6) {
+      setRecNotice(`🎾 [${preferredMaxGames}게임 선승제 · ${rec.rounds}라운드] 기준으로 경기 수와 목표 게임수가 자동 세팅되었습니다.`);
+    } else {
+      setRecNotice('💡 3단계 설정이 추천값으로 자동 반영되었습니다.');
+    }
+    setTimeout(() => setRecNotice(''), 4500);
+  };
+
+  // 경기 방식(5게임 / 6게임) 수동 선택 핸들러
+  const handleSelectMaxGames = (gameType) => {
+    setEffectiveMaxGames(gameType);
+    applyRecommendation(participants, startTime, endTime, courts, gameType, ensureMin4Games);
+  };
+
+  // 인당 최소 4게임 보장 토글 핸들러
+  const handleToggleEnsureMin4 = (checked) => {
+    setEnsureMin4Games(checked);
+    if (checked && participants.length >= 4) {
+      applyRecommendation(participants, startTime, endTime, courts, null, true);
+    } else {
+      applyRecommendation(participants, startTime, endTime, courts, effectiveMaxGames, checked);
+    }
+  };
+
+  // 원클릭으로 즉시 5게임제 + 전원 최소 4게임 이상 보장 맞추기
+  const enforceMin4GamesNow = () => {
+    setEnsureMin4Games(true);
+    applyRecommendation(participants, startTime, endTime, courts, 5, true);
   };
 
   // 시간 변경 핸들러
@@ -320,6 +364,18 @@ export default function SettingsTab({
   const maleCount = entries.filter(e => e.gender === 'M').length;
   const femaleCount = entries.filter(e => e.gender === 'F').length;
 
+  // 인당 최소 4게임 보장 관련 통계 계산
+  const numCourtsSafe = Math.max(1, courts || 2);
+  const minRoundsFor4Games = entries.length >= 4 ? Math.min(20, Math.ceil(entries.length / numCourtsSafe)) : rounds;
+  const std6GameRounds = Math.max(1, Math.min(20, Math.round(durationInfo.diff / 30)));
+  const std5GameRounds = Math.max(std6GameRounds + 1, Math.min(20, Math.round(durationInfo.diff / 25)));
+  const recommended5GameRounds = Math.max(std5GameRounds, minRoundsFor4Games);
+  const minsPerRoundCurrent = Math.max(10, Math.round(durationInfo.diff / Math.max(1, rounds)));
+  const under4Players = entries.filter(p => (p.target || 0) < 4);
+  const minAssignedTarget = entries.length > 0 ? Math.min(...entries.map(p => p.target || 0)) : 0;
+  const maxAssignedTarget = entries.length > 0 ? Math.max(...entries.map(p => p.target || 0)) : 0;
+  const isAllAtLeast4Games = entries.length >= 4 && under4Players.length === 0;
+
   // 특별 조건 그룹 추가
   const addGroup = e => {
     e.preventDefault();
@@ -385,7 +441,8 @@ export default function SettingsTab({
         dupCount: result.dupCount,
         ntrpDiffSum: result.ntrpDiffSum,
         ntrpSplitMode: !!effectiveSplitMode,
-        splitRounds: effectiveSplitMode ? effectiveSplitRounds : null
+        splitRounds: effectiveSplitMode ? effectiveSplitRounds : null,
+        maxGames: effectiveMaxGames
       });
       onGoto('bracket');
     }, 50);
@@ -618,7 +675,7 @@ export default function SettingsTab({
             marginBottom: '16px',
             fontSize: '13px'
           }}>
-            <div style={{ fontWeight: '800', color: '#1d4ed8', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ fontWeight: '800', color: '#1d4ed8', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <span>💡 경기시간({durationInfo.text}) & 참가자(남 {maleCount}명, 여 {femaleCount}명) 맞춤 추천 세팅</span>
               <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#2563eb', color: '#fff', fontWeight: 800 }}>자동 세팅됨</span>
             </div>
@@ -627,6 +684,97 @@ export default function SettingsTab({
             </div>
           </div>
         )}
+
+        {/* 🎾 경기 방식 (5게임제 / 6게임제) & 🛡️ 인당 최소 4게임 보장 선택 패널 */}
+        <div style={{
+          marginBottom: '16px',
+          padding: '14px 16px',
+          borderRadius: '10px',
+          backgroundColor: effectiveMaxGames === 5 ? 'rgba(245, 158, 11, 0.07)' : 'var(--bg)',
+          border: `1.5px solid ${effectiveMaxGames === 5 ? 'rgba(245, 158, 11, 0.45)' : 'var(--border)'}`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--txt)' }}>
+                🎾 경기 방식 선택:
+              </span>
+              <div style={{ display: 'inline-flex', borderRadius: '8px', padding: '3px', backgroundColor: '#e2e8f0', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleSelectMaxGames(6)}
+                  style={{
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    backgroundColor: effectiveMaxGames === 6 ? '#2563eb' : 'transparent',
+                    color: effectiveMaxGames === 6 ? '#ffffff' : '#475569',
+                    boxShadow: effectiveMaxGames === 6 ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  🎾 6게임제 (기본 · {std6GameRounds}R 기준)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectMaxGames(5)}
+                  style={{
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    backgroundColor: effectiveMaxGames === 5 ? '#d97706' : 'transparent',
+                    color: effectiveMaxGames === 5 ? '#ffffff' : '#475569',
+                    boxShadow: effectiveMaxGames === 5 ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  ⚡ 5게임제 (다인원 · {recommended5GameRounds}R 기준)
+                </button>
+              </div>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 800, color: ensureMin4Games ? '#15803d' : 'var(--txt2)', margin: 0 }}>
+              <input
+                type="checkbox"
+                checked={!!ensureMin4Games}
+                onChange={e => handleToggleEnsureMin4(e.target.checked)}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              🛡️ 참여 인원 많을 시 인당 최소 4게임 자동 보장
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px', color: 'var(--txt2)', paddingTop: '8px', borderTop: '1px dashed var(--border)' }}>
+            <div>
+              <span>⏱️ 현재 설정: <strong>{effectiveMaxGames}게임 선승</strong> · <strong>{rounds}라운드</strong> (경기당 약 <strong>{minsPerRoundCurrent}분</strong> 소요)</span>
+              {entries.length >= 4 && (
+                <span style={{ marginLeft: '8px', fontWeight: 700, color: isAllAtLeast4Games ? '#15803d' : '#dc2626' }}>
+                  | 👥 인당 배정: {minAssignedTarget === maxAssignedTarget ? `${minAssignedTarget}게임` : `${minAssignedTarget}~${maxAssignedTarget}게임`}
+                  {isAllAtLeast4Games ? ' (✓ 전원 4게임 이상 보장)' : ` (⚠️ 4게임 미만 ${under4Players.length}명)`}
+                </span>
+              )}
+            </div>
+
+            {entries.length >= 4 && !isAllAtLeast4Games && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={enforceMin4GamesNow}
+                style={{ backgroundColor: '#d97706', borderColor: '#d97706', fontSize: '11.5px', padding: '4px 10px', fontWeight: 800 }}
+              >
+                ⚡ 5게임제({minRoundsFor4Games}R)로 전환해 전원 4게임 맞추기
+              </button>
+            )}
+          </div>
+        </div>
 
         <div className={styles.settingsRow}>
           <div className="form-group">
@@ -900,10 +1048,17 @@ export default function SettingsTab({
                     <td><span className={`badge ${p.gender === 'F' ? 'badge-purple' : 'badge-blue'}`}>{p.gender === 'F' ? '여' : '남'}</span></td>
                     <td>{p.ntrp.toFixed(1)}</td>
                     <td>
-                      <select className="input input-sm" value={p.target} style={{ width: 60 }}
-                        onChange={e => updateTarget(p.id, e.target.value)}>
-                        {numOptions(0, 20)}
-                      </select>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <select className="input input-sm" value={p.target} style={{ width: 60 }}
+                          onChange={e => updateTarget(p.id, e.target.value)}>
+                          {numOptions(0, 20)}
+                        </select>
+                        {ensureMin4Games && (p.target || 0) < 4 && (
+                          <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            ⚠️ 4G 미만
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td><button className="btn btn-danger btn-sm" onClick={() => removeParticipant(p.id)}>제외</button></td>
                   </tr>
@@ -912,10 +1067,25 @@ export default function SettingsTab({
             </tbody>
           </table>
         </div>
-        <div className={styles.toolbar} style={{ marginTop: 12 }}>
+        <div className={styles.toolbar} style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <button className="btn btn-primary btn-sm" onClick={autoBalance}>
             ⚖️ 목표 게임수 자동 균등배분
           </button>
+          {entries.length >= 4 && !isAllAtLeast4Games && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={enforceMin4GamesNow}
+              style={{ backgroundColor: '#d97706', color: '#fff', border: '1px solid #b45309', fontWeight: 800 }}
+            >
+              ⚡ 5게임제({minRoundsFor4Games}R) 전환하여 전원 최소 4게임 맞추기
+            </button>
+          )}
+          {entries.length >= 4 && isAllAtLeast4Games && (
+            <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+              🛡️ 전 참가자 최소 4게임 이상 보장 완료 ({minAssignedTarget === maxAssignedTarget ? `전원 ${minAssignedTarget}게임` : `${minAssignedTarget}~${maxAssignedTarget}게임`})
+            </span>
+          )}
         </div>
         <div className={`${styles.balanceRow} ${isBalanced ? styles.ok : styles.bad}`} style={{ marginTop: 12 }}>
           참가자 <strong>{participants.length}명</strong> · 목표 합계: <strong>{targetSum}</strong> / 필요 슬롯: <strong>{totalSlots}</strong>

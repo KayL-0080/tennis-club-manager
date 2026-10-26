@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
   const [usePenalty, setUsePenalty] = useState(false);
+  const [maxGames, setMaxGames] = useState(6);
   const [ntrpSplitMode, setNtrpSplitMode] = useState(false);
   const [ntrpSplitRounds, setNtrpSplitRounds] = useState(4);
 
@@ -152,6 +153,7 @@ export default function Dashboard() {
         startTime: finalStartTime,
         endTime: finalEndTime,
         usePenalty,
+        maxGames: Number(genStats?.maxGames ?? maxGames) || 6,
         ntrpSplitMode: !!(genStats?.ntrpSplitMode ?? ntrpSplitMode),
         ntrpSplitRounds: (genStats?.ntrpSplitMode ?? ntrpSplitMode) ? (genStats?.splitRounds ?? ntrpSplitRounds) : null,
         schedule: schedRounds,
@@ -209,8 +211,9 @@ export default function Dashboard() {
         startTime: finalStartTime,
         endTime: finalEndTime,
         usePenalty,
-        ntrpSplitMode: !!(genStats?.ntrpSplitMode ?? ntrpSplitMode),
-        ntrpSplitRounds: (genStats?.ntrpSplitMode ?? ntrpSplitMode) ? (genStats?.splitRounds ?? ntrpSplitRounds) : null,
+        maxGames: Number(maxGames) || 6,
+        ntrpSplitMode: !!ntrpSplitMode,
+        ntrpSplitRounds: ntrpSplitMode ? ntrpSplitRounds : null,
         schedule: schedRounds,
         scores: {},
         scheduleRounds_: r,
@@ -674,6 +677,7 @@ export default function Dashboard() {
               startTime={startTime} setStartTime={setStartTime}
               endTime={endTime} setEndTime={setEndTime}
               usePenalty={usePenalty} setUsePenalty={setUsePenalty}
+              maxGames={maxGames} setMaxGames={setMaxGames}
               ntrpSplitMode={ntrpSplitMode} setNtrpSplitMode={setNtrpSplitMode}
               ntrpSplitRounds={ntrpSplitRounds} setNtrpSplitRounds={setNtrpSplitRounds}
               groups={groups} setGroups={setGroups}
@@ -813,6 +817,17 @@ function ScheduleCard({ s, members, isAdmin, onOpen, onDelete, isCompleted }) {
         <div className={styles.scheduleInfoRow}>
           <span className={styles.scheduleInfoLabel}>⚖️ 규칙</span>
           <div className={styles.scheduleInfoVal} style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+            <span style={{
+              fontSize: '11px',
+              color: (s.maxGames || 6) === 5 ? '#b45309' : '#0369a1',
+              backgroundColor: (s.maxGames || 6) === 5 ? '#fef3c7' : '#e0f2fe',
+              border: `1px solid ${(s.maxGames || 6) === 5 ? '#fde68a' : '#bae6fd'}`,
+              padding: '1px 6px',
+              borderRadius: '6px',
+              fontWeight: 700
+            }}>
+              {(s.maxGames || 6) === 5 ? '⚡ 5게임 선승' : `🎾 ${s.maxGames || 6}게임 선승`}
+            </span>
             {s.usePenalty ? (
               <span style={{ fontSize: '11.5px', color: '#e11d48', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <span>💸</span> 벌칙금 정산 적용
