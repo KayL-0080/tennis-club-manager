@@ -6,6 +6,10 @@ import styles from './tabs.module.css';
 
 const NTRP_OPTIONS = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
 const ROLE_OPTIONS = ['회장', '부회장', '총무', '경기이사', '운영이사', '고문', '정회원', '준회원', '게스트'];
+const REGULAR_ROLE_OPTIONS = ['회장', '부회장', '총무', '경기이사', '운영이사', '고문', '정회원', '준회원'];
+const EXEC_ROLES = ['회장', '부회장', '총무', '경기이사', '운영이사', '고문'];
+
+const isGuestMember = (m) => Boolean(m && (m.role === '게스트' || m.isGuest === true));
 
 // 🏷️ 직책별 배지 스타일 및 아이콘 매핑
 const getRoleBadgeStyle = (role) => {
@@ -43,16 +47,35 @@ export default function MembersTab({
   canEditMember = false,
   canManageFee = false,
   currentClub, 
-  onBulkUpdateFeeStatus 
+  onBulkUpdateFeeStatus,
+  memberCategory: propCategory,
+  onChangeMemberCategory
 }) {
+  const [internalCategory, setInternalCategory] = useState('REGULAR'); // 'REGULAR' | 'GUEST'
+  const activeCategory = propCategory || internalCategory;
+  const isGuestView = activeCategory === 'GUEST';
+
+  const handleSwitchCategory = (cat) => {
+    if (onChangeMemberCategory) onChangeMemberCategory(cat);
+    setInternalCategory(cat);
+    setFilterRole('ALL');
+    setSearchKeyword('');
+  };
+
   const hasEditPerm = isAdmin || Boolean(canEditMember);
   const hasFeePerm = isAdmin || Boolean(canManageFee);
   const showNtrp = Boolean(isAdmin);
-  const showFee = Boolean(hasFeePerm);
+  // 게스트 관리 탭에서는 월회비 납부 컬럼을 숨김 (게스트는 월회비 대상이 아님)
+  const showFee = Boolean(hasFeePerm) && !isGuestView;
   const totalColumns = 6 + (showNtrp ? 1 : 0) + (showFee ? 1 : 0) + (hasEditPerm ? 1 : 0);
 
+  // 정회원(준회원 포함) vs 게스트 분리
+  const clubMembers = members.filter(m => !isGuestMember(m));
+  const guestMembers = members.filter(m => isGuestMember(m));
+  const targetPool = isGuestView ? guestMembers : clubMembers;
+
   // ── 정렬 로직 (직책 > 성별 남성 우선 > 운영자: NTRP 높은 순 / 일반: 이름 가나다 순) ──
-  const sortedMembers = [...members].sort((a, b) => {
+  const sortedMembers = [...targetPool].sort((a, b) => {
     const rolePriority = { '회장': 1, '부회장': 2, '총무': 3, '경기이사': 4, '운영이사': 5, '고문': 6, '정회원': 10, '준회원': 998, '게스트': 999 };
     const pA = rolePriority[a.role] || 99;
     const pB = rolePriority[b.role] || 99;
@@ -67,7 +90,7 @@ export default function MembersTab({
 
   // ── 상태 관리 ──
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [filterRole, setFilterRole] = useState('ALL'); // 'ALL' | '정회원' | '준회원' | '게스트' | 'UNPAID'
+  const [filterRole, setFilterRole] = useState('ALL'); // 'ALL' | 'EXEC' | '정회원' | '준회원' | 'UNPAID'
   const [filterGender, setFilterGender] = useState('ALL'); // 'ALL' | 'M' | 'F'
   const [isQuickEdit, setIsQuickEdit] = useState(false); // 운영자 인라인 빠른 편집 토글
   const [editingMember, setEditingMember] = useState(null); // 수정 모달 대상
@@ -93,12 +116,16 @@ export default function MembersTab({
       const matchRole = m.role?.toLowerCase().includes(q);
       if (!matchName && !matchRole) return false;
     }
-    if (filterRole === 'UNPAID') {
-      if (m.feePaid) return false;
-    } else if (filterRole === '정회원') {
-      if (m.role === '준회원' || m.role === '게스트') return false;
-    } else if (filterRole !== 'ALL') {
-      if (m.role !== filterRole) return false;
+    if (!isGuestView) {
+      if (filterRole === 'UNPAID') {
+        if (m.feePaid) return false;
+      } else if (filterRole === 'EXEC') {
+        if (!EXEC_ROLES.includes(m.role)) return false;
+      } else if (filterRole === '정회원') {
+        if (m.role === '준회원') return false;
+      } else if (filterRole !== 'ALL') {
+        if (m.role !== filterRole) return false;
+      }
     }
     if (filterGender !== 'ALL') {
       if (m.gender !== filterGender) return false;
@@ -106,11 +133,12 @@ export default function MembersTab({
     return true;
   });
 
-  // ── 통계 카운트 ──
-  const regularCount = members.filter(m => m.role !== '준회원' && m.role !== '게스트').length;
-  const associateCount = members.filter(m => m.role === '준회원').length;
-  const guestCount = members.filter(m => m.role === '게스트').length;
-  const unpaidCount = members.filter(m => !m.feePaid).length;
+  // ── 통계 카운트 (정회원 / 게스트 각각 집계) ──
+  const execCount = clubMembers.filter(m => EXEC_ROLES.includes(m.role)).length;
+  const regularCount = clubMembers.filter(m => m.role !== '준회원').length;
+  const associateCount = clubMembers.filter(m => m.role === '준회원').length;
+  const guestCount = guestMembers.length;
+  const unpaidCount = clubMembers.filter(m => !m.feePaid).length;
 
   // ── 회비 원클릭 토글 ──
   const handleToggleFee = async (m) => {
@@ -120,9 +148,18 @@ export default function MembersTab({
     await onSave(m.id, { feePaid: newStatus });
   };
 
-  // ── 미납 독촉 공지문 생성 ──
+  // ── 게스트 -> 정회원 원클릭 전환 ──
+  const handleConvertGuestToRegular = async (m) => {
+    if (!hasEditPerm) return;
+    if (!confirm(`[${m.name}] 게스트를 클럽 정회원으로 전환하시겠습니까?`)) return;
+    const updateData = { role: '정회원', isGuest: false };
+    onUpdateLocal(m.id, updateData);
+    await onSave(m.id, updateData);
+  };
+
+  // ── 미납 독촉 공지문 생성 (정회원 대상) ──
   const handleGenerateReminder = () => {
-    const unpaidMembers = sortedMembers.filter(m => !m.feePaid);
+    const unpaidMembers = clubMembers.filter(m => !m.feePaid);
     const names = unpaidMembers.map(m => m.name).join(', ');
     const cycleText = currentClub?.feeCycle === '연납' ? '올해' : currentClub?.feeCycle === '분기납' ? '이번 분기' : '이번 달';
     const text = `🎾 ${currentClub?.name || '클럽'} 회비 납부 안내 🎾
@@ -139,14 +176,31 @@ export default function MembersTab({
     setShowReminderModal(true);
   };
 
+  // ── 신규 회원/게스트 추가 모달 열기 ──
+  const handleOpenAddModal = (defaultRole = isGuestView ? '게스트' : '정회원') => {
+    setNewMember({
+      name: '',
+      role: defaultRole,
+      gender: 'M',
+      birthYear: '',
+      tennisStartedAt: '',
+      ntrp: 2.0,
+      feePaid: false
+    });
+    setShowAddModal(true);
+  };
+
   // ── 신규 회원 추가 완료 ──
   const handleConfirmAdd = () => {
     if (!newMember.name.trim()) {
-      alert('회원 이름을 입력해주세요.');
+      alert(newMember.role === '게스트' ? '게스트 이름을 입력해주세요.' : '회원 이름을 입력해주세요.');
       return;
     }
+    const roleVal = newMember.role || (isGuestView ? '게스트' : '정회원');
     onAdd({
       ...newMember,
+      role: roleVal,
+      isGuest: roleVal === '게스트',
       name: newMember.name.trim(),
       birthYear: (newMember.birthYear || '').toString().trim(),
       tennisStartedAt: (newMember.tennisStartedAt || '').toString().trim()
@@ -154,7 +208,7 @@ export default function MembersTab({
     setShowAddModal(false);
     setNewMember({
       name: '',
-      role: '정회원',
+      role: isGuestView ? '게스트' : '정회원',
       gender: 'M',
       birthYear: '',
       tennisStartedAt: '',
@@ -172,6 +226,7 @@ export default function MembersTab({
     }
     const updateData = {
       ...editingMember,
+      isGuest: editingMember.role === '게스트',
       name: editingMember.name.trim(),
       birthYear: (editingMember.birthYear || '').toString().trim(),
       tennisStartedAt: (editingMember.tennisStartedAt || '').toString().trim(),
@@ -185,17 +240,106 @@ export default function MembersTab({
 
   return (
     <div>
+      {/* ── 0. 정회원 관리 vs 게스트 별도 관리 상단 전환 탭 바 ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '10px',
+        marginBottom: '16px',
+        padding: '6px',
+        backgroundColor: '#f1f5f9',
+        borderRadius: '14px',
+        border: '1px solid #e2e8f0'
+      }}>
+        <button
+          type="button"
+          onClick={() => handleSwitchCategory('REGULAR')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '11px 16px',
+            borderRadius: '10px',
+            border: !isGuestView ? '1.5px solid #2563eb' : '1px solid transparent',
+            backgroundColor: !isGuestView ? '#ffffff' : 'transparent',
+            color: !isGuestView ? '#1d4ed8' : '#64748b',
+            fontWeight: !isGuestView ? 800 : 600,
+            fontSize: '14px',
+            cursor: 'pointer',
+            boxShadow: !isGuestView ? '0 2px 8px rgba(37, 99, 235, 0.12)' : 'none',
+            transition: 'all 0.18s ease'
+          }}
+        >
+          <span>🎾</span>
+          <span>정회원 관리</span>
+          <span style={{
+            padding: '2px 8px',
+            borderRadius: '999px',
+            fontSize: '11.5px',
+            fontWeight: 800,
+            backgroundColor: !isGuestView ? '#dbeafe' : '#e2e8f0',
+            color: !isGuestView ? '#1d4ed8' : '#475569'
+          }}>
+            {clubMembers.length}명
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSwitchCategory('GUEST')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '11px 16px',
+            borderRadius: '10px',
+            border: isGuestView ? '1.5px solid #7c3aed' : '1px solid transparent',
+            backgroundColor: isGuestView ? '#ffffff' : 'transparent',
+            color: isGuestView ? '#6d28d9' : '#64748b',
+            fontWeight: isGuestView ? 800 : 600,
+            fontSize: '14px',
+            cursor: 'pointer',
+            boxShadow: isGuestView ? '0 2px 8px rgba(124, 58, 237, 0.14)' : 'none',
+            transition: 'all 0.18s ease'
+          }}
+        >
+          <span>🙋</span>
+          <span>게스트 관리</span>
+          <span style={{
+            padding: '2px 8px',
+            borderRadius: '999px',
+            fontSize: '11.5px',
+            fontWeight: 800,
+            backgroundColor: isGuestView ? '#ede9fe' : '#e2e8f0',
+            color: isGuestView ? '#6d28d9' : '#475569'
+          }}>
+            {guestMembers.length}명
+          </span>
+        </button>
+      </div>
+
       <div className={`card ${styles.section}`} style={{ padding: '20px' }}>
         
         {/* ── 1. 명단 헤더 & 상단 툴바 ── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>👥</span>
-              <span>회원 명단</span>
+              <span>{isGuestView ? '🙋' : '👥'}</span>
+              <span>{isGuestView ? '게스트 명단' : '정회원 명단'}</span>
             </h2>
-            <span className="hero-chip" style={{ fontSize: '12px', padding: '3px 10px', color: '#1d4ed8', background: 'rgba(37,99,235,0.08)', fontWeight: 700 }}>
-              총 {members.length}명
+            <span
+              className="hero-chip"
+              style={{
+                fontSize: '12px',
+                padding: '3px 10px',
+                color: isGuestView ? '#6d28d9' : '#1d4ed8',
+                background: isGuestView ? 'rgba(124, 58, 237, 0.1)' : 'rgba(37,99,235,0.08)',
+                fontWeight: 700
+              }}
+            >
+              총 {targetPool.length}명
             </span>
           </div>
 
@@ -228,7 +372,7 @@ export default function MembersTab({
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setShowAddModal(true)}
+                  onClick={() => handleOpenAddModal(isGuestView ? '게스트' : '정회원')}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -237,21 +381,47 @@ export default function MembersTab({
                     borderRadius: '8px',
                     fontSize: '12.5px',
                     fontWeight: 800,
-                    backgroundColor: '#007aff',
+                    backgroundColor: isGuestView ? '#7c3aed' : '#007aff',
                     color: '#ffffff',
                     border: 'none',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(0, 122, 255, 0.25)',
+                    boxShadow: isGuestView ? '0 2px 6px rgba(124, 58, 237, 0.25)' : '0 2px 6px rgba(0, 122, 255, 0.25)',
                     transition: 'all 0.15s ease'
                   }}
                 >
                   <UserPlusIcon size={14} color="#ffffff" />
-                  <span>새 회원 추가</span>
+                  <span>{isGuestView ? '새 게스트 등록' : '새 정회원 추가'}</span>
                 </button>
               </>
             )}
           </div>
         </div>
+
+        {/* 게스트 관리 전용 안내 배너 */}
+        {isGuestView && (
+          <div style={{
+            marginBottom: '14px',
+            padding: '10px 14px',
+            borderRadius: '10px',
+            backgroundColor: '#f5f3ff',
+            border: '1px solid #ddd6fe',
+            color: '#5b21b6',
+            fontSize: '12.5px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '8px'
+          }}>
+            <span>💡 모임·대진표에 참여하는 <strong>게스트</strong>를 정회원 명단과 분리하여 별도 관리합니다. (월회비 관리 대상에서 제외)</span>
+            {hasEditPerm && (
+              <span style={{ fontSize: '11.5px', color: '#6d28d9', fontWeight: 700 }}>
+                ※ 게스트가 클럽 가입 시 우측 [🔄 정회원 전환] 버튼으로 즉시 전환 가능
+              </span>
+            )}
+          </div>
+        )}
 
         {/* ── 2. 검색 및 필터 툴바 ── */}
         <div style={{
@@ -270,7 +440,7 @@ export default function MembersTab({
           <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: '280px' }}>
             <input 
               type="text" 
-              placeholder="회원 이름 검색..." 
+              placeholder={isGuestView ? '게스트 이름 검색...' : '정회원 이름 검색...'} 
               value={searchKeyword} 
               onChange={e => setSearchKeyword(e.target.value)}
               className="input input-sm"
@@ -297,100 +467,106 @@ export default function MembersTab({
             )}
           </div>
 
-          {/* 역할별 필터 칩 */}
-          <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setFilterRole('ALL')}
-              style={{
-                padding: '4px 10px',
-                borderRadius: '20px',
-                fontSize: '12px',
-                fontWeight: filterRole === 'ALL' ? 800 : 600,
-                border: filterRole === 'ALL' ? '1px solid #007aff' : '1px solid #cbd5e1',
-                backgroundColor: filterRole === 'ALL' ? '#007aff' : '#ffffff',
-                color: filterRole === 'ALL' ? '#ffffff' : '#475569',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              전체 ({members.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterRole('정회원')}
-              style={{
-                padding: '4px 10px',
-                borderRadius: '20px',
-                fontSize: '12px',
-                fontWeight: filterRole === '정회원' ? 800 : 600,
-                border: filterRole === '정회원' ? '1px solid #2563eb' : '1px solid #cbd5e1',
-                backgroundColor: filterRole === '정회원' ? '#2563eb' : '#ffffff',
-                color: filterRole === '정회원' ? '#ffffff' : '#475569',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              정회원 ({regularCount})
-            </button>
-            {associateCount > 0 && (
+          {/* 역할별 필터 칩 (정회원 탭에서만 세부 직책/미납 필터 표시) */}
+          {!isGuestView ? (
+            <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
                 type="button"
-                onClick={() => setFilterRole('준회원')}
+                onClick={() => setFilterRole('ALL')}
                 style={{
                   padding: '4px 10px',
                   borderRadius: '20px',
                   fontSize: '12px',
-                  fontWeight: filterRole === '준회원' ? 800 : 600,
-                  border: filterRole === '준회원' ? '1px solid #ca8a04' : '1px solid #cbd5e1',
-                  backgroundColor: filterRole === '준회원' ? '#ca8a04' : '#ffffff',
-                  color: filterRole === '준회원' ? '#ffffff' : '#475569',
+                  fontWeight: filterRole === 'ALL' ? 800 : 600,
+                  border: filterRole === 'ALL' ? '1px solid #007aff' : '1px solid #cbd5e1',
+                  backgroundColor: filterRole === 'ALL' ? '#007aff' : '#ffffff',
+                  color: filterRole === 'ALL' ? '#ffffff' : '#475569',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
               >
-                준회원 ({associateCount})
+                전체 ({clubMembers.length})
               </button>
-            )}
-            {guestCount > 0 && (
+              {execCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilterRole('EXEC')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: filterRole === 'EXEC' ? 800 : 600,
+                    border: filterRole === 'EXEC' ? '1px solid #4338ca' : '1px solid #cbd5e1',
+                    backgroundColor: filterRole === 'EXEC' ? '#4338ca' : '#ffffff',
+                    color: filterRole === 'EXEC' ? '#ffffff' : '#475569',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  👑 임원진 ({execCount})
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setFilterRole('게스트')}
+                onClick={() => setFilterRole('정회원')}
                 style={{
                   padding: '4px 10px',
                   borderRadius: '20px',
                   fontSize: '12px',
-                  fontWeight: filterRole === '게스트' ? 800 : 600,
-                  border: filterRole === '게스트' ? '1px solid #4b5563' : '1px solid #cbd5e1',
-                  backgroundColor: filterRole === '게스트' ? '#4b5563' : '#ffffff',
-                  color: filterRole === '게스트' ? '#ffffff' : '#475569',
+                  fontWeight: filterRole === '정회원' ? 800 : 600,
+                  border: filterRole === '정회원' ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                  backgroundColor: filterRole === '정회원' ? '#2563eb' : '#ffffff',
+                  color: filterRole === '정회원' ? '#ffffff' : '#475569',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
               >
-                게스트 ({guestCount})
+                정회원 ({regularCount})
               </button>
-            )}
-            {hasFeePerm && unpaidCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setFilterRole('UNPAID')}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: filterRole === 'UNPAID' ? 800 : 600,
-                  border: filterRole === 'UNPAID' ? '1px solid #dc2626' : '1px solid #fecaca',
-                  backgroundColor: filterRole === 'UNPAID' ? '#dc2626' : '#fef2f2',
-                  color: filterRole === 'UNPAID' ? '#ffffff' : '#b91c1c',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                💰 미납 ({unpaidCount})
-              </button>
-            )}
-          </div>
+              {associateCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilterRole('준회원')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: filterRole === '준회원' ? 800 : 600,
+                    border: filterRole === '준회원' ? '1px solid #ca8a04' : '1px solid #cbd5e1',
+                    backgroundColor: filterRole === '준회원' ? '#ca8a04' : '#ffffff',
+                    color: filterRole === '준회원' ? '#ffffff' : '#475569',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  준회원 ({associateCount})
+                </button>
+              )}
+              {hasFeePerm && unpaidCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilterRole('UNPAID')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: filterRole === 'UNPAID' ? 800 : 600,
+                    border: filterRole === 'UNPAID' ? '1px solid #dc2626' : '1px solid #fecaca',
+                    backgroundColor: filterRole === 'UNPAID' ? '#dc2626' : '#fef2f2',
+                    color: filterRole === 'UNPAID' ? '#ffffff' : '#b91c1c',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  💰 미납 ({unpaidCount})
+                </button>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+              🙋 등록 게스트: 총 {guestCount}명 (남 {guestMembers.filter(m => m.gender === 'M').length}명 · 여 {guestMembers.filter(m => m.gender === 'F').length}명)
+            </div>
+          )}
 
           {/* 성별 필터 */}
           <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
@@ -478,15 +654,31 @@ export default function MembersTab({
               {displayedMembers.length === 0 ? (
                 <tr>
                   <td colSpan={totalColumns} style={{ padding: '36px 16px', color: '#64748b', fontSize: '13.5px' }}>
-                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔍</div>
-                    <div style={{ fontWeight: 700, color: '#334155', marginBottom: '4px' }}>조건에 일치하는 회원이 없습니다.</div>
-                    <button 
-                      type="button" 
-                      onClick={() => { setSearchKeyword(''); setFilterRole('ALL'); setFilterGender('ALL'); }}
-                      style={{ marginTop: '8px', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', cursor: 'pointer' }}
-                    >
-                      필터 초기화
-                    </button>
+                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>{isGuestView ? '🙋' : '🔍'}</div>
+                    <div style={{ fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                      {isGuestView
+                        ? (searchKeyword || filterGender !== 'ALL' ? '조건에 일치하는 게스트가 없습니다.' : '등록된 게스트가 없습니다.')
+                        : '조건에 일치하는 정회원이 없습니다.'}
+                    </div>
+                    {(searchKeyword || filterRole !== 'ALL' || filterGender !== 'ALL') ? (
+                      <button 
+                        type="button" 
+                        onClick={() => { setSearchKeyword(''); setFilterRole('ALL'); setFilterGender('ALL'); }}
+                        style={{ marginTop: '8px', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', cursor: 'pointer' }}
+                      >
+                        필터 초기화
+                      </button>
+                    ) : (
+                      hasEditPerm && isGuestView && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAddModal('게스트')}
+                          style={{ marginTop: '8px', padding: '6px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, border: 'none', background: '#7c3aed', color: '#ffffff', cursor: 'pointer' }}
+                        >
+                          ➕ 첫 게스트 등록하기
+                        </button>
+                      )
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -522,7 +714,12 @@ export default function MembersTab({
                             className="select input-sm" 
                             value={p.role || '정회원'} 
                             style={{ width: '85px', fontWeight: 600, fontSize: '12px' }}
-                            onChange={e => { onUpdateLocal(p.id, { role: e.target.value }); onSave(p.id, { role: e.target.value }); }}
+                            onChange={e => {
+                              const nextRole = e.target.value;
+                              const payload = { role: nextRole, isGuest: nextRole === '게스트' };
+                              onUpdateLocal(p.id, payload);
+                              onSave(p.id, payload);
+                            }}
                           >
                             {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                           </select>
@@ -560,39 +757,43 @@ export default function MembersTab({
                             onBlur={e => onSave(p.id, { tennisStartedAt: e.target.value })} 
                           />
                         </td>
-                        <td style={{ padding: '8px 4px' }}>
-                          <select 
-                            className="select input-sm" 
-                            value={p.ntrp || 2.0} 
-                            style={{ width: '65px', textAlign: 'center', fontWeight: 800, fontSize: '12.5px' }}
-                            onChange={e => { onUpdateLocal(p.id, { ntrp: parseFloat(e.target.value) }); onSave(p.id, { ntrp: parseFloat(e.target.value) }); }}
-                          >
-                            {NTRP_OPTIONS.map(v => <option key={v} value={v}>{v.toFixed(1)}</option>)}
-                          </select>
-                        </td>
-                        <td style={{ padding: '8px 4px' }}>
-                          <select 
-                            className="select input-sm" 
-                            value={p.feePaid ? 'true' : 'false'} 
-                            style={{ 
-                              width: '80px', 
-                              textAlign: 'center', 
-                              fontWeight: 800,
-                              fontSize: '12px',
-                              color: p.feePaid ? '#15803d' : '#dc2626',
-                              backgroundColor: p.feePaid ? '#f0fdf4' : '#fef2f2',
-                              borderColor: p.feePaid ? '#bbf7d0' : '#fecaca'
-                            }}
-                            onChange={e => { 
-                              const val = e.target.value === 'true';
-                              onUpdateLocal(p.id, { feePaid: val }); 
-                              onSave(p.id, { feePaid: val }); 
-                            }}
-                          >
-                            <option value="true">완납</option>
-                            <option value="false">미납</option>
-                          </select>
-                        </td>
+                        {showNtrp && (
+                          <td style={{ padding: '8px 4px' }}>
+                            <select 
+                              className="select input-sm" 
+                              value={p.ntrp || 2.0} 
+                              style={{ width: '65px', textAlign: 'center', fontWeight: 800, fontSize: '12.5px' }}
+                              onChange={e => { onUpdateLocal(p.id, { ntrp: parseFloat(e.target.value) }); onSave(p.id, { ntrp: parseFloat(e.target.value) }); }}
+                            >
+                              {NTRP_OPTIONS.map(v => <option key={v} value={v}>{v.toFixed(1)}</option>)}
+                            </select>
+                          </td>
+                        )}
+                        {showFee && (
+                          <td style={{ padding: '8px 4px' }}>
+                            <select 
+                              className="select input-sm" 
+                              value={p.feePaid ? 'true' : 'false'} 
+                              style={{ 
+                                width: '80px', 
+                                textAlign: 'center', 
+                                fontWeight: 800,
+                                fontSize: '12px',
+                                color: p.feePaid ? '#15803d' : '#dc2626',
+                                backgroundColor: p.feePaid ? '#f0fdf4' : '#fef2f2',
+                                borderColor: p.feePaid ? '#bbf7d0' : '#fecaca'
+                              }}
+                              onChange={e => { 
+                                const val = e.target.value === 'true';
+                                onUpdateLocal(p.id, { feePaid: val }); 
+                                onSave(p.id, { feePaid: val }); 
+                              }}
+                            >
+                              <option value="true">완납</option>
+                              <option value="false">미납</option>
+                            </select>
+                          </td>
+                        )}
                         <td style={{ padding: '8px 4px' }}>
                           <button 
                             type="button"
@@ -730,6 +931,29 @@ export default function MembersTab({
                       {hasEditPerm && (
                         <td style={{ padding: '12px 8px', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            {isGuestView && (
+                              <button
+                                type="button"
+                                onClick={() => handleConvertGuestToRegular(p)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  padding: '3.5px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  backgroundColor: '#f0fdf4',
+                                  color: '#15803d',
+                                  border: '1px solid #bbf7d0',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                title="이 게스트를 정회원으로 즉시 전환"
+                              >
+                                🔄 정회원 전환
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setEditingMember({ ...p })}
@@ -785,64 +1009,67 @@ export default function MembersTab({
         {/* ── 4. 하단 액션 툴바 (운영자 전용) ── */}
         {hasEditPerm ? (
           <div className={styles.memberFooterBar} style={{ marginTop: '16px' }}>
-            {/* 회원 추가 액션 */}
+            {/* 회원/게스트 추가 액션 */}
             <div className={styles.memberAddArea}>
               <button 
                 type="button"
                 className={styles.btnAddMember} 
-                onClick={() => setShowAddModal(true)}
+                style={isGuestView ? { backgroundColor: '#7c3aed' } : undefined}
+                onClick={() => handleOpenAddModal(isGuestView ? '게스트' : '정회원')}
               >
                 <UserPlusIcon size={17} color="#ffffff" />
-                <span>새 회원 추가</span>
+                <span>{isGuestView ? '새 게스트 등록' : '새 정회원 추가'}</span>
               </button>
             </div>
 
-            {/* 회비 일괄 관리 툴 */}
-            <div className={styles.feeActionsGroup}>
-              <span className={styles.feeGroupLabel}>
-                <span>💰</span>
-                <span>회비 일괄 관리</span>
-              </span>
-              <div className={styles.feeButtonsRow}>
-                <button 
-                  type="button"
-                  className={styles.btnFeePaid} 
-                  onClick={() => onBulkUpdateFeeStatus(true)}
-                  title="전체 회원을 납부완료 상태로 변경"
-                >
-                  <CheckCircleIcon size={16} color="#15803d" />
-                  <span>일괄 납부완료</span>
-                </button>
-                <button 
-                  type="button"
-                  className={styles.btnFeeUnpaid} 
-                  onClick={() => onBulkUpdateFeeStatus(false)}
-                  title="전체 회원을 미납 상태로 변경"
-                >
-                  <RefreshIcon size={16} color="#b91c1c" />
-                  <span>일괄 미납</span>
-                </button>
-                <button 
-                  type="button"
-                  className={styles.btnFeeNotice} 
-                  onClick={handleGenerateReminder}
-                  title="미납 회원 대상 공지 및 독촉 글 생성"
-                >
-                  <NoticeIcon size={16} color="#1d4ed8" />
-                  <span>미납자 독촉 글 생성</span>
-                </button>
-                <button 
-                  type="button"
-                  className={styles.btnFeeNotice} 
-                  style={{ backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a' }}
-                  onClick={() => window.location.href = '/posters?tab=fee'}
-                  title="회비 안내 카드 이미지 제작 화면으로 이동"
-                >
-                  <span>🎨</span>
-                  <span>회비 카드 이미지 제작</span>
-                </button>
+            {/* 회비 일괄 관리 툴 (정회원 관리 탭에서만 표시) */}
+            {!isGuestView && (
+              <div className={styles.feeActionsGroup}>
+                <span className={styles.feeGroupLabel}>
+                  <span>💰</span>
+                  <span>정회원 회비 일괄 관리</span>
+                </span>
+                <div className={styles.feeButtonsRow}>
+                  <button 
+                    type="button"
+                    className={styles.btnFeePaid} 
+                    onClick={() => onBulkUpdateFeeStatus(true)}
+                    title="전체 정회원을 납부완료 상태로 변경 (게스트 제외)"
+                  >
+                    <CheckCircleIcon size={16} color="#15803d" />
+                    <span>일괄 납부완료</span>
+                  </button>
+                  <button 
+                    type="button"
+                    className={styles.btnFeeUnpaid} 
+                    onClick={() => onBulkUpdateFeeStatus(false)}
+                    title="전체 정회원을 미납 상태로 변경 (게스트 제외)"
+                  >
+                    <RefreshIcon size={16} color="#b91c1c" />
+                    <span>일괄 미납</span>
+                  </button>
+                  <button 
+                    type="button"
+                    className={styles.btnFeeNotice} 
+                    onClick={handleGenerateReminder}
+                    title="미납 정회원 대상 공지 및 독촉 글 생성"
+                  >
+                    <NoticeIcon size={16} color="#1d4ed8" />
+                    <span>미납자 독촉 글 생성</span>
+                  </button>
+                  <button 
+                    type="button"
+                    className={styles.btnFeeNotice} 
+                    style={{ backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a' }}
+                    onClick={() => window.location.href = '/posters?tab=fee'}
+                    title="회비 안내 카드 이미지 제작 화면으로 이동"
+                  >
+                    <span>🎨</span>
+                    <span>회비 카드 이미지 제작</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div style={{
@@ -862,12 +1089,14 @@ export default function MembersTab({
         )}
       </div>
 
-      {/* ── 5. 새 회원 등록 모달 ── */}
+      {/* ── 5. 새 정회원 / 게스트 등록 모달 ── */}
       {showAddModal && (
         <div className="modal-overlay" style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 1000 }} onClick={() => setShowAddModal(false)}>
           <div className="modal-content" style={{ maxWidth: '420px', width: '90%', borderRadius: '20px', padding: '24px' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, color: 'var(--txt)', fontSize: '1.15rem', fontWeight: 800 }}>➕ 새 회원 등록</h3>
+              <h3 style={{ margin: 0, color: 'var(--txt)', fontSize: '1.15rem', fontWeight: 800 }}>
+                {newMember.role === '게스트' ? '🙋 새 게스트 등록' : '➕ 새 정회원 등록'}
+              </h3>
               <button 
                 type="button" 
                 onClick={() => setShowAddModal(false)}
@@ -879,7 +1108,9 @@ export default function MembersTab({
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>회원 성명 *</label>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>
+                  {newMember.role === '게스트' ? '게스트 성명 *' : '회원 성명 *'}
+                </label>
                 <input 
                   className="input" 
                   type="text" 
@@ -892,13 +1123,31 @@ export default function MembersTab({
               
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>직책 및 구분</label>
-                <select 
-                  className="select" 
-                  value={newMember.role}
-                  onChange={e => setNewMember({...newMember, role: e.target.value})}
-                >
-                  {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
+                {isGuestView ? (
+                  <div style={{
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    backgroundColor: '#f5f3ff',
+                    border: '1px solid #ddd6fe',
+                    color: '#6d28d9',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span>🙋</span>
+                    <span>게스트 (모임 참가 게스트)</span>
+                  </div>
+                ) : (
+                  <select 
+                    className="select" 
+                    value={newMember.role}
+                    onChange={e => setNewMember({...newMember, role: e.target.value})}
+                  >
+                    {REGULAR_ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                )}
               </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -1048,21 +1297,23 @@ export default function MembersTab({
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>회비 납부 상태</label>
-                <select 
-                  className="select" 
-                  value={editingMember.feePaid ? 'true' : 'false'}
-                  onChange={e => setEditingMember({...editingMember, feePaid: e.target.value === 'true'})}
-                  style={{
-                    color: editingMember.feePaid ? '#15803d' : '#dc2626',
-                    fontWeight: 700
-                  }}
-                >
-                  <option value="true">✅ 납부완료</option>
-                  <option value="false">💰 미납</option>
-                </select>
-              </div>
+              {editingMember.role !== '게스트' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>회비 납부 상태</label>
+                  <select 
+                    className="select" 
+                    value={editingMember.feePaid ? 'true' : 'false'}
+                    onChange={e => setEditingMember({...editingMember, feePaid: e.target.value === 'true'})}
+                    style={{
+                      color: editingMember.feePaid ? '#15803d' : '#dc2626',
+                      fontWeight: 700
+                    }}
+                  >
+                    <option value="true">✅ 납부완료</option>
+                    <option value="false">💰 미납</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '24px' }}>

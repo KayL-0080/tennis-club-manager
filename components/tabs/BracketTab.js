@@ -468,18 +468,18 @@ export default function BracketTab({
     }
   };
 
-  /* ── 선수 선택 옵션 (대진표 참가자 + 미참가 정회원 즉시 선택 지원) ── */
+  /* ── 선수 선택 옵션 (대진표 참가자 + 미참가 정회원 즉시 선택 지원, NTRP 높은 순 정렬) ── */
   const playerOptions = (selectedId) => {
-    const list = [...entries];
+    const list = [...entries].sort((a, b) => (Number(b.ntrp) || 0) - (Number(a.ntrp) || 0));
     if (selectedId && !list.some(p => p.id === selectedId)) {
       const p = members.find(m => m.id === selectedId);
       if (p) list.unshift(p);
     }
 
-    // 대진표에 아직 미참가한 정회원/회원 목록
-    const nonParticipants = members.filter(m =>
-      !participants.some(pt => pt.playerId === m.id) && m.id !== selectedId
-    );
+    // 대진표에 아직 미참가한 정회원/회원 목록 (NTRP 높은 순)
+    const nonParticipants = members
+      .filter(m => !participants.some(pt => pt.playerId === m.id) && m.id !== selectedId)
+      .sort((a, b) => (Number(b.ntrp) || 0) - (Number(a.ntrp) || 0));
 
     return [
       <option key="empty" value="">-</option>,

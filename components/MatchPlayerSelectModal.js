@@ -1,6 +1,7 @@
 // components/MatchPlayerSelectModal.js — 대진표 경기 선수 배정 및 추가 전용 모달
 'use client';
 import { useState, useMemo, useEffect } from 'react';
+import { splitPlayersByNtrp } from '@/lib/scheduler';
 
 const COURT_LABELS = 'ABCDEFGHIJ'.split('');
 
@@ -211,8 +212,20 @@ export default function MatchPlayerSelectModal({
     return currentTeam === 'a' ? currentMatch.teamA?.[currentSlot] : currentMatch.teamB?.[currentSlot];
   }, [currentMatch, currentTeam, currentSlot]);
 
+  // 참가자 기준 NTRP 상위/하위 그룹 분리 정보 계산
+  const ntrpSplitInfo = useMemo(() => {
+    const partPlayers = members.filter(m => participatingIdSet.has(m.id));
+    const basePool = partPlayers.length >= 2 ? partPlayers : members;
+    if (!basePool || basePool.length === 0) return null;
+    return splitPlayersByNtrp(basePool);
+  }, [members, participatingIdSet]);
+
   // 후보 선수 목록 생성 및 상태 태깅
   const candidateList = useMemo(() => {
+    const minUpperNtrp = ntrpSplitInfo?.upperGroup?.length > 0
+      ? Math.min(...ntrpSplitInfo.upperGroup.map(u => Number(u.ntrp) || 0))
+      : 2.5;
+
     return members.map(m => {
       const isParticipant = participatingIdSet.has(m.id);
       const isCurrentSlot = m.id === activeSlotPlayerId;
@@ -226,6 +239,18 @@ export default function MatchPlayerSelectModal({
       const played = playedCounts[m.id] || 0;
       const assigned = assignedCounts[m.id] || 0;
 
+      // 상위/하위 그룹 판별 (대진표 참가자는 splitPlayersByNtrp 결과 우선, 미참가자는 상위그룹 최저 NTRP 기준)
+      let ntrpGroup = null;
+      if (ntrpSplitInfo) {
+        if (ntrpSplitInfo.upperIds.has(m.id)) {
+          ntrpGroup = 'UPPER';
+        } else if (ntrpSplitInfo.lowerIds.has(m.id)) {
+          ntrpGroup = 'LOWER';
+        } else {
+          ntrpGroup = (Number(m.ntrp) || 0) >= minUpperNtrp ? 'UPPER' : 'LOWER';
+        }
+      }
+
       return {
         ...m,
         isParticipant,
@@ -236,11 +261,12 @@ export default function MatchPlayerSelectModal({
         isAvailableInRound,
         played,
         assigned,
+        ntrpGroup,
       };
     });
-  }, [members, participatingIdSet, activeSlotPlayerId, currentMatchOtherPlayers, roundCourtMap, playedCounts, assignedCounts]);
+  }, [members, participatingIdSet, activeSlotPlayerId, currentMatchOtherPlayers, roundCourtMap, playedCounts, assignedCounts, ntrpSplitInfo]);
 
-  // 필터링 및 정렬
+  // 필터링 및 정렬 (대기 선수 NTRP 높은 순 정렬)
   const filteredCandidates = useMemo(() => {
     return candidateList.filter(c => {
       // 1. 검색어 필터
@@ -255,6 +281,12 @@ export default function MatchPlayerSelectModal({
       if (filterMode === 'AVAILABLE') {
         // 출전 가능 대기 선수 (이번 라운드에 타코트 경기 안 뛰는 참가자)
         return c.isParticipant && !c.isRoundConflict;
+      }
+      if (filterMode === 'UPPER') {
+        return c.isParticipant && !c.isRoundConflict && c.ntrpGroup === 'UPPER';
+      }
+      if (filterMode === 'LOWER') {
+        return c.isParticipant && !c.isRoundConflict && c.ntrpGroup === 'LOWER';
       }
       if (filterMode === 'PARTICIPANTS') {
         return c.isParticipant;
@@ -278,11 +310,21 @@ export default function MatchPlayerSelectModal({
       if (!a.isRoundConflict && b.isRoundConflict) return -1;
       if (a.isRoundConflict && !b.isRoundConflict) return 1;
 
-      // 4. ⭐ 핵심 사용자 요구사항: 경기 수가 적은 선수 우선 추천!
-      if (a.played !== b.played) return a.played - b.played;
-      if (a.assigned !== b.assigned) return a.assigned - b.assigned;
+      // 4. ⭐ 핵심 사용자 요구사항: 대기 선수의 정렬은 NTRP가 높은 순으로 나열!
+      const ntrpDiff = (Number(b.ntrp) || 0) - (Number(a.ntrp) || 0);
+      if (ntrpDiff !== 0) return ntrpDiff;
 
-      // 5. 정회원/운영진 우선
+      // 5. 동일 NTRP 내에서는 상위그룹 우선
+      if (a.ntrpGroup !== b.ntrpGroup) {
+        if (a.ntrpGroup === 'UPPER') return -1;
+        if (b.ntrpGroup === 'UPPER') return 1;
+      }
+
+      // 6. 경기 수가 적은 선수 우선
+      if (a.assigned !== b.assigned) return a.assigned - b.assigned;
+      if (a.played !== b.played) return a.played - b.played;
+
+      // 7. 정회원/운영진 우선 및 가나다 순
       const rolePriority = { '회장': 1, '부회장': 2, '총무': 3, '경기이사': 4, '운영이사': 5, '정회원': 10, '준회원': 998, '게스트': 999 };
       const pA = rolePriority[a.role] || 99;
       const pB = rolePriority[b.role] || 99;
@@ -468,6 +510,8 @@ export default function MatchPlayerSelectModal({
                 const isActive = currentTeam === 'a' && currentSlot === sIdx;
                 const pCount = p ? (assignedCounts[p.id] || 0) : 0;
                 const pCountStyle = getGameCountBadgeStyle(pCount);
+                const pIsUpper = p && ntrpSplitInfo ? ntrpSplitInfo.upperIds.has(p.id) : false;
+                const pIsLower = p && ntrpSplitInfo ? ntrpSplitInfo.lowerIds.has(p.id) : false;
                 return (
                   <button
                     key={sIdx}
@@ -491,6 +535,20 @@ export default function MatchPlayerSelectModal({
                       {p ? (
                         <>
                           <span>{getDisplayNameWithGuest(p)} ({p.gender === 'F' ? '여' : '남'})</span>
+                          {(pIsUpper || pIsLower) && (
+                            <span style={{
+                              fontSize: '9.5px',
+                              padding: '1px 4px',
+                              borderRadius: '4px',
+                              backgroundColor: pIsUpper ? '#ffedd5' : '#dcfce7',
+                              color: pIsUpper ? '#c2410c' : '#15803d',
+                              border: `1px solid ${pIsUpper ? '#fed7aa' : '#bbf7d0'}`,
+                              fontWeight: 800,
+                              lineHeight: '14px'
+                            }}>
+                              {pIsUpper ? '상위' : '하위'}
+                            </span>
+                          )}
                           <span style={{
                             fontSize: '9.5px',
                             padding: '1px 4px',
@@ -528,6 +586,8 @@ export default function MatchPlayerSelectModal({
                 const isActive = currentTeam === 'b' && currentSlot === sIdx;
                 const pCount = p ? (assignedCounts[p.id] || 0) : 0;
                 const pCountStyle = getGameCountBadgeStyle(pCount);
+                const pIsUpper = p && ntrpSplitInfo ? ntrpSplitInfo.upperIds.has(p.id) : false;
+                const pIsLower = p && ntrpSplitInfo ? ntrpSplitInfo.lowerIds.has(p.id) : false;
                 return (
                   <button
                     key={sIdx}
@@ -551,6 +611,20 @@ export default function MatchPlayerSelectModal({
                       {p ? (
                         <>
                           <span>{getDisplayNameWithGuest(p)} ({p.gender === 'F' ? '여' : '남'})</span>
+                          {(pIsUpper || pIsLower) && (
+                            <span style={{
+                              fontSize: '9.5px',
+                              padding: '1px 4px',
+                              borderRadius: '4px',
+                              backgroundColor: pIsUpper ? '#ffedd5' : '#dcfce7',
+                              color: pIsUpper ? '#c2410c' : '#15803d',
+                              border: `1px solid ${pIsUpper ? '#fed7aa' : '#bbf7d0'}`,
+                              fontWeight: 800,
+                              lineHeight: '14px'
+                            }}>
+                              {pIsUpper ? '상위' : '하위'}
+                            </span>
+                          )}
                           <span style={{
                             fontSize: '9.5px',
                             padding: '1px 4px',
@@ -614,8 +688,10 @@ export default function MatchPlayerSelectModal({
           {/* 필터 칩 바 */}
           <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
             {[
-              { key: 'AVAILABLE', label: '⭐ 대기(출전 가능) 선수' },
-              { key: 'PARTICIPANTS', label: '🎾 대진표 참가자' },
+              { key: 'AVAILABLE', label: '⭐ 대기 선수 (NTRP순)' },
+              { key: 'UPPER', label: '🔥 상위그룹 대기' },
+              { key: 'LOWER', label: '🌱 하위그룹 대기' },
+              { key: 'PARTICIPANTS', label: '🎾 참가자 전체' },
               { key: 'UNJOINED', label: '➕ 미참가 회원' },
               { key: 'ALL', label: '전체' },
               { key: 'M', label: '남성' },
@@ -745,6 +821,38 @@ export default function MatchPlayerSelectModal({
                       }}>
                         {isFemale ? '여' : '남'}
                       </span>
+
+                      {/* ⭐ 상위/하위 그룹 배지 & NTRP 배지 */}
+                      {c.ntrpGroup && (
+                        <span style={{
+                          fontSize: '10.5px',
+                          padding: '1px 6px',
+                          borderRadius: '6px',
+                          backgroundColor: c.ntrpGroup === 'UPPER' ? '#ffedd5' : '#dcfce7',
+                          color: c.ntrpGroup === 'UPPER' ? '#c2410c' : '#15803d',
+                          border: `1px solid ${c.ntrpGroup === 'UPPER' ? '#fed7aa' : '#bbf7d0'}`,
+                          fontWeight: 800,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '2px'
+                        }}>
+                          {c.ntrpGroup === 'UPPER' ? '🔥 상위그룹' : '🌱 하위그룹'}
+                        </span>
+                      )}
+
+                      {isAdmin && (
+                        <span style={{
+                          fontSize: '10.5px',
+                          padding: '1px 6px',
+                          borderRadius: '6px',
+                          backgroundColor: '#eff6ff',
+                          color: '#1d4ed8',
+                          border: '1px solid #bfdbfe',
+                          fontWeight: 800
+                        }}>
+                          NTRP {Number(c.ntrp || 2.0).toFixed(1)}
+                        </span>
+                      )}
 
                       {/* 직책 뱃지 */}
                       <span style={{

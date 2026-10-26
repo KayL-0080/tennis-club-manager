@@ -28,6 +28,7 @@ export default function MembersPage() {
   const [currentClub, setCurrentClub] = useState(null);
   const [fetching, setFetching] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState('members'); // 'members' | 'finance'
+  const [memberCategory, setMemberCategory] = useState('REGULAR'); // 'REGULAR' (정회원/준회원) | 'GUEST' (게스트)
 
   const [feeCycle, setFeeCycle] = useState('월납');
   const [feeAmount, setFeeAmount] = useState('');
@@ -62,14 +63,21 @@ export default function MembersPage() {
     })();
   }, []);
 
+  const isGuestMember = (m) => m?.role === '게스트' || m?.isGuest === true;
+
   const handleBulkFeeUpdate = async (status) => {
     if (!isAdmin && !canManageFee) return;
-    if (!confirm(`전체 회원의 회비 납부 상태를 '${status ? '납부완료' : '미납'}'으로 일괄 변경하시겠습니까?`)) return;
+    const targetMembers = members.filter(m => !isGuestMember(m));
+    if (targetMembers.length === 0) {
+      alert('일괄 변경할 정회원이 없습니다.');
+      return;
+    }
+    if (!confirm(`정회원(${targetMembers.length}명, 게스트 제외)의 회비 납부 상태를 '${status ? '납부완료' : '미납'}'으로 일괄 변경하시겠습니까?`)) return;
     
-    setMembers(prev => prev.map(m => ({ ...m, feePaid: status })));
+    setMembers(prev => prev.map(m => isGuestMember(m) ? m : { ...m, feePaid: status }));
     
     try {
-      await Promise.all(members.map(m => updateMember('shared', m.id, { feePaid: status })));
+      await Promise.all(targetMembers.map(m => updateMember('shared', m.id, { feePaid: status })));
       alert('일괄 변경되었습니다.');
     } catch (e) {
       console.error(e);
@@ -128,14 +136,18 @@ export default function MembersPage() {
     );
   }
 
-  const totalCount = members.length;
-  const maleCount = members.filter(m => m.gender === 'M').length;
-  const femaleCount = members.filter(m => m.gender === 'F').length;
-  const regularCount = members.filter(m => m.role !== '준회원' && m.role !== '게스트').length;
-  const associateCount = members.filter(m => m.role === '준회원').length;
-  const guestCount = members.filter(m => m.role === '게스트').length;
-  const paidCount = members.filter(m => m.feePaid).length;
-  const unpaidCount = members.filter(m => !m.feePaid).length;
+  const clubMembers = members.filter(m => !isGuestMember(m));
+  const guestMembers = members.filter(m => isGuestMember(m));
+  const totalCount = clubMembers.length;
+  const maleCount = clubMembers.filter(m => m.gender === 'M').length;
+  const femaleCount = clubMembers.filter(m => m.gender === 'F').length;
+  const regularCount = clubMembers.filter(m => m.role !== '준회원').length;
+  const associateCount = clubMembers.filter(m => m.role === '준회원').length;
+  const guestCount = guestMembers.length;
+  const guestMaleCount = guestMembers.filter(m => m.gender === 'M').length;
+  const guestFemaleCount = guestMembers.filter(m => m.gender === 'F').length;
+  const paidCount = clubMembers.filter(m => m.feePaid).length;
+  const unpaidCount = clubMembers.filter(m => !m.feePaid).length;
 
   return (
     <div className={styles.page}>
@@ -228,7 +240,7 @@ export default function MembersPage() {
 
         <div style={{ marginTop: '1rem' }}>
           
-          {/* ── 1. 회원 현황 종합 요약 카드 (총 몇명, 남자 00명, 여자 00명) ── */}
+          {/* ── 1. 회원 현황 종합 요약 카드 (정회원 vs 게스트 분리 요약) ── */}
           <div className="card" style={{
             marginBottom: '16px',
             padding: '16px 20px',
@@ -240,36 +252,73 @@ export default function MembersPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               <div>
                 <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  📊 클럽 회원 현황
+                  {memberCategory === 'GUEST' ? '🙋 등록 게스트 현황' : '📊 클럽 정회원 현황'}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '22px', fontWeight: 900, color: 'var(--txt)' }}>
-                    총 {totalCount}명
-                  </span>
-                  <span style={{ fontSize: '15px', fontWeight: 700, color: '#1d4ed8' }}>
-                    (남자 {maleCount}명, 여자 {femaleCount}명)
-                  </span>
+                  {memberCategory === 'GUEST' ? (
+                    <>
+                      <span style={{ fontSize: '22px', fontWeight: 900, color: 'var(--txt)' }}>
+                        게스트 총 {guestCount}명
+                      </span>
+                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#7e22ce' }}>
+                        (남자 {guestMaleCount}명, 여자 {guestFemaleCount}명)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '22px', fontWeight: 900, color: 'var(--txt)' }}>
+                        정회원 총 {totalCount}명
+                      </span>
+                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#1d4ed8' }}>
+                        (남자 {maleCount}명, 여자 {femaleCount}명)
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* 세부 분류 뱃지 */}
+              {/* 세부 분류 뱃지 (클릭하여 정회원 / 게스트 탭 빠른 전환 가능) */}
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <span className="badge" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}>
+                <button
+                  type="button"
+                  onClick={() => { setActiveSubTab('members'); setMemberCategory('REGULAR'); }}
+                  className="badge"
+                  style={{
+                    background: memberCategory === 'REGULAR' ? '#1d4ed8' : '#eff6ff',
+                    color: memberCategory === 'REGULAR' ? '#ffffff' : '#1d4ed8',
+                    border: '1px solid #bfdbfe',
+                    padding: '5px 11px',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
                   🎾 정회원 {regularCount}명
-                </span>
+                </button>
                 {associateCount > 0 && (
                   <span className="badge" style={{ background: '#fefce8', color: '#a16207', border: '1px solid #fef08a', padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}>
                     🌱 준회원 {associateCount}명
                   </span>
                 )}
-                {guestCount > 0 && (
-                  <span className="badge" style={{ background: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb', padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}>
-                    🙋 게스트 {guestCount}명
-                  </span>
-                )}
-                {(isAdmin || canManageFee) && (
+                <button
+                  type="button"
+                  onClick={() => { setActiveSubTab('members'); setMemberCategory('GUEST'); }}
+                  className="badge"
+                  style={{
+                    background: memberCategory === 'GUEST' ? '#7c3aed' : '#f5f3ff',
+                    color: memberCategory === 'GUEST' ? '#ffffff' : '#6d28d9',
+                    border: '1px solid #ddd6fe',
+                    padding: '5px 11px',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  🙋 게스트 {guestCount}명
+                </button>
+                {(isAdmin || canManageFee) && memberCategory === 'REGULAR' && (
                   <span className="badge" style={{ background: unpaidCount === 0 ? '#f0fdf4' : '#fef2f2', color: unpaidCount === 0 ? '#15803d' : '#b91c1c', border: `1px solid ${unpaidCount === 0 ? '#bbf7d0' : '#fecaca'}`, padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}>
-                    {unpaidCount === 0 ? '✅ 회비 전원 완납' : `💰 미납 ${unpaidCount}명`}
+                    {unpaidCount === 0 ? '✅ 정회원 회비 전원 완납' : `💰 미납 ${unpaidCount}명`}
                   </span>
                 )}
               </div>
@@ -344,7 +393,7 @@ export default function MembersPage() {
           {/* ── 3. 회원 명단 탭 (일반 사용자는 기본 표시, 운영자는 members 탭일 때 표시) ── */}
           {(!isAdmin && !canCourtFinance || activeSubTab === 'members') && (
             <>
-              {(isAdmin || canManageFee) && (
+              {(isAdmin || canManageFee) && memberCategory === 'REGULAR' && (
                 <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)', margin: 0, letterSpacing: '-0.02em' }}>💰 클럽 회비 / 계좌 설정</h3>
@@ -386,6 +435,8 @@ export default function MembersPage() {
                 canManageFee={canManageFee}
                 currentClub={{ ...currentClub, name: clubProfile?.name || currentClub?.name || '클럽' }}
                 onBulkUpdateFeeStatus={handleBulkFeeUpdate}
+                memberCategory={memberCategory}
+                onChangeMemberCategory={setMemberCategory}
               />
             </>
           )}
