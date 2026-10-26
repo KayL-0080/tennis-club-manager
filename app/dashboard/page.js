@@ -822,7 +822,7 @@ function ScheduleCard({ s, members, isAdmin, onOpen, onDelete, isCompleted }) {
                 <span>🛡️</span> 벌칙금 미적용
               </span>
             )}
-            {s.ntrpSplitMode && (
+            {isAdmin && s.ntrpSplitMode && (
               <span style={{ fontSize: '11px', color: '#1d4ed8', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '6px', fontWeight: 700 }}>
                 🏆 상·하위 분리 후 혼합 ({s.ntrpSplitRounds ? `1~${s.ntrpSplitRounds}R 그룹별` : '그룹별→혼합'})
               </span>
