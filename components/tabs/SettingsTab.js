@@ -1007,15 +1007,15 @@ export default function SettingsTab({
           )}
         </div>
         <div className="table-wrap" style={{ marginTop: 10 }}>
-          <table>
+          <table style={{ width: '100%' }}>
             <thead>
               <tr>
-                {(effectiveSplitMode || sortByNtrp) && <th style={{ width: '92px' }}>그룹</th>}
-                <th>이름</th>
-                <th>성별</th>
-                <th>NTRP</th>
-                <th>목표 게임수</th>
-                <th></th>
+                {(effectiveSplitMode || sortByNtrp) && <th style={{ width: '78px', whiteSpace: 'nowrap', padding: '8px 6px' }}>그룹</th>}
+                <th style={{ minWidth: '110px', whiteSpace: 'nowrap', padding: '8px 10px' }}>이름</th>
+                <th style={{ width: '48px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>성별</th>
+                <th style={{ width: '54px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>NTRP</th>
+                <th style={{ width: '82px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>목표 게임수</th>
+                <th style={{ width: '56px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -1029,38 +1029,44 @@ export default function SettingsTab({
                     } : undefined}
                   >
                     {(effectiveSplitMode || sortByNtrp) && (
-                      <td>
+                      <td style={{ whiteSpace: 'nowrap', padding: '8px 6px' }}>
                         <span style={{
                           fontSize: '11px',
                           fontWeight: 800,
-                          padding: '2px 7px',
+                          padding: '2px 6px',
                           borderRadius: '10px',
                           backgroundColor: isUpper ? '#ffedd5' : '#dcfce7',
                           color: isUpper ? '#c2410c' : '#15803d',
                           border: `1px solid ${isUpper ? '#fdba74' : '#86efac'}`,
                           whiteSpace: 'nowrap'
                         }}>
-                          {isUpper ? '🔥 상위그룹' : '🌱 하위그룹'}
+                          {isUpper ? '🔥 상위' : '🌱 하위'}
                         </span>
                       </td>
                     )}
-                    <td style={{ fontWeight: 700 }}>{(effectiveSplitMode || sortByNtrp) ? `${idx + 1}. ${p.name}` : p.name}</td>
-                    <td><span className={`badge ${p.gender === 'F' ? 'badge-purple' : 'badge-blue'}`}>{p.gender === 'F' ? '여' : '남'}</span></td>
-                    <td>{p.ntrp.toFixed(1)}</td>
-                    <td>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <select className="input input-sm" value={p.target} style={{ width: 60 }}
+                    <td style={{ fontWeight: 700, minWidth: '110px', whiteSpace: 'nowrap', wordBreak: 'keep-all', padding: '8px 10px' }}>
+                      {(effectiveSplitMode || sortByNtrp) ? `${idx + 1}. ${p.name}` : p.name}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>
+                      <span className={`badge ${p.gender === 'F' ? 'badge-purple' : 'badge-blue'}`}>{p.gender === 'F' ? '여' : '남'}</span>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>{p.ntrp.toFixed(1)}</td>
+                    <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <select className="input input-sm" value={p.target} style={{ width: 56 }}
                           onChange={e => updateTarget(p.id, e.target.value)}>
                           {numOptions(0, 20)}
                         </select>
                         {ensureMin4Games && (p.target || 0) < 4 && (
-                          <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                            ⚠️ 4G 미만
+                          <span style={{ fontSize: '10.5px', color: '#dc2626', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            ⚠️ 4G미만
                           </span>
                         )}
                       </div>
                     </td>
-                    <td><button className="btn btn-danger btn-sm" onClick={() => removeParticipant(p.id)}>제외</button></td>
+                    <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>
+                      <button className="btn btn-danger btn-sm" style={{ whiteSpace: 'nowrap', padding: '4px 8px' }} onClick={() => removeParticipant(p.id)}>제외</button>
+                    </td>
                   </tr>
                 );
               })}
