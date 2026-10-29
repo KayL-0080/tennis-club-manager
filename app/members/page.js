@@ -693,65 +693,21 @@ export default function MembersPage() {
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      {/* 미납자 독촉 글 생성 버튼 (회비 납부하기 영역으로 이동) */}
-                      {(isAdmin || canManageFee) && (
-                        <button
-                          type="button"
-                          onClick={handleGenerateReminder}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '5px',
-                            height: '38px',
-                            padding: '0 14px',
-                            borderRadius: '10px',
-                            background: '#eff6ff',
-                            color: '#1d4ed8',
-                            border: '1px solid #bfdbfe',
-                            fontSize: '12.5px',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-                            transition: 'all 0.2s ease',
-                            whiteSpace: 'nowrap',
-                            boxSizing: 'border-box'
-                          }}
-                          title="미납 정회원 대상 공지 및 독촉 글(간편 납부 링크 포함)을 생성합니다"
-                        >
-                          <NoticeIcon size={14} color="#1d4ed8" />
-                          <span>독촉 글 생성</span>
-                        </button>
-                      )}
-
+                    <div className="fee-pay-action-grid">
                       {/* 1. 토스로 내기 (계좌 복사 버튼과 동일한 크기 및 규격) */}
                       <button
                         type="button"
+                        className="fee-pay-half-btn"
                         onClick={handlePayWithToss}
                         style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          height: '38px',
-                          minWidth: '125px',
-                          padding: '0 16px',
-                          borderRadius: '10px',
                           background: '#0064FF',
                           color: '#ffffff',
                           border: 'none',
-                          fontSize: '13px',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          boxShadow: '0 2px 8px rgba(0, 100, 255, 0.28)',
-                          transition: 'all 0.2s ease',
-                          whiteSpace: 'nowrap',
-                          boxSizing: 'border-box'
+                          boxShadow: '0 2px 8px rgba(0, 100, 255, 0.28)'
                         }}
                         title="토스 앱을 열어 계좌와 금액이 자동 입력된 상태로 송금합니다"
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
                           <line x1="22" y1="2" x2="11" y2="13"></line>
                           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                         </svg>
@@ -761,31 +717,38 @@ export default function MembersPage() {
                       {/* 2. 계좌 복사 (토스로 내기 버튼과 동일한 크기 및 규격) */}
                       <button
                         type="button"
+                        className="fee-pay-half-btn"
                         onClick={handleCopyAccount}
                         style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          height: '38px',
-                          minWidth: '125px',
-                          padding: '0 16px',
-                          borderRadius: '10px',
                           background: copiedAccount ? '#f0fdf4' : '#ffffff',
                           color: copiedAccount ? '#15803d' : '#1e293b',
                           border: `1.5px solid ${copiedAccount ? '#86efac' : '#cbd5e1'}`,
-                          fontSize: '13px',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                          transition: 'all 0.2s ease',
-                          whiteSpace: 'nowrap',
-                          boxSizing: 'border-box'
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
                         }}
                         title="입금 계좌번호를 클립보드에 복사합니다"
                       >
-                        {copiedAccount ? '✅' : '📋'} {copiedAccount ? '복사 완료' : '계좌 복사'}
+                        <span style={{ marginRight: '6px' }}>{copiedAccount ? '✅' : '📋'}</span>
+                        {copiedAccount ? '복사 완료' : '계좌 복사'}
                       </button>
+
+                      {/* 3. 미납자 독촉 글 생성 버튼 (그 아래 길게 100% 전체 폭으로 배치) */}
+                      {(isAdmin || canManageFee) && (
+                        <button
+                          type="button"
+                          className="fee-pay-full-btn"
+                          onClick={handleGenerateReminder}
+                          style={{
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
+                          }}
+                          title="미납 정회원 대상 공지 및 독촉 글(간편 납부 링크 포함)을 생성합니다"
+                        >
+                          <NoticeIcon size={15} color="#1d4ed8" style={{ marginRight: '6px' }} />
+                          <span>미납자 독촉 글 생성</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
