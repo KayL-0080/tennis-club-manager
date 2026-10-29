@@ -123,20 +123,12 @@ export default function FeeLedgerTab({
     };
   }, []);
 
-  // 시작월 변경 핸들러
+  // 시작월 변경 핸들러 (등록 중인 사용일은 유지)
   const handleStartMonthChange = (newStart) => {
     if (!newStart) return;
     setStartMonth(newStart);
     if (newStart > endMonth) {
       setEndMonth(newStart);
-    }
-    if (!editingId) {
-      const today = getTodayYMD();
-      if (today.startsWith(newStart)) {
-        setFormDate(today);
-      } else {
-        setFormDate(`${newStart}-01`);
-      }
     }
   };
 
@@ -227,10 +219,9 @@ export default function FeeLedgerTab({
     }
   };
 
+  // 폼 초기화 시 현재 등록 중인 사용일(formDate)은 그대로 유지
   const resetForm = () => {
     setEditingId(null);
-    const today = getTodayYMD();
-    setFormDate((today.substring(0, 7) >= startMonth && today.substring(0, 7) <= endMonth) ? today : `${endMonth}-01`);
     setFormType('INCOME');
     setFormCategory('회비');
     setFormIncome('120,000');
