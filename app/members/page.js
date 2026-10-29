@@ -36,9 +36,10 @@ export default function MembersPage() {
   const [bankAccount, setBankAccount] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
 
-  // ── 토스트 알림 및 계좌 복사 상태 ──
+  // ── 토스트 알림, 계좌 복사 및 회비 납부 모달 상태 ──
   const [toastMessage, setToastMessage] = useState('');
   const [copiedAccount, setCopiedAccount] = useState(false);
+  const [showPayModal, setShowPayModal] = useState(false);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -65,6 +66,14 @@ export default function MembersPage() {
           setAccountHolder(settings.accountHolder || '');
         } else {
           setCurrentClub({});
+        }
+
+        // 카카오톡/밴드 독촉 URL 파라미터(?pay=1 또는 ?action=pay) 감지 시 회비 납부 모달 자동 호출
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('pay') === '1' || params.get('pay') === 'true' || params.get('action') === 'pay') {
+            setShowPayModal(true);
+          }
         }
       } catch (err) {
         console.error('Failed to load members data:', err);
@@ -246,6 +255,29 @@ export default function MembersPage() {
     } catch (err) {
       console.error('Clipboard copy error:', err);
       alert(`회비 입금 계좌: ${copyTarget}`);
+    }
+  };
+
+  // ── 3. '회비 간편 납부 링크 복사' 핸들러 ──
+  const handleCopyPayLink = async () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const payUrl = `${origin}/members?pay=1`;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payUrl);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = payUrl;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      showToast(`🔗 회비 간편 납부 링크가 복사되었습니다!\n${payUrl}`);
+    } catch {
+      alert(`회비 간편 납부 링크: ${payUrl}`);
     }
   };
 
@@ -705,6 +737,52 @@ export default function MembersPage() {
                       >
                         {copiedAccount ? '✅ 복사 완료' : '📋 계좌 복사'}
                       </button>
+
+                      {/* 3. 납부창 열기 모달 */}
+                      <button
+                        type="button"
+                        onClick={() => setShowPayModal(true)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '7px 12px',
+                          borderRadius: '9px',
+                          background: '#f8fafc',
+                          color: '#2563eb',
+                          border: '1px solid #bfdbfe',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="회원에게 공유되는 회비 간편 납부 모달창을 엽니다"
+                      >
+                        💳 납부창
+                      </button>
+
+                      {/* 4. 납부 링크 복사 */}
+                      <button
+                        type="button"
+                        onClick={handleCopyPayLink}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '7px 12px',
+                          borderRadius: '9px',
+                          background: '#f8fafc',
+                          color: '#475569',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="카톡/밴드 공유용 회비 간편 납부 링크(?pay=1)를 복사합니다"
+                      >
+                        🔗 링크 복사
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -730,6 +808,7 @@ export default function MembersPage() {
                 onBulkUpdateFeeStatus={handleBulkFeeUpdate}
                 memberCategory={memberCategory}
                 onChangeMemberCategory={setMemberCategory}
+                onOpenPayModal={() => setShowPayModal(true)}
               />
             </>
           )}
@@ -777,6 +856,187 @@ export default function MembersPage() {
           onClose={() => setShowRulesModal(false)}
           isAdmin={isAdmin || canEditBylaws}
         />
+      )}
+
+      {/* ── 8. 회비 간편 납부 모달창 (?pay=1 파라미터 또는 납부창 버튼 클릭 시 호출) ── */}
+      {showPayModal && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px'
+          }}
+          onClick={() => setShowPayModal(false)}
+        >
+          <div
+            className="modal-content"
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '24px',
+              padding: '24px',
+              maxWidth: '460px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid rgba(255, 255, 255, 0.8)',
+              animation: 'fadeInSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 모달 헤더 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+              <div>
+                <span style={{
+                  display: 'inline-block',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: '#2563eb',
+                  background: '#eff6ff',
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  marginBottom: '6px'
+                }}>
+                  🎾 {clubProfile?.name || currentClub?.name || '테친회'}
+                </span>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                  💳 회비 간편 납부
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPayModal(false)}
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  fontSize: '16px',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', lineHeight: 1.5 }}>
+              토스 앱으로 즉시 간편 송금하시거나 입금 계좌를 복사하여 회비를 편리하게 납부하세요.
+            </p>
+
+            {/* 회비 정보 요약 카드 */}
+            <div style={{
+              background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+              border: '1px solid #dbeafe',
+              borderRadius: '16px',
+              padding: '16px',
+              marginBottom: '18px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#475569' }}>납부 금액 ({feeCycle || '월납'})</span>
+                <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#1d4ed8' }}>
+                  {feeAmount ? `${Number(feeAmount.replace(/[^0-9]/g, '') || 0).toLocaleString()}원` : '미설정'}
+                </span>
+              </div>
+              <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                  <span style={{ color: '#64748b', fontWeight: 600 }}>입금 계좌</span>
+                  <span style={{ fontWeight: 800, color: '#0f172a' }}>{bankAccount || '미등록'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                  <span style={{ color: '#64748b', fontWeight: 600 }}>예금주</span>
+                  <span style={{ fontWeight: 800, color: '#0f172a' }}>{accountHolder || '미등록'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2대 핵심 납부 액션 버튼 (토스로 내기 & 계좌 복사) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+              {/* 1. 토스로 내기 */}
+              <button
+                type="button"
+                onClick={handlePayWithToss}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  padding: '12px 10px',
+                  borderRadius: '14px',
+                  background: '#0064FF',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(0, 100, 255, 0.3)',
+                  transition: 'transform 0.15s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                  토스로 내기
+                </div>
+                <span style={{ fontSize: '10.5px', fontWeight: 500, opacity: 0.85 }}>앱 자동 송금</span>
+              </button>
+
+              {/* 2. 계좌 복사 */}
+              <button
+                type="button"
+                onClick={handleCopyAccount}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  padding: '12px 10px',
+                  borderRadius: '14px',
+                  background: copiedAccount ? '#f0fdf4' : '#ffffff',
+                  color: copiedAccount ? '#15803d' : '#1e293b',
+                  border: `1.5px solid ${copiedAccount ? '#86efac' : '#cbd5e1'}`,
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  {copiedAccount ? '✅' : '📋'} {copiedAccount ? '복사 완료' : '계좌 복사'}
+                </div>
+                <span style={{ fontSize: '10.5px', fontWeight: 500, color: copiedAccount ? '#16a34a' : '#64748b' }}>
+                  클립보드 저장
+                </span>
+              </button>
+            </div>
+
+            {/* 닫기 버튼 */}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowPayModal(false)}
+              style={{ width: '100%', padding: '10px', borderRadius: '12px', fontWeight: 700, fontSize: '13px' }}
+            >
+              닫기
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── 플로팅 토스트 알림 ── */}

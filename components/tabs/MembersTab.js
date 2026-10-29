@@ -49,7 +49,8 @@ export default function MembersTab({
   currentClub, 
   onBulkUpdateFeeStatus,
   memberCategory: propCategory,
-  onChangeMemberCategory
+  onChangeMemberCategory,
+  onOpenPayModal
 }) {
   const [internalCategory, setInternalCategory] = useState('REGULAR'); // 'REGULAR' | 'GUEST'
   const activeCategory = propCategory || internalCategory;
@@ -162,14 +163,23 @@ export default function MembersTab({
     const unpaidMembers = clubMembers.filter(m => !m.feePaid);
     const names = unpaidMembers.map(m => m.name).join(', ');
     const cycleText = currentClub?.feeCycle === '연납' ? '올해' : currentClub?.feeCycle === '분기납' ? '이번 분기' : '이번 달';
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const payUrl = `${origin}/members?pay=1`;
+    const numAmt = currentClub?.feeAmount
+      ? Number(String(currentClub.feeAmount).replace(/[^0-9]/g, '') || 0).toLocaleString()
+      : '0';
+
     const text = `🎾 ${currentClub?.name || '클럽'} 회비 납부 안내 🎾
 
 안녕하세요, ${cycleText} 회비 납부 안내드립니다.
-아직 납부하지 않으신 회원님들은 아래 계좌로 입금 부탁드립니다!
+아직 납부하지 않으신 회원님들은 아래 간편 납부 링크(토스 송금 / 계좌 복사) 또는 계좌로 입금 부탁드립니다!
 
 📌 미납자 명단: ${names || '(미납자 없음)'}
-📌 납부 금액: ${currentClub?.feeAmount || '0'}원
+📌 납부 금액: ${numAmt}원 (${currentClub?.feeCycle || '월납'})
 📌 입금 계좌: ${currentClub?.bankAccount || '미등록'} (예금주: ${currentClub?.accountHolder || '미등록'})
+
+💳 회비 간편 납부 링크 (토스로 내기 / 계좌 복사):
+👉 ${payUrl}
 
 원활한 클럽 운영을 위해 빠른 납부 부탁드립니다. 감사합니다!`;
     setReminderText(text);
@@ -1208,14 +1218,26 @@ export default function MembersTab({
               onChange={(e) => setReminderText(e.target.value)}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '20px' }}>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                style={{ backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a', fontWeight: 700 }}
-                onClick={() => window.location.href = '/posters?tab=fee'}
-              >
-                🎨 회비 카드 이미지 제작하기
-              </button>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a', fontWeight: 700 }}
+                  onClick={() => window.location.href = '/posters?tab=fee'}
+                >
+                  🎨 회비 카드 이미지 제작하기
+                </button>
+                {onOpenPayModal && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe', fontWeight: 700 }}
+                    onClick={onOpenPayModal}
+                  >
+                    💳 납부창 미리보기
+                  </button>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn btn-secondary btn-sm" onClick={() => setShowReminderModal(false)}>닫기</button>
                 <button className="btn btn-primary btn-sm" onClick={() => {
