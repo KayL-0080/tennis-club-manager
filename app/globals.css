@@ -550,6 +550,11 @@ tr:hover td { background: rgba(0, 122, 255, 0.04); }
   display: none;
 }
 
+.ime-ko {
+  ime-mode: active !important;
+  -webkit-ime-mode: active !important;
+}
+
 @media print {
   @page {
     size: A4;

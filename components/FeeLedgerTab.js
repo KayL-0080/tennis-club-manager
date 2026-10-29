@@ -7,18 +7,54 @@ import {
   deleteFeeLedgerEntry
 } from '@/lib/firestore';
 
-export const INCOME_CATEGORIES = ['이월잔액', '회비', '게스트비', '찬조'];
-export const EXPENSE_CATEGORIES = ['대관료', '식음료', '대회상품'];
-export const ALL_CATEGORIES = [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES];
+export const INCOME_CATEGORIES = ['이월잔액', '회비', '게스트비', '찬조', '대회참가비', '기타'];
+export const EXPENSE_CATEGORIES = ['대관료', '식음료', '대회상품', '기타'];
 
-const CATEGORY_META = {
-  '이월잔액': { type: 'INCOME', icon: '🏦', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-  '회비':     { type: 'INCOME', icon: '💳', bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
-  '게스트비': { type: 'INCOME', icon: '🙋', bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' },
-  '찬조':     { type: 'INCOME', icon: '🎁', bg: '#ecfeff', color: '#0e7490', border: '#a5f3fc' },
-  '대관료':   { type: 'EXPENSE', icon: '🏟️', bg: '#fff1f2', color: '#be123c', border: '#fecdd3' },
-  '식음료':   { type: 'EXPENSE', icon: '🥤', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
-  '대회상품': { type: 'EXPENSE', icon: '🏆', bg: '#fefce8', color: '#a16207', border: '#fef08a' },
+// 카테고리별 기본 자동 입력 금액 (회비: 120,000원 / 게스트비: 15,000원)
+const DEFAULT_CATEGORY_AMOUNTS = {
+  'INCOME:회비': 120000,
+  'INCOME:게스트비': 15000,
+};
+
+const getCategoryMeta = (category, type = 'INCOME') => {
+  const isInc = type === 'INCOME';
+  if (isInc) {
+    switch (category) {
+      case '이월잔액':
+        return { type: 'INCOME', icon: '🏦', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' };
+      case '회비':
+        return { type: 'INCOME', icon: '💳', bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' };
+      case '게스트비':
+        return { type: 'INCOME', icon: '🙋', bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' };
+      case '찬조':
+        return { type: 'INCOME', icon: '🎁', bg: '#ecfeff', color: '#0e7490', border: '#a5f3fc' };
+      case '대회참가비':
+        return { type: 'INCOME', icon: '🎾', bg: '#eef2ff', color: '#4338ca', border: '#c7d2fe' };
+      case '기타':
+      default:
+        return { type: 'INCOME', icon: '➕', bg: '#f0f9ff', color: '#0369a1', border: '#bae6fd' };
+    }
+  } else {
+    switch (category) {
+      case '대관료':
+        return { type: 'EXPENSE', icon: '🏟️', bg: '#fff1f2', color: '#be123c', border: '#fecdd3' };
+      case '식음료':
+        return { type: 'EXPENSE', icon: '🥤', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' };
+      case '대회상품':
+        return { type: 'EXPENSE', icon: '🏆', bg: '#fefce8', color: '#a16207', border: '#fef08a' };
+      case '기타':
+      default:
+        return { type: 'EXPENSE', icon: '➖', bg: '#fdf2f8', color: '#be185d', border: '#fbcfe8' };
+    }
+  }
+};
+
+const resolveItemType = (item) => {
+  if (item?.type === 'INCOME' || item?.type === 'EXPENSE') return item.type;
+  if (Number(item?.income) > 0) return 'INCOME';
+  if (Number(item?.expense) > 0) return 'EXPENSE';
+  if (EXPENSE_CATEGORIES.includes(item?.category) && item?.category !== '기타') return 'EXPENSE';
+  return 'INCOME';
 };
 
 const getTodayYMD = () => {
@@ -56,14 +92,15 @@ export default function FeeLedgerTab({
   // 조회 월 상태 (기본: 현재 연월 YYYY-MM)
   const [selectedMonth, setSelectedMonth] = useState(() => getTodayYMD().substring(0, 7));
   const [viewAllMonths, setViewAllMonths] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState('ALL'); // 'ALL' | 'INCOME_ALL' | 'EXPENSE_ALL' | categoryName
+  const [categoryFilter, setCategoryFilter] = useState('ALL'); // 'ALL' | 'INCOME_ALL' | 'EXPENSE_ALL' | 'INCOME:회비' 등
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 입력 / 수정 폼 상태
+  // 입력 / 수정 폼 상태 (기본값: 수입 - '회비' 120,000원)
   const [editingId, setEditingId] = useState(null);
   const [formDate, setFormDate] = useState(() => getTodayYMD());
+  const [formType, setFormType] = useState('INCOME'); // 'INCOME' | 'EXPENSE'
   const [formCategory, setFormCategory] = useState('회비');
-  const [formIncome, setFormIncome] = useState('');
+  const [formIncome, setFormIncome] = useState('120,000');
   const [formExpense, setFormExpense] = useState('');
   const [formMemo, setFormMemo] = useState('');
 
@@ -105,30 +142,57 @@ export default function FeeLedgerTab({
     handleMonthChange(nextYm);
   };
 
-  const isIncomeCategory = (cat) => INCOME_CATEGORIES.includes(cat);
+  // 내용(카테고리) 및 구분(수입/지출) 변경 핸들러
+  // - '회비' 클릭 시 120,000원 기본 입력
+  // - '게스트비' 클릭 시 15,000원 기본 입력
+  const handleCategoryChange = (newCat, explicitType = null) => {
+    const nextType = explicitType || (INCOME_CATEGORIES.includes(newCat) && newCat !== '기타' ? 'INCOME' : formType);
+    const prevKey = `${formType}:${formCategory}`;
+    const nextKey = `${nextType}:${newCat}`;
+    const prevDefaultAmt = DEFAULT_CATEGORY_AMOUNTS[prevKey];
+    const nextDefaultAmt = DEFAULT_CATEGORY_AMOUNTS[nextKey];
 
-  // 내용(카테고리) 변경 시 수입/지출 금액 자동 전환 처리
-  const handleCategoryChange = (newCat) => {
-    const prevIsIncome = isIncomeCategory(formCategory);
-    const nextIsIncome = isIncomeCategory(newCat);
+    setFormType(nextType);
     setFormCategory(newCat);
 
-    if (prevIsIncome && !nextIsIncome) {
-      if (formIncome && !formExpense) {
-        setFormExpense(formIncome);
-      }
-      setFormIncome('');
-    } else if (!prevIsIncome && nextIsIncome) {
-      if (formExpense && !formIncome) {
+    if (nextDefaultAmt) {
+      // 회비(120,000원) 또는 게스트비(15,000원) 클릭 시 기본값 자동 세팅
+      setFormIncome(formatNum(nextDefaultAmt));
+      setFormExpense('');
+      return;
+    }
+
+    const currentAmtNum = formType === 'INCOME' ? parseNumInput(formIncome) : parseNumInput(formExpense);
+    const wasDefaultUnchanged = prevDefaultAmt && currentAmtNum === prevDefaultAmt;
+
+    if (nextType === 'INCOME') {
+      setFormExpense('');
+      if (wasDefaultUnchanged) {
+        setFormIncome('');
+      } else if (formType === 'EXPENSE' && formExpense && !formIncome) {
         setFormIncome(formExpense);
       }
-      setFormExpense('');
+    } else {
+      setFormIncome('');
+      if (wasDefaultUnchanged) {
+        setFormExpense('');
+      } else if (formType === 'INCOME' && formIncome && !formExpense) {
+        setFormExpense(formIncome);
+      }
+    }
+  };
+
+  // 셀렉트 박스('TYPE:CATEGORY') 변경 핸들러
+  const handleSelectChange = (val) => {
+    const [selType, selCat] = String(val).split(':');
+    if (selType && selCat) {
+      handleCategoryChange(selCat, selType);
     }
   };
 
   // 금액 빠른 추가 버튼
   const addQuickAmount = (amountToAdd) => {
-    if (isIncomeCategory(formCategory)) {
+    if (formType === 'INCOME') {
       const nextVal = parseNumInput(formIncome) + amountToAdd;
       setFormIncome(nextVal > 0 ? formatNum(nextVal) : '');
       setFormExpense('');
@@ -143,8 +207,9 @@ export default function FeeLedgerTab({
     setEditingId(null);
     const today = getTodayYMD();
     setFormDate(today.startsWith(selectedMonth) ? today : `${selectedMonth}-01`);
+    setFormType('INCOME');
     setFormCategory('회비');
-    setFormIncome('');
+    setFormIncome('120,000');
     setFormExpense('');
     setFormMemo('');
   };
@@ -172,9 +237,11 @@ export default function FeeLedgerTab({
     return targetList.map((item, idx) => {
       const inc = Number(item.income) || 0;
       const exp = Number(item.expense) || 0;
+      const resolvedType = resolveItemType(item);
       runningBalance += (inc - exp);
       return {
         ...item,
+        type: resolvedType,
         rowNum: idx + 1,
         income: inc,
         expense: exp,
@@ -187,7 +254,6 @@ export default function FeeLedgerTab({
   const prevMonthClosingBalance = useMemo(() => {
     const prevEntries = sortedAllEntries.filter(e => e.date && e.date < `${selectedMonth}-01`);
     if (prevEntries.length === 0) return null;
-    // 가장 최근의 이월잔액이 포함된 달부터 계산하거나, 해당 월 직전 달의 잔액 계산
     const prevMonths = [...new Set(prevEntries.map(e => e.date.substring(0, 7)))].sort();
     const lastMonth = prevMonths[prevMonths.length - 1];
     const lastMonthEntries = prevEntries.filter(e => e.date.substring(0, 7) === lastMonth);
@@ -201,12 +267,15 @@ export default function FeeLedgerTab({
   // 화면 필터링된 내역 (카테고리 필터 및 검색어 적용)
   const filteredEntries = useMemo(() => {
     return periodEntriesWithBalance.filter(item => {
+      const itemType = item.type;
+      const itemKey = `${itemType}:${item.category}`;
+
       if (categoryFilter === 'INCOME_ALL') {
-        if (!INCOME_CATEGORIES.includes(item.category) && !(item.income > 0)) return false;
+        if (itemType !== 'INCOME') return false;
       } else if (categoryFilter === 'EXPENSE_ALL') {
-        if (!EXPENSE_CATEGORIES.includes(item.category) && !(item.expense > 0)) return false;
+        if (itemType !== 'EXPENSE') return false;
       } else if (categoryFilter !== 'ALL') {
-        if (item.category !== categoryFilter) return false;
+        if (itemKey !== categoryFilter) return false;
       }
 
       if (searchQuery.trim()) {
@@ -222,8 +291,10 @@ export default function FeeLedgerTab({
 
   // 월별(기간별) 수입/지출/잔액 및 항목별 합계 요약
   const summary = useMemo(() => {
-    const catTotals = {};
-    ALL_CATEGORIES.forEach(c => { catTotals[c] = 0; });
+    const incomeTotals = {};
+    const expenseTotals = {};
+    INCOME_CATEGORIES.forEach(c => { incomeTotals[c] = 0; });
+    EXPENSE_CATEGORIES.forEach(c => { expenseTotals[c] = 0; });
 
     let totalIncome = 0;
     let totalExpense = 0;
@@ -233,8 +304,13 @@ export default function FeeLedgerTab({
       const exp = Number(item.expense) || 0;
       totalIncome += inc;
       totalExpense += exp;
-      if (catTotals[item.category] !== undefined) {
-        catTotals[item.category] += (inc > 0 ? inc : exp);
+
+      if (item.type === 'INCOME' || inc > 0) {
+        const cat = incomeTotals[item.category] !== undefined ? item.category : '기타';
+        incomeTotals[cat] = (incomeTotals[cat] || 0) + inc;
+      } else {
+        const cat = expenseTotals[item.category] !== undefined ? item.category : '기타';
+        expenseTotals[cat] = (expenseTotals[cat] || 0) + exp;
       }
     });
 
@@ -245,7 +321,8 @@ export default function FeeLedgerTab({
       totalIncome,
       totalExpense,
       netBalance: totalIncome - totalExpense,
-      catTotals,
+      incomeTotals,
+      expenseTotals,
       filteredIncome,
       filteredExpense,
       filteredBalance: filteredIncome - filteredExpense
@@ -256,7 +333,7 @@ export default function FeeLedgerTab({
   const regularPaidInfo = useMemo(() => {
     const regularMembers = members.filter(m => m?.role !== '게스트' && !m?.isGuest);
     const paidMembers = regularMembers.filter(m => m.feePaid);
-    const unitFee = parseNumInput(currentClub?.feeAmount) || 30000;
+    const unitFee = parseNumInput(currentClub?.feeAmount) || 120000;
     return {
       paidCount: paidMembers.length,
       totalRegular: regularMembers.length,
@@ -267,6 +344,7 @@ export default function FeeLedgerTab({
 
   const handleFillCarryover = () => {
     setFormDate(`${selectedMonth}-01`);
+    setFormType('INCOME');
     setFormCategory('이월잔액');
     setFormExpense('');
     if (prevMonthClosingBalance) {
@@ -274,12 +352,14 @@ export default function FeeLedgerTab({
       setFormIncome(formatNum(Math.max(0, prevMonthClosingBalance.balance)));
       setFormMemo(`${pm}월 이월잔액`);
     } else {
+      setFormIncome('');
       setFormMemo('전월 이월잔액');
     }
   };
 
   const handleFillRegularFees = () => {
     const [, mNum] = selectedMonth.split('-').map(Number);
+    setFormType('INCOME');
     setFormCategory('회비');
     setFormExpense('');
     setFormIncome(formatNum(regularPaidInfo.totalFeeAmount));
@@ -303,7 +383,7 @@ export default function FeeLedgerTab({
       return;
     }
 
-    const isInc = isIncomeCategory(formCategory);
+    const isInc = formType === 'INCOME';
     const finalIncome = isInc ? (incVal || expVal) : 0;
     const finalExpense = !isInc ? (expVal || incVal) : 0;
 
@@ -340,8 +420,10 @@ export default function FeeLedgerTab({
 
   const handleStartEdit = (item) => {
     if (!canEdit) return;
+    const itemType = resolveItemType(item);
     setEditingId(item.id);
     setFormDate(item.date || getTodayYMD());
+    setFormType(itemType);
     setFormCategory(item.category || '회비');
     setFormIncome(item.income > 0 ? formatNum(item.income) : '');
     setFormExpense(item.expense > 0 ? formatNum(item.expense) : '');
@@ -418,13 +500,15 @@ export default function FeeLedgerTab({
       return;
     }
     const clubName = currentClub?.name || '테친회';
+    const incBreakdown = INCOME_CATEGORIES.map(c => `${c} ${formatNum(summary.incomeTotals[c])}`).join(' / ');
+    const expBreakdown = EXPENSE_CATEGORIES.map(c => `${c} ${formatNum(summary.expenseTotals[c])}`).join(' / ');
     const lines = [
       `📒 [${clubName}] ${formattedPeriodTitle} 회비 수입·지출 내역`,
       `━━━━━━━━━━━━━━━━━━━━`,
       `🔵 총 수입: +${formatNum(summary.totalIncome)}원`,
-      `   (이월 ${formatNum(summary.catTotals['이월잔액'])} / 회비 ${formatNum(summary.catTotals['회비'])} / 게스트비 ${formatNum(summary.catTotals['게스트비'])} / 찬조 ${formatNum(summary.catTotals['찬조'])})`,
+      `   (${incBreakdown})`,
       `🔴 총 지출: -${formatNum(summary.totalExpense)}원`,
-      `   (대관료 ${formatNum(summary.catTotals['대관료'])} / 식음료 ${formatNum(summary.catTotals['식음료'])} / 대회상품 ${formatNum(summary.catTotals['대회상품'])})`,
+      `   (${expBreakdown})`,
       `🟢 최종 잔액: ${formatNum(summary.netBalance)}원`,
       `━━━━━━━━━━━━━━━━━━━━`,
       `[상세 내역 (${periodEntriesWithBalance.length}건)]`
@@ -463,6 +547,7 @@ export default function FeeLedgerTab({
     const printDate = getTodayYMD();
     const rowCount = periodEntriesWithBalance.length;
     const isCompact = rowCount > 18;
+    const totalCatCount = INCOME_CATEGORIES.length + EXPENSE_CATEGORIES.length;
 
     return (
       <div
@@ -551,37 +636,37 @@ export default function FeeLedgerTab({
           </tbody>
         </table>
 
-        {/* 3. 항목별(수입 4항목 / 지출 3항목) 소계 요약표 */}
+        {/* 3. 항목별(수입 6항목 / 지출 4항목) 소계 요약표 */}
         {printIncludeCategorySummary && (
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #475569', marginBottom: '12px', fontSize: '10.5px', textAlign: 'center' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #475569', marginBottom: '12px', fontSize: '10px', textAlign: 'center' }}>
             <thead>
               <tr style={{ background: '#f1f5f9' }}>
-                <th colSpan={4} style={{ border: '1px solid #64748b', padding: '4px', color: '#1e40af', fontWeight: 800 }}>
+                <th colSpan={INCOME_CATEGORIES.length} style={{ border: '1px solid #64748b', padding: '4px', color: '#1e40af', fontWeight: 800 }}>
                   수입 항목별 소계
                 </th>
-                <th colSpan={3} style={{ border: '1px solid #64748b', padding: '4px', color: '#9f1239', fontWeight: 800 }}>
+                <th colSpan={EXPENSE_CATEGORIES.length} style={{ border: '1px solid #64748b', padding: '4px', color: '#9f1239', fontWeight: 800 }}>
                   지출 항목별 소계
                 </th>
               </tr>
               <tr style={{ background: '#f8fafc', fontWeight: 700, color: '#334155' }}>
                 {INCOME_CATEGORIES.map(c => (
-                  <th key={c} style={{ border: '1px solid #94a3b8', padding: '4px', width: '14.28%' }}>{c}</th>
+                  <th key={`inc-${c}`} style={{ border: '1px solid #94a3b8', padding: '4px 2px', width: `${100 / totalCatCount}%` }}>{c}</th>
                 ))}
                 {EXPENSE_CATEGORIES.map(c => (
-                  <th key={c} style={{ border: '1px solid #94a3b8', padding: '4px', width: '14.28%' }}>{c}</th>
+                  <th key={`exp-${c}`} style={{ border: '1px solid #94a3b8', padding: '4px 2px', width: `${100 / totalCatCount}%` }}>{c}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               <tr style={{ fontWeight: 800 }}>
                 {INCOME_CATEGORIES.map(c => (
-                  <td key={c} style={{ border: '1px solid #94a3b8', padding: '5px 4px', color: summary.catTotals[c] > 0 ? '#1d4ed8' : '#64748b' }}>
-                    {formatNum(summary.catTotals[c])}원
+                  <td key={`inc-val-${c}`} style={{ border: '1px solid #94a3b8', padding: '5px 2px', color: summary.incomeTotals[c] > 0 ? '#1d4ed8' : '#64748b' }}>
+                    {formatNum(summary.incomeTotals[c])}
                   </td>
                 ))}
                 {EXPENSE_CATEGORIES.map(c => (
-                  <td key={c} style={{ border: '1px solid #94a3b8', padding: '5px 4px', color: summary.catTotals[c] > 0 ? '#be123c' : '#64748b' }}>
-                    {formatNum(summary.catTotals[c])}원
+                  <td key={`exp-val-${c}`} style={{ border: '1px solid #94a3b8', padding: '5px 2px', color: summary.expenseTotals[c] > 0 ? '#be123c' : '#64748b' }}>
+                    {formatNum(summary.expenseTotals[c])}
                   </td>
                 ))}
               </tr>
@@ -595,7 +680,7 @@ export default function FeeLedgerTab({
             <tr style={{ background: '#e2e8f0', color: '#0f172a' }}>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px' : '6px', width: '36px', textAlign: 'center', fontWeight: 900 }}>No.</th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '92px', textAlign: 'center', fontWeight: 900 }}>사용일</th>
-              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '82px', textAlign: 'center', fontWeight: 900 }}>내용</th>
+              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '88px', textAlign: 'center', fontWeight: 900 }}>내용</th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '98px', textAlign: 'right', fontWeight: 900, color: '#1e3a8a' }}>수입</th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '98px', textAlign: 'right', fontWeight: 900, color: '#9f1239' }}>지출</th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '104px', textAlign: 'right', fontWeight: 900, color: '#065f46' }}>잔액</th>
@@ -670,7 +755,7 @@ export default function FeeLedgerTab({
     );
   }
 
-  const activeIsIncome = isIncomeCategory(formCategory);
+  const activeIsIncome = formType === 'INCOME';
 
   return (
     <div>
@@ -851,35 +936,39 @@ export default function FeeLedgerTab({
                 🔵 {formattedPeriodTitle} 총 수입
               </span>
               <span className="badge" style={{ background: '#dbeafe', color: '#1d4ed8', fontSize: '11px', fontWeight: 800 }}>
-                수입 4대 항목
+                수입 6개 항목
               </span>
             </div>
             <div style={{ fontSize: '24px', fontWeight: 900, color: '#1d4ed8', letterSpacing: '-0.02em', marginBottom: '12px' }}>
               +{formatNum(summary.totalIncome)}원
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '12px' }}>
-              {INCOME_CATEGORIES.map(cat => (
-                <div
-                  key={cat}
-                  onClick={() => setCategoryFilter(categoryFilter === cat ? 'ALL' : cat)}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '5px 8px',
-                    borderRadius: '8px',
-                    background: categoryFilter === cat ? '#1d4ed8' : 'rgba(255,255,255,0.85)',
-                    color: categoryFilter === cat ? '#ffffff' : '#334155',
-                    border: '1px solid #dbeafe',
-                    cursor: 'pointer',
-                    fontWeight: 700
-                  }}
-                  title={`클릭하여 '${cat}' 내역만 필터링`}
-                >
-                  <span>{CATEGORY_META[cat].icon} {cat}</span>
-                  <span style={{ fontWeight: 800 }}>{formatNum(summary.catTotals[cat])}</span>
-                </div>
-              ))}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', fontSize: '11.5px' }}>
+              {INCOME_CATEGORIES.map(cat => {
+                const filterKey = `INCOME:${cat}`;
+                const meta = getCategoryMeta(cat, 'INCOME');
+                return (
+                  <div
+                    key={filterKey}
+                    onClick={() => setCategoryFilter(categoryFilter === filterKey ? 'ALL' : filterKey)}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
+                      padding: '5px 7px',
+                      borderRadius: '8px',
+                      background: categoryFilter === filterKey ? '#1d4ed8' : 'rgba(255,255,255,0.85)',
+                      color: categoryFilter === filterKey ? '#ffffff' : '#334155',
+                      border: '1px solid #dbeafe',
+                      cursor: 'pointer',
+                      fontWeight: 700
+                    }}
+                    title={`클릭하여 '${cat} (수입)' 내역만 필터링`}
+                  >
+                    <span style={{ whiteSpace: 'nowrap' }}>{meta.icon} {cat}</span>
+                    <span style={{ fontWeight: 800, fontSize: '12px' }}>{formatNum(summary.incomeTotals[cat])}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -895,35 +984,39 @@ export default function FeeLedgerTab({
                 🔴 {formattedPeriodTitle} 총 지출
               </span>
               <span className="badge" style={{ background: '#ffe4e6', color: '#be123c', fontSize: '11px', fontWeight: 800 }}>
-                지출 3대 항목
+                지출 4개 항목
               </span>
             </div>
             <div style={{ fontSize: '24px', fontWeight: 900, color: '#be123c', letterSpacing: '-0.02em', marginBottom: '12px' }}>
               -{formatNum(summary.totalExpense)}원
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', fontSize: '12px' }}>
-              {EXPENSE_CATEGORIES.map(cat => (
-                <div
-                  key={cat}
-                  onClick={() => setCategoryFilter(categoryFilter === cat ? 'ALL' : cat)}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px',
-                    padding: '6px 8px',
-                    borderRadius: '8px',
-                    background: categoryFilter === cat ? '#be123c' : 'rgba(255,255,255,0.85)',
-                    color: categoryFilter === cat ? '#ffffff' : '#334155',
-                    border: '1px solid #ffe4e6',
-                    cursor: 'pointer',
-                    fontWeight: 700
-                  }}
-                  title={`클릭하여 '${cat}' 내역만 필터링`}
-                >
-                  <span style={{ fontSize: '11.5px' }}>{CATEGORY_META[cat].icon} {cat}</span>
-                  <span style={{ fontWeight: 800, fontSize: '12.5px' }}>{formatNum(summary.catTotals[cat])}</span>
-                </div>
-              ))}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '12px' }}>
+              {EXPENSE_CATEGORIES.map(cat => {
+                const filterKey = `EXPENSE:${cat}`;
+                const meta = getCategoryMeta(cat, 'EXPENSE');
+                return (
+                  <div
+                    key={filterKey}
+                    onClick={() => setCategoryFilter(categoryFilter === filterKey ? 'ALL' : filterKey)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '5px 8px',
+                      borderRadius: '8px',
+                      background: categoryFilter === filterKey ? '#be123c' : 'rgba(255,255,255,0.85)',
+                      color: categoryFilter === filterKey ? '#ffffff' : '#334155',
+                      border: '1px solid #ffe4e6',
+                      cursor: 'pointer',
+                      fontWeight: 700
+                    }}
+                    title={`클릭하여 '${cat} (지출)' 내역만 필터링`}
+                  >
+                    <span>{meta.icon} {cat}</span>
+                    <span style={{ fontWeight: 800 }}>{formatNum(summary.expenseTotals[cat])}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -969,7 +1062,7 @@ export default function FeeLedgerTab({
               flexWrap: 'wrap',
               gap: '4px'
             }}>
-              <span>당월 순수입(이월 제외): <strong>+{formatNum(summary.totalIncome - (summary.catTotals['이월잔액'] || 0))}원</strong></span>
+              <span>당월 순수입(이월 제외): <strong>+{formatNum(summary.totalIncome - (summary.incomeTotals['이월잔액'] || 0))}원</strong></span>
               <span style={{ color: '#64748b' }}>총 {periodEntriesWithBalance.length}건</span>
             </div>
           </div>
@@ -1027,7 +1120,7 @@ export default function FeeLedgerTab({
                       color: '#15803d',
                       borderColor: '#bbf7d0'
                     }}
-                    title="현재 회비 완납 체크된 정회원 수 × 월회비 금액을 자동으로 채웁니다"
+                    title="현재 회비 완납 체크된 정회원 수 × 회비 금액을 자동으로 채웁니다"
                   >
                     💳 완납 정회원 회비 계산 ({regularPaidInfo.paidCount}명 · {formatNum(regularPaidInfo.totalFeeAmount)}원)
                   </button>
@@ -1045,7 +1138,7 @@ export default function FeeLedgerTab({
               </div>
             </div>
 
-            {/* 내용(수입 4항목 / 지출 3항목) 원클릭 선택 바 */}
+            {/* 내용(수입 6항목 / 지출 4항목) 원클릭 선택 바 */}
             <div style={{
               display: 'flex',
               flexWrap: 'wrap',
@@ -1061,12 +1154,13 @@ export default function FeeLedgerTab({
                   🔵 수입 항목:
                 </span>
                 {INCOME_CATEGORIES.map(cat => {
-                  const active = formCategory === cat;
+                  const active = formType === 'INCOME' && formCategory === cat;
+                  const meta = getCategoryMeta(cat, 'INCOME');
                   return (
                     <button
-                      key={cat}
+                      key={`btn-inc-${cat}`}
                       type="button"
-                      onClick={() => handleCategoryChange(cat)}
+                      onClick={() => handleCategoryChange(cat, 'INCOME')}
                       style={{
                         padding: '6px 13px',
                         borderRadius: '999px',
@@ -1080,7 +1174,9 @@ export default function FeeLedgerTab({
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      {CATEGORY_META[cat].icon} {cat}
+                      {meta.icon} {cat}
+                      {cat === '회비' && <span style={{ fontSize: '11px', opacity: 0.85, marginLeft: '3px' }}>(12만)</span>}
+                      {cat === '게스트비' && <span style={{ fontSize: '11px', opacity: 0.85, marginLeft: '3px' }}>(1.5만)</span>}
                     </button>
                   );
                 })}
@@ -1093,12 +1189,13 @@ export default function FeeLedgerTab({
                   🔴 지출 항목:
                 </span>
                 {EXPENSE_CATEGORIES.map(cat => {
-                  const active = formCategory === cat;
+                  const active = formType === 'EXPENSE' && formCategory === cat;
+                  const meta = getCategoryMeta(cat, 'EXPENSE');
                   return (
                     <button
-                      key={cat}
+                      key={`btn-exp-${cat}`}
                       type="button"
-                      onClick={() => handleCategoryChange(cat)}
+                      onClick={() => handleCategoryChange(cat, 'EXPENSE')}
                       style={{
                         padding: '6px 13px',
                         borderRadius: '999px',
@@ -1112,7 +1209,7 @@ export default function FeeLedgerTab({
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      {CATEGORY_META[cat].icon} {cat}
+                      {meta.icon} {cat}
                     </button>
                   );
                 })}
@@ -1149,8 +1246,8 @@ export default function FeeLedgerTab({
                   </label>
                   <select
                     className="select"
-                    value={formCategory}
-                    onChange={(e) => handleCategoryChange(e.target.value)}
+                    value={`${formType}:${formCategory}`}
+                    onChange={(e) => handleSelectChange(e.target.value)}
                     style={{
                       width: '100%',
                       fontWeight: 800,
@@ -1161,12 +1258,12 @@ export default function FeeLedgerTab({
                   >
                     <optgroup label="🔵 수입 항목">
                       {INCOME_CATEGORIES.map(c => (
-                        <option key={c} value={c}>{c} (수입)</option>
+                        <option key={`opt-inc-${c}`} value={`INCOME:${c}`}>{c} (수입)</option>
                       ))}
                     </optgroup>
                     <optgroup label="🔴 지출 항목">
                       {EXPENSE_CATEGORIES.map(c => (
-                        <option key={c} value={c}>{c} (지출)</option>
+                        <option key={`opt-exp-${c}`} value={`EXPENSE:${c}`}>{c} (지출)</option>
                       ))}
                     </optgroup>
                   </select>
@@ -1228,26 +1325,37 @@ export default function FeeLedgerTab({
                   />
                 </div>
 
-                {/* 5. 적요 */}
+                {/* 5. 적요 (기본 한글 입력 모드 유지) */}
                 <div style={{ gridColumn: 'span 2', minWidth: '220px' }}>
                   <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#334155', marginBottom: '5px' }}>
-                    📝 적요 (상세 내역 / 비고)
+                    📝 적요 (상세 내역 / 비고 · 한글 입력 기본)
                   </label>
                   <input
                     type="text"
-                    className="input"
+                    lang="ko"
+                    inputMode="text"
+                    autoComplete="off"
+                    className="input ime-ko"
                     placeholder={
                       formCategory === '이월잔액' ? '예: 전월 이월잔액'
-                        : formCategory === '회비' ? '예: 10월 정회원 월회비 납부'
-                        : formCategory === '게스트비' ? '예: 홍길동 외 2명 게스트 참가비'
-                        : formCategory === '찬조' ? '예: 회장님 음료/대회 찬조금'
-                        : formCategory === '대관료' ? '예: 시립테니스장 2코트 3.5시간 대관'
-                        : formCategory === '식음료' ? '예: 정기모임 이온음료 및 간식 구매'
-                        : '예: 월례대회 우승/준우승 시상품(테니스공)'
+                        : formCategory === '회비' ? '예: 홍길동 연회비/월회비 납부'
+                        : formCategory === '게스트비' ? '예: 김철수 게스트 참가비'
+                        : formCategory === '찬조' ? '예: 회장님 대회 찬조금'
+                        : formCategory === '대회참가비' ? '예: 정기 월례대회 참가비'
+                        : formType === 'INCOME' && formCategory === '기타' ? '예: 예금 이자 및 기타 수입'
+                        : formCategory === '대관료' ? '예: 시립테니스장 2코트 대관료'
+                        : formCategory === '식음료' ? '예: 정기모임 음료 및 간식 구입'
+                        : formCategory === '대회상품' ? '예: 정기대회 시상품(테니스공) 구매'
+                        : '예: 구급약품 및 클럽 용품 구입'
                     }
                     value={formMemo}
                     onChange={(e) => setFormMemo(e.target.value)}
-                    style={{ width: '100%', fontWeight: 600 }}
+                    style={{
+                      width: '100%',
+                      fontWeight: 600,
+                      imeMode: 'active',
+                      WebkitImeMode: 'active'
+                    }}
                   />
                 </div>
               </div>
@@ -1268,9 +1376,10 @@ export default function FeeLedgerTab({
                   {[
                     { label: '+5천', val: 5000 },
                     { label: '+1만', val: 10000 },
+                    { label: '+1.5만', val: 15000 },
                     { label: '+3만', val: 30000 },
                     { label: '+5만', val: 50000 },
-                    { label: '+10만', val: 100000 },
+                    { label: '+12만', val: 120000 },
                   ].map(btn => (
                     <button
                       key={btn.label}
@@ -1387,11 +1496,12 @@ export default function FeeLedgerTab({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
                 type="text"
-                className="input"
+                lang="ko"
+                className="input ime-ko"
                 placeholder="🔍 적요, 내용, 날짜 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '210px', padding: '6px 12px', fontSize: '13px' }}
+                style={{ width: '210px', padding: '6px 12px', fontSize: '13px', imeMode: 'active', WebkitImeMode: 'active' }}
               />
               {(categoryFilter !== 'ALL' || searchQuery) && (
                 <button
@@ -1418,9 +1528,15 @@ export default function FeeLedgerTab({
             {[
               { key: 'ALL', label: `전체 (${periodEntriesWithBalance.length})` },
               { key: 'INCOME_ALL', label: '🔵 수입 전체' },
-              ...INCOME_CATEGORIES.map(c => ({ key: c, label: `${CATEGORY_META[c].icon} ${c}` })),
+              ...INCOME_CATEGORIES.map(c => {
+                const m = getCategoryMeta(c, 'INCOME');
+                return { key: `INCOME:${c}`, label: `${m.icon} ${c === '기타' ? '기타(수입)' : c}` };
+              }),
               { key: 'EXPENSE_ALL', label: '🔴 지출 전체' },
-              ...EXPENSE_CATEGORIES.map(c => ({ key: c, label: `${CATEGORY_META[c].icon} ${c}` })),
+              ...EXPENSE_CATEGORIES.map(c => {
+                const m = getCategoryMeta(c, 'EXPENSE');
+                return { key: `EXPENSE:${c}`, label: `${m.icon} ${c === '기타' ? '기타(지출)' : c}` };
+              }),
             ].map(tab => {
               const active = categoryFilter === tab.key;
               return (
@@ -1452,7 +1568,7 @@ export default function FeeLedgerTab({
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', color: '#334155' }}>
                   <th style={{ padding: '10px 8px', width: '48px', textAlign: 'center', fontWeight: 800 }}>No.</th>
                   <th style={{ padding: '10px 10px', width: '110px', textAlign: 'center', fontWeight: 800 }}>사용일</th>
-                  <th style={{ padding: '10px 10px', width: '105px', textAlign: 'center', fontWeight: 800 }}>내용</th>
+                  <th style={{ padding: '10px 10px', width: '112px', textAlign: 'center', fontWeight: 800 }}>내용</th>
                   <th style={{ padding: '10px 12px', width: '120px', textAlign: 'right', fontWeight: 800, color: '#1d4ed8' }}>수입</th>
                   <th style={{ padding: '10px 12px', width: '120px', textAlign: 'right', fontWeight: 800, color: '#be123c' }}>지출</th>
                   <th style={{ padding: '10px 12px', width: '125px', textAlign: 'right', fontWeight: 800, color: '#047857' }}>잔액</th>
@@ -1473,13 +1589,7 @@ export default function FeeLedgerTab({
                   </tr>
                 ) : (
                   filteredEntries.map((item) => {
-                    const meta = CATEGORY_META[item.category] || {
-                      type: item.income > 0 ? 'INCOME' : 'EXPENSE',
-                      icon: item.income > 0 ? '🔵' : '🔴',
-                      bg: '#f1f5f9',
-                      color: '#334155',
-                      border: '#cbd5e1'
-                    };
+                    const meta = getCategoryMeta(item.category, item.type);
                     const isBeingEdited = editingId === item.id;
                     return (
                       <tr
@@ -1737,7 +1847,7 @@ export default function FeeLedgerTab({
                   checked={printIncludeCategorySummary}
                   onChange={(e) => setPrintIncludeCategorySummary(e.target.checked)}
                 />
-                <span>항목별(이월/회비/게스트비/찬조 · 대관료/식음료/대회상품) 소계표 표시</span>
+                <span>항목별(이월/회비/게스트비/찬조/대회참가비/기타 · 대관료/식음료/대회상품/기타) 소계표 표시</span>
               </label>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
                 <input
