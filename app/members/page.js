@@ -258,29 +258,6 @@ export default function MembersPage() {
     }
   };
 
-  // ── 3. '회비 간편 납부 링크 복사' 핸들러 ──
-  const handleCopyPayLink = async () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const payUrl = `${origin}/members?pay=1`;
-    try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(payUrl);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = payUrl;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
-      showToast(`🔗 회비 간편 납부 링크가 복사되었습니다!\n${payUrl}`);
-    } catch {
-      alert(`회비 간편 납부 링크: ${payUrl}`);
-    }
-  };
-
   const handleSaveFullSettings = async (newData) => {
     if (!isAdmin && !canCourtFinance) return;
     await updateClubSettings(newData);
@@ -759,29 +736,6 @@ export default function MembersPage() {
                         title="회원에게 공유되는 회비 간편 납부 모달창을 엽니다"
                       >
                         💳 납부창
-                      </button>
-
-                      {/* 4. 납부 링크 복사 */}
-                      <button
-                        type="button"
-                        onClick={handleCopyPayLink}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '7px 12px',
-                          borderRadius: '9px',
-                          background: '#f8fafc',
-                          color: '#475569',
-                          border: '1px solid #cbd5e1',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                        title="카톡/밴드 공유용 회비 간편 납부 링크(?pay=1)를 복사합니다"
-                      >
-                        🔗 링크 복사
                       </button>
                     </div>
                   </div>
