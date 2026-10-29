@@ -36,6 +36,17 @@ export default function MembersPage() {
   const [bankAccount, setBankAccount] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
 
+  // ── 토스트 알림 및 계좌 복사 상태 ──
+  const [toastMessage, setToastMessage] = useState('');
+  const [copiedAccount, setCopiedAccount] = useState(false);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage('');
+    }, 2800);
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -96,6 +107,145 @@ export default function MembersPage() {
     } catch (e) {
       console.error(e);
       alert('재무 정보 저장에 실패했습니다.');
+    }
+  };
+
+  // ── 은행명 및 계좌번호 스마트 파싱 (토스 딥링크 규격) ──
+  const parseBankAndAccount = (rawStr) => {
+    if (!rawStr) return { bank: '', accountNo: '' };
+    const text = String(rawStr).trim();
+
+    const bankList = [
+      { key: '카카오뱅크', bank: '카카오뱅크' },
+      { key: '카카오', bank: '카카오뱅크' },
+      { key: '토스뱅크', bank: '토스뱅크' },
+      { key: '토스', bank: '토스뱅크' },
+      { key: '케이뱅크', bank: '케이뱅크' },
+      { key: 'KB국민', bank: '국민' },
+      { key: '국민은행', bank: '국민' },
+      { key: '국민', bank: '국민' },
+      { key: '신한은행', bank: '신한' },
+      { key: '신한', bank: '신한' },
+      { key: '우리은행', bank: '우리' },
+      { key: '우리', bank: '우리' },
+      { key: '하나은행', bank: '하나' },
+      { key: 'KEB하나', bank: '하나' },
+      { key: '하나', bank: '하나' },
+      { key: 'NH농협', bank: '농협' },
+      { key: '농협은행', bank: '농협' },
+      { key: '농협', bank: '농협' },
+      { key: 'IBK기업', bank: '기업' },
+      { key: '기업은행', bank: '기업' },
+      { key: '기업', bank: '기업' },
+      { key: 'SC제일', bank: 'SC제일' },
+      { key: '우체국', bank: '우체국' },
+      { key: '새마을금고', bank: '새마을' },
+      { key: '새마을', bank: '새마을' },
+      { key: '신협', bank: '신협' },
+      { key: '수협', bank: '수협' },
+      { key: '부산은행', bank: '부산' },
+      { key: '부산', bank: '부산' },
+      { key: '대구은행', bank: '대구' },
+      { key: '대구', bank: '대구' },
+      { key: '광주은행', bank: '광주' },
+      { key: '광주', bank: '광주' },
+      { key: '경남은행', bank: '경남' },
+      { key: '경남', bank: '경남' },
+      { key: '전북은행', bank: '전북' },
+      { key: '전북', bank: '전북' },
+      { key: '제주은행', bank: '제주' },
+      { key: '제주', bank: '제주' },
+      { key: '씨티은행', bank: '씨티' },
+      { key: '씨티', bank: '씨티' },
+      { key: 'KDB산업', bank: 'KDB산업' },
+      { key: '산업은행', bank: 'KDB산업' }
+    ];
+
+    let detectedBank = '';
+    for (const b of bankList) {
+      if (text.includes(b.key)) {
+        detectedBank = b.bank;
+        break;
+      }
+    }
+
+    if (!detectedBank) {
+      const parts = text.split(/\s+/);
+      if (parts.length > 1 && !/^\d+$/.test(parts[0])) {
+        detectedBank = parts[0].replace(/은행$/, '');
+      }
+    }
+
+    const accountNo = text.replace(/[^0-9]/g, '');
+    return { bank: detectedBank, accountNo };
+  };
+
+  // ── 1. '토스로 내기' 핸들러 ──
+  const handlePayWithToss = async () => {
+    if (!bankAccount) {
+      alert('등록된 회비 통장 계좌가 없습니다. 관리자에게 문의하거나 회비 통장을 먼저 입력해주세요.');
+      return;
+    }
+
+    const { bank, accountNo } = parseBankAndAccount(bankAccount);
+    const cleanAmount = (feeAmount || '').replace(/[^0-9]/g, '');
+
+    const params = [];
+    if (bank) params.push(`bank=${encodeURIComponent(bank)}`);
+    if (accountNo) params.push(`accountNo=${accountNo}`);
+    if (cleanAmount) params.push(`amount=${cleanAmount}`);
+
+    const tossUrl = `supertoss://send?${params.join('&')}`;
+
+    // 안전망: 클립보드에 계좌번호 및 예금주 선복사
+    const copyTarget = `${bankAccount} ${accountHolder ? `(예금주: ${accountHolder})` : ''}`.trim();
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(copyTarget);
+      }
+    } catch (e) {
+      console.warn('Clipboard write error:', e);
+    }
+
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // 토스 앱 딥링크 호출
+    window.location.href = tossUrl;
+
+    if (isMobile) {
+      showToast('💙 토스 앱을 실행합니다!\n(계좌·금액 자동 세팅 / 계좌 복사됨)');
+    } else {
+      showToast(`💙 토스 송금 링크를 호출했습니다.\n(계좌: ${copyTarget}${cleanAmount ? ` / ${Number(cleanAmount).toLocaleString()}원` : ''})`);
+    }
+  };
+
+  // ── 2. '계좌 복사' 핸들러 ──
+  const handleCopyAccount = async () => {
+    if (!bankAccount) {
+      alert('등록된 회비 통장 계좌가 없습니다. 관리자에게 문의하거나 회비 통장을 먼저 입력해주세요.');
+      return;
+    }
+
+    const copyTarget = `${bankAccount} ${accountHolder ? `(예금주: ${accountHolder})` : ''}`.trim();
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(copyTarget);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = copyTarget;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedAccount(true);
+      showToast(`📋 회비 계좌가 복사되었습니다!\n${copyTarget}`);
+      setTimeout(() => setCopiedAccount(false), 2500);
+    } catch (err) {
+      console.error('Clipboard copy error:', err);
+      alert(`회비 입금 계좌: ${copyTarget}`);
     }
   };
 
@@ -388,32 +538,173 @@ export default function MembersPage() {
           {/* ── 3. 회원 명단 탭 ── */}
           {(activeSubTab === 'members' || (!isAdmin && !canManageFee && !canCourtFinance)) && (
             <>
-              {(isAdmin || canManageFee) && memberCategory === 'REGULAR' && (
-                <div className="card" style={{ marginBottom: '14px', padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--txt)', margin: 0, letterSpacing: '-0.02em' }}>💰 클럽 회비 / 계좌 설정</h3>
-                    <button className="btn btn-primary btn-sm" style={{ padding: '4px 12px', fontSize: '12px' }} onClick={handleSaveFinanceInfo}>저장</button>
+              {memberCategory === 'REGULAR' && (
+                <div className="card" style={{ marginBottom: '14px', padding: '14px 16px', background: '#ffffff' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--txt)', margin: 0, letterSpacing: '-0.02em' }}>
+                        💰 {(isAdmin || canManageFee) ? '클럽 회비 / 계좌 설정' : '클럽 회비 / 계좌 안내'}
+                      </h3>
+                      {!isAdmin && !canManageFee && (
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                          (정기 회비 입금 계좌)
+                        </span>
+                      )}
+                    </div>
+                    {(isAdmin || canManageFee) && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        style={{ padding: '4px 12px', fontSize: '12px', fontWeight: 700 }}
+                        onClick={handleSaveFinanceInfo}
+                      >
+                        저장
+                      </button>
+                    )}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>납부 주기</label>
-                      <select className="select input-sm" value={feeCycle} onChange={e => setFeeCycle(e.target.value)}>
-                        <option value="월납">월납</option>
-                        <option value="분기납">분기납</option>
-                        <option value="연납">연납</option>
-                      </select>
+
+                  {(isAdmin || canManageFee) ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>납부 주기</label>
+                        <select className="select input-sm" value={feeCycle} onChange={e => setFeeCycle(e.target.value)}>
+                          <option value="월납">월납</option>
+                          <option value="분기납">분기납</option>
+                          <option value="연납">연납</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>회비 금액</label>
+                        <input className="input input-sm" type="text" placeholder="예: 120,000" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>회비 통장</label>
+                        <input className="input input-sm" type="text" placeholder="예: 국민 1234-5678" value={bankAccount} onChange={e => setBankAccount(e.target.value)} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>예금주</label>
+                        <input className="input input-sm" type="text" placeholder="예: 홍길동" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} />
+                      </div>
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>회비 금액</label>
-                      <input className="input input-sm" type="text" placeholder="예: 120,000" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} />
+                  ) : (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                      gap: '10px',
+                      background: '#f8fafc',
+                      padding: '12px 14px',
+                      borderRadius: '10px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '2px' }}>납부 주기</span>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>{feeCycle || '월납'}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '2px' }}>회비 금액</span>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#1d4ed8' }}>
+                          {feeAmount ? `${Number(feeAmount.replace(/[^0-9]/g, '') || 0).toLocaleString()}원` : '미설정'}
+                        </span>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '2px' }}>회비 통장</span>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>{bankAccount || '미등록'}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '2px' }}>예금주</span>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>{accountHolder || '미등록'}</span>
+                      </div>
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>회비 통장</label>
-                      <input className="input input-sm" type="text" placeholder="예: 국민 1234-5678" value={bankAccount} onChange={e => setBankAccount(e.target.value)} />
+                  )}
+
+                  {/* ── 회비 납부 기능: '토스로 내기' or '계좌 복사' ── */}
+                  <div style={{
+                    marginTop: '12px',
+                    paddingTop: '12px',
+                    borderTop: '1px dashed #cbd5e1',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>
+                        💳 회비 납부하기:
+                      </span>
+                      {feeAmount && (
+                        <span style={{
+                          fontSize: '11.5px',
+                          fontWeight: 800,
+                          color: '#1d4ed8',
+                          background: '#eff6ff',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #bfdbfe'
+                        }}>
+                          {feeCycle} {Number(feeAmount.replace(/[^0-9]/g, '') || 0).toLocaleString()}원
+                        </span>
+                      )}
+                      {bankAccount && (
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>
+                          {bankAccount} {accountHolder ? `(${accountHolder})` : ''}
+                        </span>
+                      )}
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>예금주</label>
-                      <input className="input input-sm" type="text" placeholder="예: 홍길동" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} />
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      {/* 1. 토스로 내기 */}
+                      <button
+                        type="button"
+                        onClick={handlePayWithToss}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '7px 14px',
+                          borderRadius: '9px',
+                          background: '#0064FF',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: '12.5px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(0, 100, 255, 0.28)',
+                          transition: 'all 0.2s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="토스 앱을 열어 계좌와 금액이 자동 입력된 상태로 송금합니다"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="22" y1="2" x2="11" y2="13"></line>
+                          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                        토스로 내기
+                      </button>
+
+                      {/* 2. 계좌 복사 */}
+                      <button
+                        type="button"
+                        onClick={handleCopyAccount}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '7px 14px',
+                          borderRadius: '9px',
+                          background: copiedAccount ? '#f0fdf4' : '#ffffff',
+                          color: copiedAccount ? '#15803d' : '#1e293b',
+                          border: `1px solid ${copiedAccount ? '#86efac' : '#cbd5e1'}`,
+                          fontSize: '12.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                          transition: 'all 0.2s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="입금 계좌번호를 클립보드에 복사합니다"
+                      >
+                        {copiedAccount ? '✅ 복사 완료' : '📋 계좌 복사'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -428,7 +719,14 @@ export default function MembersPage() {
                 isAdmin={isAdmin}
                 canEditMember={canEditMember}
                 canManageFee={canManageFee}
-                currentClub={{ ...currentClub, name: clubProfile?.name || currentClub?.name || '클럽' }}
+                currentClub={{
+                  ...currentClub,
+                  feeCycle,
+                  feeAmount,
+                  bankAccount,
+                  accountHolder,
+                  name: clubProfile?.name || currentClub?.name || '클럽'
+                }}
                 onBulkUpdateFeeStatus={handleBulkFeeUpdate}
                 memberCategory={memberCategory}
                 onChangeMemberCategory={setMemberCategory}
@@ -479,6 +777,33 @@ export default function MembersPage() {
           onClose={() => setShowRulesModal(false)}
           isAdmin={isAdmin || canEditBylaws}
         />
+      )}
+
+      {/* ── 플로팅 토스트 알림 ── */}
+      {toastMessage && (
+        <div style={{
+          position: 'fixed',
+          top: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(15, 23, 42, 0.94)',
+          color: '#ffffff',
+          padding: '11px 22px',
+          borderRadius: '9999px',
+          fontSize: '13px',
+          fontWeight: 700,
+          boxShadow: '0 10px 28px rgba(0, 0, 0, 0.3)',
+          zIndex: 99999,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          whiteSpace: 'pre-line',
+          textAlign: 'center',
+          pointerEvents: 'none',
+          animation: 'fadeInSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          {toastMessage}
+        </div>
       )}
     </div>
   );
