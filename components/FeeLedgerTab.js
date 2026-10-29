@@ -1244,12 +1244,12 @@ export default function FeeLedgerTab({
             <form onSubmit={handleSubmit}>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
-                gap: '10px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '12px',
                 alignItems: 'end'
               }}>
                 {/* 1. 사용일 */}
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                     📅 사용일
                   </label>
@@ -1259,12 +1259,20 @@ export default function FeeLedgerTab({
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
                     required
-                    style={{ width: '100%', fontWeight: 700, fontSize: '13px', padding: '8px 10px' }}
+                    style={{
+                      width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      padding: '8px 8px',
+                      minWidth: 0
+                    }}
                   />
                 </div>
 
                 {/* 2-1. 수입/지출 구분 콤보박스 */}
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                     🔄 수입/지출 구분
                   </label>
@@ -1274,12 +1282,15 @@ export default function FeeLedgerTab({
                     onChange={(e) => handleFormTypeChange(e.target.value)}
                     style={{
                       width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
                       fontWeight: 800,
                       fontSize: '13px',
-                      padding: '8px 10px',
+                      padding: '8px 8px',
                       color: activeIsIncome ? '#1d4ed8' : '#be123c',
                       backgroundColor: activeIsIncome ? '#eff6ff' : '#fff1f2',
-                      borderColor: activeIsIncome ? '#93c5fd' : '#fda4af'
+                      borderColor: activeIsIncome ? '#93c5fd' : '#fda4af',
+                      minWidth: 0
                     }}
                   >
                     <option value="INCOME">🔵 수입</option>
@@ -1288,7 +1299,7 @@ export default function FeeLedgerTab({
                 </div>
 
                 {/* 2-2. 내용(항목) 콤보박스 */}
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                     🏷️ 내용 ({activeIsIncome ? '수입 항목' : '지출 항목'})
                   </label>
@@ -1298,12 +1309,15 @@ export default function FeeLedgerTab({
                     onChange={(e) => handleCategoryChange(e.target.value, formType)}
                     style={{
                       width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
                       fontWeight: 800,
                       fontSize: '13px',
-                      padding: '8px 10px',
+                      padding: '8px 8px',
                       color: activeIsIncome ? '#1d4ed8' : '#be123c',
                       backgroundColor: '#ffffff',
-                      borderColor: activeIsIncome ? '#60a5fa' : '#fb7185'
+                      borderColor: activeIsIncome ? '#60a5fa' : '#fb7185',
+                      minWidth: 0
                     }}
                   >
                     {currentCategoryOptions.map(c => {
@@ -1319,7 +1333,7 @@ export default function FeeLedgerTab({
                 </div>
 
                 {/* 3. 수입 금액 */}
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: activeIsIncome ? '#1d4ed8' : '#94a3b8', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                     🔵 수입 (원)
                   </label>
@@ -1337,19 +1351,22 @@ export default function FeeLedgerTab({
                     }}
                     style={{
                       width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
                       textAlign: 'right',
                       fontWeight: 800,
                       fontSize: '13px',
-                      padding: '8px 10px',
+                      padding: '8px 8px',
                       color: '#1d4ed8',
                       backgroundColor: activeIsIncome ? '#ffffff' : '#f1f5f9',
-                      borderColor: activeIsIncome ? '#60a5fa' : '#e2e8f0'
+                      borderColor: activeIsIncome ? '#60a5fa' : '#e2e8f0',
+                      minWidth: 0
                     }}
                   />
                 </div>
 
                 {/* 4. 지출 금액 */}
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: !activeIsIncome ? '#be123c' : '#94a3b8', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                     🔴 지출 (원)
                   </label>
@@ -1367,19 +1384,22 @@ export default function FeeLedgerTab({
                     }}
                     style={{
                       width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
                       textAlign: 'right',
                       fontWeight: 800,
                       fontSize: '13px',
-                      padding: '8px 10px',
+                      padding: '8px 8px',
                       color: '#be123c',
                       backgroundColor: !activeIsIncome ? '#ffffff' : '#f1f5f9',
-                      borderColor: !activeIsIncome ? '#fb7185' : '#e2e8f0'
+                      borderColor: !activeIsIncome ? '#fb7185' : '#e2e8f0',
+                      minWidth: 0
                     }}
                   />
                 </div>
 
                 {/* 5. 적요 (기본 한글 입력 모드 유지) */}
-                <div style={{ gridColumn: '1 / -1' }}>
+                <div style={{ gridColumn: '1 / -1', minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                     📝 적요 (상세 내역 / 비고)
                   </label>
@@ -1406,11 +1426,14 @@ export default function FeeLedgerTab({
                       onChange={(e) => setFormMemo(e.target.value)}
                       style={{
                         flex: '1 1 200px',
+                        maxWidth: '100%',
+                        boxSizing: 'border-box',
                         fontWeight: 600,
                         fontSize: '13px',
                         padding: '8px 12px',
                         imeMode: 'active',
-                        WebkitImeMode: 'active'
+                        WebkitImeMode: 'active',
+                        minWidth: 0
                       }}
                     />
                     <button
@@ -1704,12 +1727,12 @@ export default function FeeLedgerTab({
             border: '1px solid #e2e8f0',
             marginBottom: '14px',
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
-            gap: '10px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: '12px',
             alignItems: 'end'
           }}>
             {/* 조회 시작월 */}
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                 📅 조회 시작월
               </label>
@@ -1718,12 +1741,20 @@ export default function FeeLedgerTab({
                 className="input"
                 value={startMonth}
                 onChange={(e) => handleStartMonthChange(e.target.value)}
-                style={{ width: '100%', fontSize: '13px', fontWeight: 700, padding: '7px 10px' }}
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  padding: '7px 8px',
+                  minWidth: 0
+                }}
               />
             </div>
 
             {/* 조회 종료월 */}
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <label style={{ fontSize: '11.5px', fontWeight: 800, color: '#475569', whiteSpace: 'nowrap' }}>
                   📅 조회 종료월
@@ -1770,12 +1801,20 @@ export default function FeeLedgerTab({
                 className="input"
                 value={endMonth}
                 onChange={(e) => handleEndMonthChange(e.target.value)}
-                style={{ width: '100%', fontSize: '13px', fontWeight: 700, padding: '7px 10px' }}
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  padding: '7px 8px',
+                  minWidth: 0
+                }}
               />
             </div>
 
             {/* 수입/지출 구분 조건 콤보박스 */}
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                 🔄 수입/지출 구분
               </label>
@@ -1783,7 +1822,16 @@ export default function FeeLedgerTab({
                 className="select"
                 value={filterType}
                 onChange={(e) => handleFilterTypeChange(e.target.value)}
-                style={{ width: '100%', fontSize: '13px', fontWeight: 700, padding: '7px 10px', backgroundColor: '#ffffff' }}
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  padding: '7px 8px',
+                  backgroundColor: '#ffffff',
+                  minWidth: 0
+                }}
               >
                 <option value="ALL">전체 (수입 + 지출)</option>
                 <option value="INCOME">🔵 수입 항목만</option>
@@ -1792,7 +1840,7 @@ export default function FeeLedgerTab({
             </div>
 
             {/* 내용(항목) 조건 콤보박스 */}
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                 🏷️ 내용 (항목 선택)
               </label>
@@ -1800,7 +1848,16 @@ export default function FeeLedgerTab({
                 className="select"
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                style={{ width: '100%', fontSize: '13px', fontWeight: 700, padding: '7px 10px', backgroundColor: '#ffffff' }}
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  padding: '7px 8px',
+                  backgroundColor: '#ffffff',
+                  minWidth: 0
+                }}
               >
                 <option value="ALL">전체 항목</option>
                 {(filterType === 'ALL' || filterType === 'INCOME') && (
@@ -1825,7 +1882,7 @@ export default function FeeLedgerTab({
             </div>
 
             {/* 적요 검색 */}
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                 🔍 적요 검색
               </label>
@@ -1836,7 +1893,17 @@ export default function FeeLedgerTab({
                 placeholder="적요, 날짜 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '7px 10px', fontSize: '13px', imeMode: 'active', WebkitImeMode: 'active', backgroundColor: '#ffffff' }}
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  padding: '7px 10px',
+                  fontSize: '13px',
+                  imeMode: 'active',
+                  WebkitImeMode: 'active',
+                  backgroundColor: '#ffffff',
+                  minWidth: 0
+                }}
               />
             </div>
           </div>
