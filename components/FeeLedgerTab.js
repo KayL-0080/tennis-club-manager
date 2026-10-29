@@ -107,8 +107,11 @@ export default function FeeLedgerTab({
   const [formExpense, setFormExpense] = useState('');
   const [formMemo, setFormMemo] = useState('');
 
-  // 월별 출력 미리보기 모달 상태
+  // 출력 미리보기 모달 상태 ('DETAIL': 기간 상세내역 출력 | 'ANNUAL': 연간 월별 집계 출력)
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printMode, setPrintMode] = useState('DETAIL'); // 'DETAIL' | 'ANNUAL'
+  const [annualPrintYear, setAnnualPrintYear] = useState(() => currentYm.substring(0, 4));
+  const [printShowEmptyMonths, setPrintShowEmptyMonths] = useState(true);
   const [printIncludeCategorySummary, setPrintIncludeCategorySummary] = useState(true);
   const [printIncludeBankInfo, setPrintIncludeBankInfo] = useState(true);
   const [printIncludeSignBox, setPrintIncludeSignBox] = useState(true);
@@ -453,8 +456,156 @@ export default function FeeLedgerTab({
     return `${sy}년 ${sm}월 ~ ${ey}년 ${em}월`;
   }, [startMonth, endMonth]);
 
-  // 엑셀(CSV) 다운로드
-  const handleDownloadCsv = () => {
+  // 연간 출력용 선택 가능 연도 목록
+  const availableYears = useMemo(() => {
+    const curY = Number(currentYm.substring(0, 4)) || new Date().getFullYear();
+    const yearSet = new Set([
+      String(curY - 1),
+      String(curY),
+      String(curY + 1),
+      startMonth.substring(0, 4),
+      endMonth.substring(0, 4),
+    ]);
+    entries.forEach(e => {
+      const y = (e.date || '').substring(0, 4);
+      if (/^\d{4}$/.test(y)) yearSet.add(y);
+    });
+    return Array.from(yearSet).sort((a, b) => b.localeCompare(a));
+  }, [entries, currentYm, startMonth, endMonth]);
+
+  // 연간 내역 (월별 1월~12월 집계) 데이터 계산
+  const annualMonthlySummary = useMemo(() => {
+    const yearEntries = sortedAllEntries.filter(e => (e.date || '').startsWith(`${annualPrintYear}-`));
+    const incomeTotals = {};
+    const expenseTotals = {};
+    INCOME_CATEGORIES.forEach(c => { incomeTotals[c] = 0; });
+    EXPENSE_CATEGORIES.forEach(c => { expenseTotals[c] = 0; });
+
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let runningBalance = 0;
+
+    const monthlyRows = Array.from({ length: 12 }, (_, i) => {
+      const m = i + 1;
+      const mm = String(m).padStart(2, '0');
+      const ym = `${annualPrintYear}-${mm}`;
+      const mEntries = yearEntries.filter(e => (e.date || '').substring(0, 7) === ym);
+
+      const mIncCats = {};
+      const mExpCats = {};
+      let mIncome = 0;
+      let mExpense = 0;
+
+      mEntries.forEach(item => {
+        const inc = Number(item.income) || 0;
+        const exp = Number(item.expense) || 0;
+        const resolvedType = resolveItemType(item);
+
+        mIncome += inc;
+        mExpense += exp;
+        totalIncome += inc;
+        totalExpense += exp;
+
+        if (resolvedType === 'INCOME' || inc > 0) {
+          const cat = incomeTotals[item.category] !== undefined ? item.category : '기타';
+          incomeTotals[cat] = (incomeTotals[cat] || 0) + inc;
+          if (inc > 0) mIncCats[cat] = (mIncCats[cat] || 0) + inc;
+        } else {
+          const cat = expenseTotals[item.category] !== undefined ? item.category : '기타';
+          expenseTotals[cat] = (expenseTotals[cat] || 0) + exp;
+          if (exp > 0) mExpCats[cat] = (mExpCats[cat] || 0) + exp;
+        }
+      });
+
+      const mNet = mIncome - mExpense;
+      runningBalance += mNet;
+
+      const incParts = INCOME_CATEGORIES
+        .filter(c => mIncCats[c] > 0)
+        .map(c => `${c} ${formatNum(mIncCats[c])}`);
+      const expParts = EXPENSE_CATEGORIES
+        .filter(c => mExpCats[c] > 0)
+        .map(c => `${c} ${formatNum(mExpCats[c])}`);
+
+      const breakdownSegments = [];
+      if (incParts.length > 0) breakdownSegments.push(`[수입] ${incParts.join(', ')}`);
+      if (expParts.length > 0) breakdownSegments.push(`[지출] ${expParts.join(', ')}`);
+
+      return {
+        month: m,
+        ym,
+        label: `${m}월`,
+        count: mEntries.length,
+        income: mIncome,
+        expense: mExpense,
+        net: mNet,
+        balance: runningBalance,
+        incSummary: incParts.join(', '),
+        expSummary: expParts.join(', '),
+        breakdownText: breakdownSegments.join('  |  ')
+      };
+    });
+
+    const displayedRows = printShowEmptyMonths
+      ? monthlyRows
+      : monthlyRows.filter(r => r.count > 0 || r.income > 0 || r.expense > 0);
+
+    return {
+      year: annualPrintYear,
+      totalCount: yearEntries.length,
+      totalIncome,
+      totalExpense,
+      netBalance: totalIncome - totalExpense,
+      incomeTotals,
+      expenseTotals,
+      monthlyRows,
+      displayedRows
+    };
+  }, [sortedAllEntries, annualPrintYear, printShowEmptyMonths]);
+
+  // 엑셀(CSV) 다운로드 (상세내역 모드 vs 연간 월별 집계 모드 자동 분기)
+  const handleDownloadCsv = (forceMode = null) => {
+    const targetMode = forceMode || (showPrintModal ? printMode : 'DETAIL');
+    const clubName = currentClub?.name || '테친회';
+
+    if (targetMode === 'ANNUAL') {
+      if (annualMonthlySummary.totalCount === 0) {
+        alert(`${annualPrintYear}년에 등록된 회비 내역이 없습니다.`);
+        return;
+      }
+      const headers = ['월', '건수', '월 수입 합계', '월 지출 합계', '월 수지(증감)', '누적 잔액', '월별 수입·지출 집계 요약'];
+      const rows = annualMonthlySummary.displayedRows.map(r => [
+        `${annualPrintYear}년 ${r.label}`,
+        `${r.count}건`,
+        r.income || 0,
+        r.expense || 0,
+        r.net || 0,
+        r.balance || 0,
+        `"${(r.breakdownText || '-').replace(/"/g, '""')}"`
+      ]);
+      rows.push([
+        `${annualPrintYear}년 연간 합계`,
+        `${annualMonthlySummary.totalCount}건`,
+        annualMonthlySummary.totalIncome,
+        annualMonthlySummary.totalExpense,
+        annualMonthlySummary.netBalance,
+        annualMonthlySummary.netBalance,
+        ''
+      ]);
+
+      const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${clubName}_연간회비월별집계_${annualPrintYear}년.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return;
+    }
+
     if (periodEntriesWithBalance.length === 0) {
       alert('출력할 회비 내역이 없습니다.');
       return;
@@ -484,7 +635,6 @@ export default function FeeLedgerTab({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    const clubName = currentClub?.name || '테친회';
     const filePeriod = startMonth === endMonth ? startMonth : `${startMonth}_${endMonth}`;
     link.setAttribute('download', `${clubName}_회비내역_${filePeriod}.csv`);
     document.body.appendChild(link);
@@ -746,6 +896,250 @@ export default function FeeLedgerTab({
     );
   };
 
+  // A4 연간 내역 출력용 문서 렌더링 (월별 1월~12월 집계 전용)
+  const renderA4AnnualSheet = () => {
+    const clubName = currentClub?.name || '테친회';
+    const printDate = getTodayYMD();
+    const totalCatCount = INCOME_CATEGORIES.length + EXPENSE_CATEGORIES.length;
+
+    return (
+      <div
+        style={{
+          width: '100%',
+          background: '#ffffff',
+          color: '#0f172a',
+          fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif",
+          boxSizing: 'border-box',
+          padding: '4px'
+        }}
+      >
+        {/* 1. 상단 문서 타이틀 & 결재선 헤더 */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          borderBottom: '2.5px solid #0f172a',
+          paddingBottom: '10px',
+          marginBottom: '12px',
+          gap: '12px',
+          flexWrap: 'wrap'
+        }}>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', letterSpacing: '0.04em' }}>
+              🎾 {clubName} 공식 연간 회비 회계 결산 보고서 (월별 집계)
+            </div>
+            <h1 style={{ fontSize: '21px', fontWeight: 900, margin: '3px 0 0 0', color: '#0f172a', letterSpacing: '-0.02em' }}>
+              {annualPrintYear}년도 연간 회비 수입·지출 내역서 (월별 집계)
+            </h1>
+            <div style={{ fontSize: '11.5px', color: '#334155', marginTop: '4px', fontWeight: 600 }}>
+              출력일자: {printDate} | 집계기간: {annualPrintYear}.01 ~ {annualPrintYear}.12 (총 {annualMonthlySummary.totalCount}건)
+              {printIncludeBankInfo && currentClub?.bankAccount && (
+                <span> | 회비계좌: {currentClub.bankAccount} {currentClub.accountHolder ? `(${currentClub.accountHolder})` : ''}</span>
+              )}
+            </div>
+          </div>
+
+          {printIncludeSignBox && (
+            <table style={{ borderCollapse: 'collapse', border: '1px solid #334155', fontSize: '10.5px', textAlign: 'center' }}>
+              <thead>
+                <tr style={{ background: '#f1f5f9' }}>
+                  <th style={{ border: '1px solid #334155', padding: '3px 14px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>작성 (총무)</th>
+                  <th style={{ border: '1px solid #334155', padding: '3px 14px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>검토 (감사)</th>
+                  <th style={{ border: '1px solid #334155', padding: '3px 14px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>승인 (회장)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ border: '1px solid #334155', height: '32px', width: '68px' }}></td>
+                  <td style={{ border: '1px solid #334155', height: '32px', width: '68px' }}></td>
+                  <td style={{ border: '1px solid #334155', height: '32px', width: '68px' }}></td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* 2. 연간 총괄 수지 요약 박스 */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #0f172a', marginBottom: '10px', textAlign: 'center' }}>
+          <thead>
+            <tr style={{ background: '#f8fafc', fontSize: '11.5px' }}>
+              <th style={{ border: '1px solid #64748b', padding: '6px 8px', width: '33.3%', color: '#1e3a8a', fontWeight: 800 }}>
+                {annualPrintYear}년 총 수입 합계 (이월잔액 포함)
+              </th>
+              <th style={{ border: '1px solid #64748b', padding: '6px 8px', width: '33.3%', color: '#9f1239', fontWeight: 800 }}>
+                {annualPrintYear}년 총 지출 합계
+              </th>
+              <th style={{ border: '1px solid #64748b', padding: '6px 8px', width: '33.3%', color: '#065f46', fontWeight: 800 }}>
+                {annualPrintYear}년 최종 잔액 (수입 - 지출)
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style={{ fontSize: '15px', fontWeight: 900 }}>
+              <td style={{ border: '1px solid #64748b', padding: '8px', color: '#1d4ed8', background: '#ffffff' }}>
+                +{formatNum(annualMonthlySummary.totalIncome)}원
+              </td>
+              <td style={{ border: '1px solid #64748b', padding: '8px', color: '#be123c', background: '#ffffff' }}>
+                -{formatNum(annualMonthlySummary.totalExpense)}원
+              </td>
+              <td style={{ border: '1px solid #64748b', padding: '8px', color: '#047857', background: '#f0fdf4' }}>
+                {formatNum(annualMonthlySummary.netBalance)}원
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* 3. 연간 항목별(수입 6항목 / 지출 4항목) 소계 요약표 */}
+        {printIncludeCategorySummary && (
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #475569', marginBottom: '12px', fontSize: '10px', textAlign: 'center' }}>
+            <thead>
+              <tr style={{ background: '#f1f5f9' }}>
+                <th colSpan={INCOME_CATEGORIES.length} style={{ border: '1px solid #64748b', padding: '4px', color: '#1e40af', fontWeight: 800 }}>
+                  {annualPrintYear}년 수입 항목별 연간 소계
+                </th>
+                <th colSpan={EXPENSE_CATEGORIES.length} style={{ border: '1px solid #64748b', padding: '4px', color: '#9f1239', fontWeight: 800 }}>
+                  {annualPrintYear}년 지출 항목별 연간 소계
+                </th>
+              </tr>
+              <tr style={{ background: '#f8fafc', fontWeight: 700, color: '#334155' }}>
+                {INCOME_CATEGORIES.map(c => (
+                  <th key={`ann-inc-${c}`} style={{ border: '1px solid #94a3b8', padding: '4px 2px', width: `${100 / totalCatCount}%`, whiteSpace: 'nowrap' }}>{c}</th>
+                ))}
+                {EXPENSE_CATEGORIES.map(c => (
+                  <th key={`ann-exp-${c}`} style={{ border: '1px solid #94a3b8', padding: '4px 2px', width: `${100 / totalCatCount}%`, whiteSpace: 'nowrap' }}>{c}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ fontWeight: 800 }}>
+                {INCOME_CATEGORIES.map(c => (
+                  <td key={`ann-inc-val-${c}`} style={{ border: '1px solid #94a3b8', padding: '5px 2px', color: annualMonthlySummary.incomeTotals[c] > 0 ? '#1d4ed8' : '#64748b', whiteSpace: 'nowrap' }}>
+                    {formatNum(annualMonthlySummary.incomeTotals[c])}
+                  </td>
+                ))}
+                {EXPENSE_CATEGORIES.map(c => (
+                  <td key={`ann-exp-val-${c}`} style={{ border: '1px solid #94a3b8', padding: '5px 2px', color: annualMonthlySummary.expenseTotals[c] > 0 ? '#be123c' : '#64748b', whiteSpace: 'nowrap' }}>
+                    {formatNum(annualMonthlySummary.expenseTotals[c])}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        )}
+
+        {/* 4. 연간 월별 집계 테이블 (1월 ~ 12월 월 단위 집계만 출력) */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #0f172a', fontSize: '11.5px' }}>
+          <thead>
+            <tr style={{ background: '#e2e8f0', color: '#0f172a' }}>
+              <th style={{ border: '1px solid #475569', padding: '7px 6px', width: '58px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>월별</th>
+              <th style={{ border: '1px solid #475569', padding: '7px 6px', width: '48px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>건수</th>
+              <th style={{ border: '1px solid #475569', padding: '7px 8px', width: '106px', textAlign: 'right', fontWeight: 900, color: '#1e3a8a', whiteSpace: 'nowrap' }}>월 수입 합계</th>
+              <th style={{ border: '1px solid #475569', padding: '7px 8px', width: '106px', textAlign: 'right', fontWeight: 900, color: '#9f1239', whiteSpace: 'nowrap' }}>월 지출 합계</th>
+              <th style={{ border: '1px solid #475569', padding: '7px 8px', width: '104px', textAlign: 'right', fontWeight: 900, color: '#334155', whiteSpace: 'nowrap' }}>월 수지(증감)</th>
+              <th style={{ border: '1px solid #475569', padding: '7px 8px', width: '108px', textAlign: 'right', fontWeight: 900, color: '#065f46', whiteSpace: 'nowrap' }}>누적 잔액</th>
+              <th style={{ border: '1px solid #475569', padding: '7px 10px', textAlign: 'left', fontWeight: 900, whiteSpace: 'nowrap' }}>월별 항목 집계 요약</th>
+            </tr>
+          </thead>
+          <tbody>
+            {annualMonthlySummary.displayedRows.length === 0 ? (
+              <tr>
+                <td colSpan={7} style={{ border: '1px solid #64748b', padding: '28px', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>
+                  {annualPrintYear}년도에 등록된 회비 수입·지출 내역이 없습니다.
+                </td>
+              </tr>
+            ) : (
+              annualMonthlySummary.displayedRows.map((row, idx) => {
+                const hasActivity = row.count > 0 || row.income > 0 || row.expense > 0;
+                return (
+                  <tr key={row.ym} style={{ background: idx % 2 === 1 ? '#f8fafc' : '#ffffff', color: hasActivity ? '#0f172a' : '#94a3b8' }}>
+                    <td style={{ border: '1px solid #64748b', padding: '7px 6px', textAlign: 'center', fontWeight: 800, color: hasActivity ? '#0f172a' : '#94a3b8', whiteSpace: 'nowrap' }}>
+                      {row.label}
+                    </td>
+                    <td style={{ border: '1px solid #64748b', padding: '7px 6px', textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {row.count > 0 ? `${row.count}건` : '-'}
+                    </td>
+                    <td style={{ border: '1px solid #64748b', padding: '7px 8px', textAlign: 'right', fontWeight: 800, color: row.income > 0 ? '#1d4ed8' : '#cbd5e1', whiteSpace: 'nowrap' }}>
+                      {row.income > 0 ? `+${formatNum(row.income)}` : '-'}
+                    </td>
+                    <td style={{ border: '1px solid #64748b', padding: '7px 8px', textAlign: 'right', fontWeight: 800, color: row.expense > 0 ? '#be123c' : '#cbd5e1', whiteSpace: 'nowrap' }}>
+                      {row.expense > 0 ? `-${formatNum(row.expense)}` : '-'}
+                    </td>
+                    <td style={{
+                      border: '1px solid #64748b',
+                      padding: '7px 8px',
+                      textAlign: 'right',
+                      fontWeight: 800,
+                      color: !hasActivity ? '#cbd5e1' : row.net > 0 ? '#1d4ed8' : row.net < 0 ? '#be123c' : '#475569',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {!hasActivity ? '-' : `${row.net > 0 ? '+' : ''}${formatNum(row.net)}`}
+                    </td>
+                    <td style={{
+                      border: '1px solid #64748b',
+                      padding: '7px 8px',
+                      textAlign: 'right',
+                      fontWeight: 800,
+                      color: hasActivity || row.balance !== 0 ? '#0f172a' : '#cbd5e1',
+                      background: '#f8fafc',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {hasActivity || row.balance !== 0 ? formatNum(row.balance) : '-'}
+                    </td>
+                    <td style={{ border: '1px solid #64748b', padding: '6px 10px', textAlign: 'left', fontSize: '10.5px', color: '#334155', fontWeight: 600, lineHeight: 1.35 }}>
+                      {hasActivity ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {row.incSummary && (
+                            <span style={{ color: '#1e40af' }}>🔵 수입: {row.incSummary}</span>
+                          )}
+                          {row.expSummary && (
+                            <span style={{ color: '#9f1239' }}>🔴 지출: {row.expSummary}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: '#cbd5e1' }}>-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: '#f1f5f9', fontWeight: 900, fontSize: '12.5px' }}>
+              <td style={{ border: '1.5px solid #0f172a', padding: '8px 6px', textAlign: 'center', color: '#0f172a', whiteSpace: 'nowrap' }}>
+                연간 합계
+              </td>
+              <td style={{ border: '1.5px solid #0f172a', padding: '8px 6px', textAlign: 'center', color: '#0f172a', whiteSpace: 'nowrap' }}>
+                {annualMonthlySummary.totalCount}건
+              </td>
+              <td style={{ border: '1.5px solid #0f172a', padding: '8px 8px', textAlign: 'right', color: '#1d4ed8', whiteSpace: 'nowrap' }}>
+                +{formatNum(annualMonthlySummary.totalIncome)}원
+              </td>
+              <td style={{ border: '1.5px solid #0f172a', padding: '8px 8px', textAlign: 'right', color: '#be123c', whiteSpace: 'nowrap' }}>
+                -{formatNum(annualMonthlySummary.totalExpense)}원
+              </td>
+              <td style={{
+                border: '1.5px solid #0f172a',
+                padding: '8px 8px',
+                textAlign: 'right',
+                color: annualMonthlySummary.netBalance >= 0 ? '#1d4ed8' : '#be123c',
+                whiteSpace: 'nowrap'
+              }}>
+                {annualMonthlySummary.netBalance > 0 ? '+' : ''}{formatNum(annualMonthlySummary.netBalance)}원
+              </td>
+              <td style={{ border: '1.5px solid #0f172a', padding: '8px 8px', textAlign: 'right', color: '#047857', background: '#ecfdf5', whiteSpace: 'nowrap' }}>
+                {formatNum(annualMonthlySummary.netBalance)}원
+              </td>
+              <td style={{ border: '1.5px solid #0f172a', padding: '8px 10px', textAlign: 'left', fontSize: '10.5px', color: '#475569', whiteSpace: 'nowrap' }}>
+                {annualPrintYear}년 1월 ~ 12월 월별 집계 결산
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="card" style={{ padding: '48px', textAlign: 'center' }}>
@@ -762,7 +1156,7 @@ export default function FeeLedgerTab({
     <div>
       {/* ── 인쇄 전용 시트 (화면에서는 숨겨지고 A4 인쇄 시에만 출력됨) ── */}
       <div className="a4-print-only-sheet">
-        {renderA4LedgerSheet()}
+        {printMode === 'ANNUAL' ? renderA4AnnualSheet() : renderA4LedgerSheet()}
       </div>
 
       {/* ── 화면용 UI 컨테이너 (인쇄 시 숨김) ── */}
@@ -1187,12 +1581,15 @@ export default function FeeLedgerTab({
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => setShowPrintModal(true)}
+                onClick={() => {
+                  setPrintMode('DETAIL');
+                  setShowPrintModal(true);
+                }}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
-                  padding: '6px 12px',
+                  padding: '6px 11px',
                   borderRadius: '8px',
                   border: '1px solid #1d4ed8',
                   background: '#2563eb',
@@ -1204,12 +1601,38 @@ export default function FeeLedgerTab({
                 }}
               >
                 <span>🖨️</span>
-                <span>내역 출력 (A4)</span>
+                <span>상세 출력 (A4)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAnnualPrintYear(endMonth.substring(0, 4));
+                  setPrintMode('ANNUAL');
+                  setShowPrintModal(true);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 11px',
+                  borderRadius: '8px',
+                  border: '1px solid #047857',
+                  background: '#059669',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+                title="선택 연도의 1월~12월을 월별로만 집계하여 A4 1장으로 출력합니다"
+              >
+                <span>📅</span>
+                <span>연간 내역 출력 (월별집계)</span>
               </button>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                onClick={handleDownloadCsv}
+                onClick={() => handleDownloadCsv('DETAIL')}
                 style={{
                   padding: '6px 10px',
                   borderRadius: '8px',
@@ -1587,7 +2010,7 @@ export default function FeeLedgerTab({
             {/* 모달 헤더 & 인쇄 옵션 바 */}
             <div style={{
               background: '#ffffff',
-              padding: '16px 20px',
+              padding: '14px 20px',
               borderBottom: '1px solid #cbd5e1',
               display: 'flex',
               justifyContent: 'space-between',
@@ -1596,11 +2019,15 @@ export default function FeeLedgerTab({
               gap: '12px'
             }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 900, color: '#0f172a' }}>
-                  🖨️ {formattedPeriodTitle} 회비 전체 내역 출력 미리보기 (A4)
+                <h3 style={{ margin: 0, fontSize: '16.5px', fontWeight: 900, color: '#0f172a' }}>
+                  {printMode === 'ANNUAL'
+                    ? `📅 ${annualPrintYear}년도 연간 회비 내역 출력 미리보기 (월별 집계)`
+                    : `🖨️ ${formattedPeriodTitle} 회비 상세내역 출력 미리보기 (A4)`}
                 </h3>
-                <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: '#64748b', fontWeight: 600 }}>
-                  인쇄 버튼을 누르면 용지(A4)에 맞게 표만 깔끔하게 출력되거나 PDF로 저장할 수 있습니다.
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+                  {printMode === 'ANNUAL'
+                    ? '선택한 연도의 수입·지출을 1월~12월 월별로만 집계하여 A4 한 장으로 출력합니다.'
+                    : '조회 기간의 회비 상세내역을 용지(A4)에 맞게 출력하거나 PDF로 저장합니다.'}
                 </p>
               </div>
 
@@ -1609,47 +2036,52 @@ export default function FeeLedgerTab({
                   type="button"
                   onClick={triggerA4Print}
                   style={{
-                    padding: '9px 18px',
+                    padding: '8px 16px',
                     borderRadius: '10px',
                     border: 'none',
-                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    background: printMode === 'ANNUAL'
+                      ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+                      : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                     color: '#ffffff',
                     fontWeight: 800,
-                    fontSize: '13.5px',
+                    fontSize: '13px',
                     cursor: 'pointer',
-                    boxShadow: '0 3px 10px rgba(37, 99, 235, 0.3)'
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 3px 10px rgba(15, 23, 42, 0.18)'
                   }}
                 >
                   🖨️ 지금 인쇄 / PDF 저장
                 </button>
                 <button
                   type="button"
-                  onClick={handleDownloadCsv}
+                  onClick={() => handleDownloadCsv(printMode)}
                   style={{
-                    padding: '9px 14px',
+                    padding: '8px 12px',
                     borderRadius: '10px',
                     border: '1px solid #86efac',
                     background: '#f0fdf4',
                     color: '#15803d',
                     fontWeight: 800,
-                    fontSize: '13px',
-                    cursor: 'pointer'
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  📊 엑셀(CSV) 저장
+                  📊 {printMode === 'ANNUAL' ? '연간집계 CSV' : '상세내역 CSV'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowPrintModal(false)}
                   style={{
-                    padding: '9px 14px',
+                    padding: '8px 12px',
                     borderRadius: '10px',
                     border: '1px solid #cbd5e1',
                     background: '#ffffff',
                     color: '#475569',
                     fontWeight: 700,
-                    fontSize: '13px',
-                    cursor: 'pointer'
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   닫기
@@ -1657,44 +2089,128 @@ export default function FeeLedgerTab({
               </div>
             </div>
 
-            {/* 출력 옵션 체크박스 바 */}
+            {/* 출력 형식 선택 (상세내역 vs 연간 월별 집계) 및 옵션 바 */}
             <div style={{
               background: '#f8fafc',
               padding: '10px 20px',
               borderBottom: '1px solid #e2e8f0',
               display: 'flex',
               alignItems: 'center',
-              gap: '18px',
+              justifyContent: 'space-between',
+              gap: '12px',
               flexWrap: 'wrap',
-              fontSize: '12.5px',
+              fontSize: '12px',
               fontWeight: 700,
               color: '#334155'
             }}>
-              <span style={{ color: '#0f172a', fontWeight: 800 }}>⚙️ 출력 표시 옵션:</span>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={printIncludeCategorySummary}
-                  onChange={(e) => setPrintIncludeCategorySummary(e.target.checked)}
-                />
-                <span>항목별 소계표 표시</span>
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={printIncludeBankInfo}
-                  onChange={(e) => setPrintIncludeBankInfo(e.target.checked)}
-                />
-                <span>회비 통장 계좌번호 표시</span>
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={printIncludeSignBox}
-                  onChange={(e) => setPrintIncludeSignBox(e.target.checked)}
-                />
-                <span>상단 결재란(총무·감사·회장) 표시</span>
-              </label>
+              {/* 출력 유형 전환 버튼 + 연도 선택 콤보박스 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{
+                  display: 'inline-flex',
+                  background: '#e2e8f0',
+                  padding: '3px',
+                  borderRadius: '8px',
+                  gap: '3px'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setPrintMode('DETAIL')}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      background: printMode === 'DETAIL' ? '#ffffff' : 'transparent',
+                      color: printMode === 'DETAIL' ? '#1d4ed8' : '#475569',
+                      boxShadow: printMode === 'DETAIL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    📋 상세 내역 (건별)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintMode('ANNUAL')}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      background: printMode === 'ANNUAL' ? '#ffffff' : 'transparent',
+                      color: printMode === 'ANNUAL' ? '#047857' : '#475569',
+                      boxShadow: printMode === 'ANNUAL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    📅 연간 내역 (월별 집계)
+                  </button>
+                </div>
+
+                {printMode === 'ANNUAL' && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontWeight: 800, color: '#047857', whiteSpace: 'nowrap' }}>조회 연도:</span>
+                    <select
+                      className="select input-sm"
+                      value={annualPrintYear}
+                      onChange={(e) => setAnnualPrintYear(e.target.value)}
+                      style={{
+                        height: '30px',
+                        padding: '0 8px',
+                        fontSize: '12.5px',
+                        fontWeight: 800,
+                        borderRadius: '6px',
+                        borderColor: '#6ee7b7',
+                        color: '#065f46',
+                        backgroundColor: '#ffffff'
+                      }}
+                    >
+                      {availableYears.map(y => (
+                        <option key={y} value={y}>{y}년</option>
+                      ))}
+                    </select>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', whiteSpace: 'nowrap', marginLeft: '4px' }}>
+                      <input
+                        type="checkbox"
+                        checked={printShowEmptyMonths}
+                        onChange={(e) => setPrintShowEmptyMonths(e.target.checked)}
+                      />
+                      <span>빈 월(0건) 포함 1~12월 전체 표시</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* 공통 표시 옵션 체크박스 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={printIncludeCategorySummary}
+                    onChange={(e) => setPrintIncludeCategorySummary(e.target.checked)}
+                  />
+                  <span>항목별 소계표</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={printIncludeBankInfo}
+                    onChange={(e) => setPrintIncludeBankInfo(e.target.checked)}
+                  />
+                  <span>계좌번호</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={printIncludeSignBox}
+                    onChange={(e) => setPrintIncludeSignBox(e.target.checked)}
+                  />
+                  <span>결재란</span>
+                </label>
+              </div>
             </div>
 
             {/* A4 용지 미리보기 영역 */}
@@ -1714,7 +2230,7 @@ export default function FeeLedgerTab({
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
                 boxSizing: 'border-box'
               }}>
-                {renderA4LedgerSheet()}
+                {printMode === 'ANNUAL' ? renderA4AnnualSheet() : renderA4LedgerSheet()}
               </div>
             </div>
           </div>
