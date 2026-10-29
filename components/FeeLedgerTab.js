@@ -88,15 +88,18 @@ export default function FeeLedgerTab({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // 조회 시작월 ~ 종료월 상태 (기본: 현재 연월 YYYY-MM ~ YYYY-MM)
+  // 조회 시작월 ~ 종료월 상태 (기본값: 올해 전체 YYYY-01 ~ YYYY-12)
   const currentYm = getTodayYMD().substring(0, 7);
-  const [startMonth, setStartMonth] = useState(currentYm);
-  const [endMonth, setEndMonth] = useState(currentYm);
+  const currentYear = currentYm.substring(0, 4);
+  const [startMonth, setStartMonth] = useState(`${currentYear}-01`);
+  const [endMonth, setEndMonth] = useState(`${currentYear}-12`);
 
-  // 상세내역 조회 필터 콤보박스 상태
+  // 상세내역 조회 필터 콤보박스 및 페이징 상태
   const [filterType, setFilterType] = useState('ALL'); // 'ALL' | 'INCOME' | 'EXPENSE'
   const [filterCategory, setFilterCategory] = useState('ALL'); // 'ALL' | 'INCOME:회비' | 'EXPENSE:대관료' 등
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // 입력 / 수정 폼 상태 (기본값: 수입 - '회비' 120,000원)
   const [editingId, setEditingId] = useState(null);
@@ -307,6 +310,33 @@ export default function FeeLedgerTab({
       return true;
     });
   }, [periodEntriesWithBalance, filterType, filterCategory, searchQuery]);
+
+  // 조회 조건/검색어/페이지크기 변경 시 1페이지로 이동
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [startMonth, endMonth, filterType, filterCategory, searchQuery, pageSize]);
+
+  // 페이징 계산
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const paginatedEntries = useMemo(() => {
+    return filteredEntries.slice(startIndex, startIndex + pageSize);
+  }, [filteredEntries, startIndex, pageSize]);
+
+  const pageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    let startP = Math.max(1, safePage - Math.floor(maxButtons / 2));
+    let endP = Math.min(totalPages, startP + maxButtons - 1);
+    if (endP - startP + 1 < maxButtons) {
+      startP = Math.max(1, endP - maxButtons + 1);
+    }
+    const pages = [];
+    for (let p = startP; p <= endP; p += 1) {
+      pages.push(p);
+    }
+    return pages;
+  }, [safePage, totalPages]);
 
   // 기간별 수입/지출/잔액 및 항목별 합계 요약
   const summary = useMemo(() => {
@@ -1838,7 +1868,7 @@ export default function FeeLedgerTab({
                     </td>
                   </tr>
                 ) : (
-                  filteredEntries.map((item) => {
+                  paginatedEntries.map((item) => {
                     const meta = getCategoryMeta(item.category, item.type);
                     const isBeingEdited = editingId === item.id;
                     return (
@@ -1954,7 +1984,7 @@ export default function FeeLedgerTab({
                 <tfoot>
                   <tr style={{ background: '#f1f5f9', borderTop: '2px solid #334155', fontWeight: 900, fontSize: '13px' }}>
                     <td colSpan={3} style={{ padding: '10px 8px', textAlign: 'center', color: '#0f172a', whiteSpace: 'nowrap' }}>
-                      {filterType === 'ALL' && filterCategory === 'ALL' && !searchQuery ? `${formattedPeriodTitle} 합계` : '조회 조건 합계'}
+                      {filterType === 'ALL' && filterCategory === 'ALL' && !searchQuery ? `${formattedPeriodTitle} 합계` : '조회 조건 합계'} ({filteredEntries.length}건)
                     </td>
                     <td style={{ padding: '10px', textAlign: 'right', color: '#1d4ed8', whiteSpace: 'nowrap' }}>
                       +{formatNum(summary.filteredIncome)}원
@@ -1973,6 +2003,155 @@ export default function FeeLedgerTab({
               )}
             </table>
           </div>
+
+          {/* ── 페이징 네비게이션 바 ── */}
+          {filteredEntries.length > 0 && (
+            <div style={{
+              marginTop: '14px',
+              paddingTop: '12px',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              {/* 좌측: 표시 범위 안내 및 페이지당 건수 콤보박스 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '12px', color: '#475569', fontWeight: 700 }}>
+                <span style={{ whiteSpace: 'nowrap' }}>
+                  전체 <strong style={{ color: '#0f172a' }}>{filteredEntries.length}건</strong> 중{' '}
+                  <strong style={{ color: '#1d4ed8' }}>{startIndex + 1}~{Math.min(startIndex + pageSize, filteredEntries.length)}</strong>번째 표시
+                </span>
+                <select
+                  className="select input-sm"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  style={{
+                    height: '30px',
+                    padding: '0 8px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    backgroundColor: '#f8fafc',
+                    color: '#334155',
+                    borderColor: '#cbd5e1',
+                    width: 'auto'
+                  }}
+                >
+                  <option value={10}>10건씩 보기</option>
+                  <option value={15}>15건씩 보기</option>
+                  <option value={20}>20건씩 보기</option>
+                  <option value={30}>30건씩 보기</option>
+                  <option value={50}>50건씩 보기</option>
+                </select>
+              </div>
+
+              {/* 우측: 페이지 이동 버튼 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage(1)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: safePage <= 1 ? '#f1f5f9' : '#ffffff',
+                    color: safePage <= 1 ? '#94a3b8' : '#334155',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: safePage <= 1 ? 'default' : 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="첫 페이지"
+                >
+                  «
+                </button>
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  style={{
+                    padding: '4px 9px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: safePage <= 1 ? '#f1f5f9' : '#ffffff',
+                    color: safePage <= 1 ? '#94a3b8' : '#334155',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: safePage <= 1 ? 'default' : 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  ‹ 이전
+                </button>
+
+                {pageNumbers.map(pageNum => {
+                  const isActive = pageNum === safePage;
+                  return (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      style={{
+                        minWidth: '30px',
+                        height: '30px',
+                        padding: '0 6px',
+                        borderRadius: '6px',
+                        border: isActive ? '1px solid #1d4ed8' : '1px solid #cbd5e1',
+                        background: isActive ? '#2563eb' : '#ffffff',
+                        color: isActive ? '#ffffff' : '#334155',
+                        fontSize: '12.5px',
+                        fontWeight: isActive ? 800 : 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  style={{
+                    padding: '4px 9px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: safePage >= totalPages ? '#f1f5f9' : '#ffffff',
+                    color: safePage >= totalPages ? '#94a3b8' : '#334155',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: safePage >= totalPages ? 'default' : 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  다음 ›
+                </button>
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: safePage >= totalPages ? '#f1f5f9' : '#ffffff',
+                    color: safePage >= totalPages ? '#94a3b8' : '#334155',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: safePage >= totalPages ? 'default' : 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="마지막 페이지"
+                >
+                  »
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
