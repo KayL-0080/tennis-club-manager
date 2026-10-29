@@ -1240,17 +1240,12 @@ export default function FeeLedgerTab({
               </div>
             </div>
 
-            {/* 콤보박스 기반 관리항목 입력 폼: 사용일 / 구분 / 내용 / 수입 / 지출 / 적요 */}
+            {/* 콤보박스 기반 관리항목 입력 폼: 사용일 / 구분 / 내용 / 금액 / 적요 (모바일 1열 스택으로 겹침 원천 차단) */}
             <form onSubmit={handleSubmit}>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                gap: '12px',
-                alignItems: 'end'
-              }}>
+              <div className="fee-form-grid">
                 {/* 1. 사용일 */}
                 <div style={{ minWidth: 0 }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '5px', whiteSpace: 'nowrap' }}>
                     📅 사용일
                   </label>
                   <input
@@ -1261,19 +1256,18 @@ export default function FeeLedgerTab({
                     required
                     style={{
                       width: '100%',
-                      maxWidth: '100%',
                       boxSizing: 'border-box',
                       fontWeight: 700,
-                      fontSize: '13px',
-                      padding: '8px 8px',
-                      minWidth: 0
+                      fontSize: '13.5px',
+                      padding: '8px 10px',
+                      backgroundColor: '#ffffff'
                     }}
                   />
                 </div>
 
-                {/* 2-1. 수입/지출 구분 콤보박스 */}
+                {/* 2. 수입/지출 구분 콤보박스 */}
                 <div style={{ minWidth: 0 }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '5px', whiteSpace: 'nowrap' }}>
                     🔄 수입/지출 구분
                   </label>
                   <select
@@ -1282,25 +1276,23 @@ export default function FeeLedgerTab({
                     onChange={(e) => handleFormTypeChange(e.target.value)}
                     style={{
                       width: '100%',
-                      maxWidth: '100%',
                       boxSizing: 'border-box',
                       fontWeight: 800,
-                      fontSize: '13px',
-                      padding: '8px 8px',
+                      fontSize: '13.5px',
+                      padding: '8px 10px',
                       color: activeIsIncome ? '#1d4ed8' : '#be123c',
                       backgroundColor: activeIsIncome ? '#eff6ff' : '#fff1f2',
-                      borderColor: activeIsIncome ? '#93c5fd' : '#fda4af',
-                      minWidth: 0
+                      borderColor: activeIsIncome ? '#93c5fd' : '#fda4af'
                     }}
                   >
-                    <option value="INCOME">🔵 수입</option>
-                    <option value="EXPENSE">🔴 지출</option>
+                    <option value="INCOME">🔵 수입 (+)</option>
+                    <option value="EXPENSE">🔴 지출 (-)</option>
                   </select>
                 </div>
 
-                {/* 2-2. 내용(항목) 콤보박스 */}
+                {/* 3. 내용(항목) 콤보박스 */}
                 <div style={{ minWidth: 0 }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '5px', whiteSpace: 'nowrap' }}>
                     🏷️ 내용 ({activeIsIncome ? '수입 항목' : '지출 항목'})
                   </label>
                   <select
@@ -1309,15 +1301,13 @@ export default function FeeLedgerTab({
                     onChange={(e) => handleCategoryChange(e.target.value, formType)}
                     style={{
                       width: '100%',
-                      maxWidth: '100%',
                       boxSizing: 'border-box',
                       fontWeight: 800,
-                      fontSize: '13px',
-                      padding: '8px 8px',
+                      fontSize: '13.5px',
+                      padding: '8px 10px',
                       color: activeIsIncome ? '#1d4ed8' : '#be123c',
                       backgroundColor: '#ffffff',
-                      borderColor: activeIsIncome ? '#60a5fa' : '#fb7185',
-                      minWidth: 0
+                      borderColor: activeIsIncome ? '#60a5fa' : '#fb7185'
                     }}
                   >
                     {currentCategoryOptions.map(c => {
@@ -1332,75 +1322,52 @@ export default function FeeLedgerTab({
                   </select>
                 </div>
 
-                {/* 3. 수입 금액 */}
+                {/* 4. 금액 (선택된 구분에 맞춰 단일 입력 필드로 깔끔하게 통합) */}
                 <div style={{ minWidth: 0 }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: activeIsIncome ? '#1d4ed8' : '#94a3b8', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-                    🔵 수입 (원)
+                  <label style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    color: activeIsIncome ? '#1d4ed8' : '#be123c',
+                    marginBottom: '5px',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {activeIsIncome ? '🔵 수입 금액 (원)' : '🔴 지출 금액 (원)'}
                   </label>
                   <input
                     type="text"
                     inputMode="numeric"
                     className="input"
-                    placeholder={activeIsIncome ? '수입 금액 입력' : '-'}
-                    value={formIncome}
-                    disabled={!activeIsIncome}
+                    placeholder={activeIsIncome ? '수입 금액 입력' : '지출 금액 입력'}
+                    value={activeIsIncome ? formIncome : formExpense}
                     onChange={(e) => {
                       const num = parseNumInput(e.target.value);
-                      setFormIncome(num > 0 ? formatNum(num) : '');
-                      setFormExpense('');
+                      const formatted = num > 0 ? formatNum(num) : '';
+                      if (activeIsIncome) {
+                        setFormIncome(formatted);
+                        setFormExpense('');
+                      } else {
+                        setFormExpense(formatted);
+                        setFormIncome('');
+                      }
                     }}
                     style={{
                       width: '100%',
-                      maxWidth: '100%',
                       boxSizing: 'border-box',
                       textAlign: 'right',
                       fontWeight: 800,
-                      fontSize: '13px',
-                      padding: '8px 8px',
-                      color: '#1d4ed8',
-                      backgroundColor: activeIsIncome ? '#ffffff' : '#f1f5f9',
-                      borderColor: activeIsIncome ? '#60a5fa' : '#e2e8f0',
-                      minWidth: 0
-                    }}
-                  />
-                </div>
-
-                {/* 4. 지출 금액 */}
-                <div style={{ minWidth: 0 }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: !activeIsIncome ? '#be123c' : '#94a3b8', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-                    🔴 지출 (원)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    className="input"
-                    placeholder={!activeIsIncome ? '지출 금액 입력' : '-'}
-                    value={formExpense}
-                    disabled={activeIsIncome}
-                    onChange={(e) => {
-                      const num = parseNumInput(e.target.value);
-                      setFormExpense(num > 0 ? formatNum(num) : '');
-                      setFormIncome('');
-                    }}
-                    style={{
-                      width: '100%',
-                      maxWidth: '100%',
-                      boxSizing: 'border-box',
-                      textAlign: 'right',
-                      fontWeight: 800,
-                      fontSize: '13px',
-                      padding: '8px 8px',
-                      color: '#be123c',
-                      backgroundColor: !activeIsIncome ? '#ffffff' : '#f1f5f9',
-                      borderColor: !activeIsIncome ? '#fb7185' : '#e2e8f0',
-                      minWidth: 0
+                      fontSize: '13.5px',
+                      padding: '8px 10px',
+                      color: activeIsIncome ? '#1d4ed8' : '#be123c',
+                      backgroundColor: '#ffffff',
+                      borderColor: activeIsIncome ? '#60a5fa' : '#fb7185'
                     }}
                   />
                 </div>
 
                 {/* 5. 적요 (기본 한글 입력 모드 유지) */}
                 <div style={{ gridColumn: '1 / -1', minWidth: 0 }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '5px', whiteSpace: 'nowrap' }}>
                     📝 적요 (상세 내역 / 비고)
                   </label>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -1725,186 +1692,174 @@ export default function FeeLedgerTab({
             borderRadius: '12px',
             background: '#f8fafc',
             border: '1px solid #e2e8f0',
-            marginBottom: '14px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-            gap: '12px',
-            alignItems: 'end'
+            marginBottom: '14px'
           }}>
-            {/* 조회 시작월 */}
-            <div style={{ minWidth: 0 }}>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-                📅 조회 시작월
-              </label>
-              <input
-                type="month"
-                className="input"
-                value={startMonth}
-                onChange={(e) => handleStartMonthChange(e.target.value)}
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  boxSizing: 'border-box',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  padding: '7px 8px',
-                  minWidth: 0
-                }}
-              />
-            </div>
-
-            {/* 조회 종료월 */}
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <label style={{ fontSize: '11.5px', fontWeight: 800, color: '#475569', whiteSpace: 'nowrap' }}>
-                  📅 조회 종료월
-                </label>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button
-                    type="button"
-                    onClick={() => applyQuickPeriod('THIS_MONTH')}
+            <div className="fee-filter-grid">
+              {/* 1. 조회 기간 (시작월 ~ 종료월 단일 행 결합으로 겹침 원천 차단) */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px', flexWrap: 'wrap', gap: '4px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 800, color: '#334155', whiteSpace: 'nowrap' }}>
+                    📅 조회 기간 (시작월 ~ 종료월)
+                  </label>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => applyQuickPeriod('THIS_MONTH')}
+                      style={{
+                        padding: '2px 7px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        borderRadius: '5px',
+                        border: '1px solid #cbd5e1',
+                        background: (startMonth === currentYm && endMonth === currentYm) ? '#1d4ed8' : '#ffffff',
+                        color: (startMonth === currentYm && endMonth === currentYm) ? '#ffffff' : '#475569',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      이번달
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyQuickPeriod('THIS_YEAR')}
+                      style={{
+                        padding: '2px 7px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        borderRadius: '5px',
+                        border: '1px solid #cbd5e1',
+                        background: (startMonth.endsWith('-01') && endMonth.endsWith('-12')) ? '#1d4ed8' : '#ffffff',
+                        color: (startMonth.endsWith('-01') && endMonth.endsWith('-12')) ? '#ffffff' : '#475569',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      올해전체
+                    </button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
+                  <input
+                    type="month"
+                    className="input"
+                    value={startMonth}
+                    onChange={(e) => handleStartMonthChange(e.target.value)}
                     style={{
-                      padding: '1px 6px',
-                      fontSize: '10.5px',
+                      flex: 1,
+                      minWidth: 0,
+                      boxSizing: 'border-box',
+                      fontSize: '13px',
                       fontWeight: 700,
-                      borderRadius: '4px',
-                      border: '1px solid #cbd5e1',
-                      background: (startMonth === currentYm && endMonth === currentYm) ? '#1d4ed8' : '#ffffff',
-                      color: (startMonth === currentYm && endMonth === currentYm) ? '#ffffff' : '#475569',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
+                      padding: '8px 8px',
+                      backgroundColor: '#ffffff'
                     }}
-                  >
-                    이번달
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyQuickPeriod('THIS_YEAR')}
+                  />
+                  <span style={{ fontWeight: 800, color: '#64748b', fontSize: '13px', whiteSpace: 'nowrap' }}>~</span>
+                  <input
+                    type="month"
+                    className="input"
+                    value={endMonth}
+                    onChange={(e) => handleEndMonthChange(e.target.value)}
                     style={{
-                      padding: '1px 6px',
-                      fontSize: '10.5px',
+                      flex: 1,
+                      minWidth: 0,
+                      boxSizing: 'border-box',
+                      fontSize: '13px',
                       fontWeight: 700,
-                      borderRadius: '4px',
-                      border: '1px solid #cbd5e1',
-                      background: (startMonth.endsWith('-01') && endMonth.endsWith('-12')) ? '#1d4ed8' : '#ffffff',
-                      color: (startMonth.endsWith('-01') && endMonth.endsWith('-12')) ? '#ffffff' : '#475569',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
+                      padding: '8px 8px',
+                      backgroundColor: '#ffffff'
                     }}
-                  >
-                    올해전체
-                  </button>
+                  />
                 </div>
               </div>
-              <input
-                type="month"
-                className="input"
-                value={endMonth}
-                onChange={(e) => handleEndMonthChange(e.target.value)}
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  boxSizing: 'border-box',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  padding: '7px 8px',
-                  minWidth: 0
-                }}
-              />
-            </div>
 
-            {/* 수입/지출 구분 조건 콤보박스 */}
-            <div style={{ minWidth: 0 }}>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-                🔄 수입/지출 구분
-              </label>
-              <select
-                className="select"
-                value={filterType}
-                onChange={(e) => handleFilterTypeChange(e.target.value)}
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  boxSizing: 'border-box',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  padding: '7px 8px',
-                  backgroundColor: '#ffffff',
-                  minWidth: 0
-                }}
-              >
-                <option value="ALL">전체 (수입 + 지출)</option>
-                <option value="INCOME">🔵 수입 항목만</option>
-                <option value="EXPENSE">🔴 지출 항목만</option>
-              </select>
-            </div>
+              {/* 2. 수입/지출 구분 조건 콤보박스 */}
+              <div style={{ minWidth: 0 }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#475569', marginBottom: '5px', whiteSpace: 'nowrap' }}>
+                  🔄 수입/지출 구분
+                </label>
+                <select
+                  className="select"
+                  value={filterType}
+                  onChange={(e) => handleFilterTypeChange(e.target.value)}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    padding: '8px 8px',
+                    backgroundColor: '#ffffff'
+                  }}
+                >
+                  <option value="ALL">전체 (수입 + 지출)</option>
+                  <option value="INCOME">🔵 수입 항목만</option>
+                  <option value="EXPENSE">🔴 지출 항목만</option>
+                </select>
+              </div>
 
-            {/* 내용(항목) 조건 콤보박스 */}
-            <div style={{ minWidth: 0 }}>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-                🏷️ 내용 (항목 선택)
-              </label>
-              <select
-                className="select"
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  boxSizing: 'border-box',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  padding: '7px 8px',
-                  backgroundColor: '#ffffff',
-                  minWidth: 0
-                }}
-              >
-                <option value="ALL">전체 항목</option>
-                {(filterType === 'ALL' || filterType === 'INCOME') && (
-                  <optgroup label="🔵 수입 항목">
-                    {INCOME_CATEGORIES.map(c => (
-                      <option key={`flt-inc-${c}`} value={`INCOME:${c}`}>
-                        {getCategoryMeta(c, 'INCOME').icon} {c} (수입)
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {(filterType === 'ALL' || filterType === 'EXPENSE') && (
-                  <optgroup label="🔴 지출 항목">
-                    {EXPENSE_CATEGORIES.map(c => (
-                      <option key={`flt-exp-${c}`} value={`EXPENSE:${c}`}>
-                        {getCategoryMeta(c, 'EXPENSE').icon} {c} (지출)
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
+              {/* 3. 내용(항목) 조건 콤보박스 */}
+              <div style={{ minWidth: 0 }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#475569', marginBottom: '5px', whiteSpace: 'nowrap' }}>
+                  🏷️ 내용 (항목 선택)
+                </label>
+                <select
+                  className="select"
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    padding: '8px 8px',
+                    backgroundColor: '#ffffff'
+                  }}
+                >
+                  <option value="ALL">전체 항목</option>
+                  {(filterType === 'ALL' || filterType === 'INCOME') && (
+                    <optgroup label="🔵 수입 항목">
+                      {INCOME_CATEGORIES.map(c => (
+                        <option key={`flt-inc-${c}`} value={`INCOME:${c}`}>
+                          {getCategoryMeta(c, 'INCOME').icon} {c} (수입)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {(filterType === 'ALL' || filterType === 'EXPENSE') && (
+                    <optgroup label="🔴 지출 항목">
+                      {EXPENSE_CATEGORIES.map(c => (
+                        <option key={`flt-exp-${c}`} value={`EXPENSE:${c}`}>
+                          {getCategoryMeta(c, 'EXPENSE').icon} {c} (지출)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
 
-            {/* 적요 검색 */}
-            <div style={{ minWidth: 0 }}>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-                🔍 적요 검색
-              </label>
-              <input
-                type="text"
-                lang="ko"
-                className="input ime-ko"
-                placeholder="적요, 날짜 검색..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  boxSizing: 'border-box',
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  imeMode: 'active',
-                  WebkitImeMode: 'active',
-                  backgroundColor: '#ffffff',
-                  minWidth: 0
-                }}
-              />
+              {/* 4. 적요 검색 */}
+              <div style={{ minWidth: 0 }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#475569', marginBottom: '5px', whiteSpace: 'nowrap' }}>
+                  🔍 적요 검색
+                </label>
+                <input
+                  type="text"
+                  lang="ko"
+                  className="input ime-ko"
+                  placeholder="적요, 날짜 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '8px 10px',
+                    fontSize: '13px',
+                    imeMode: 'active',
+                    WebkitImeMode: 'active',
+                    backgroundColor: '#ffffff'
+                  }}
+                />
+              </div>
             </div>
           </div>
 

@@ -680,3 +680,36 @@ tr:hover td { background: rgba(0, 122, 255, 0.04); }
   }
 }
 
+/* ── 회비 관리 모바일 입력 폼 & 조회 조건 반응형 (겹침 원천 방지) ── */
+.fee-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 640px) {
+  .fee-form-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+}
+@media (min-width: 900px) {
+  .fee-form-grid {
+    grid-template-columns: 1.1fr 1fr 1.3fr 1.1fr;
+    align-items: end;
+  }
+}
+
+.fee-filter-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 640px) {
+  .fee-filter-grid {
+    grid-template-columns: 1.8fr 1fr 1.2fr 1.2fr;
+    gap: 12px;
+    align-items: end;
+  }
+}
+
+
