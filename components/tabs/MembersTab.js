@@ -920,16 +920,6 @@ export default function MembersTab({
                 </button>
                 <button 
                   type="button"
-                  className={styles.btnFeeNotice}
-                  style={{ justifyContent: 'center', padding: '7px 8px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                  onClick={handleGenerateReminder}
-                  title="미납 정회원 대상 공지 및 독촉 글 생성"
-                >
-                  <NoticeIcon size={14} color="#1d4ed8" />
-                  <span>독촉 글 생성</span>
-                </button>
-                <button 
-                  type="button"
                   className={styles.btnFeeNotice} 
                   style={{ justifyContent: 'center', padding: '7px 8px', fontSize: '12px', backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a', whiteSpace: 'nowrap' }}
                   onClick={() => window.location.href = '/posters?tab=fee'}

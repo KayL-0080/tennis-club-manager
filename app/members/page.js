@@ -7,7 +7,7 @@ import {
   getClubSettings, updateClubSettings
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
-import { PageHeaderIcon, MembersIcon, LockIcon, IconClipboardList, IconBookOpen } from '@/components/Icons';
+import { PageHeaderIcon, MembersIcon, LockIcon, IconClipboardList, IconBookOpen, NoticeIcon } from '@/components/Icons';
 import MembersTab from '@/components/tabs/MembersTab';
 import FeeLedgerTab from '@/components/FeeLedgerTab';
 import FinanceCalculator from '@/components/FinanceCalculator';
@@ -36,10 +36,12 @@ export default function MembersPage() {
   const [bankAccount, setBankAccount] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
 
-  // ── 토스트 알림, 계좌 복사 및 회비 납부 모달 상태 ──
+  // ── 토스트 알림, 계좌 복사, 회비 납부 모달 및 독촉 공지 모달 상태 ──
   const [toastMessage, setToastMessage] = useState('');
   const [copiedAccount, setCopiedAccount] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderText, setReminderText] = useState('');
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -256,6 +258,37 @@ export default function MembersPage() {
       console.error('Clipboard copy error:', err);
       alert(`회비 입금 계좌: ${copyTarget}`);
     }
+  };
+
+  // ── 3. '미납자 독촉 글 생성' 핸들러 (회비 납부하기 영역) ──
+  const handleGenerateReminder = () => {
+    const regularMembers = members.filter(m => !isGuestMember(m));
+    const unpaidMembers = regularMembers.filter(m => !m.feePaid);
+    const names = unpaidMembers.map(m => m.name).join(', ');
+    const cycleText = feeCycle === '연납' ? '올해' : feeCycle === '분기납' ? '이번 분기' : '이번 달';
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const payUrl = `${origin}/members?pay=1`;
+    const numAmt = feeAmount
+      ? Number(String(feeAmount).replace(/[^0-9]/g, '') || 0).toLocaleString()
+      : '0';
+    const clubName = clubProfile?.name || currentClub?.name || '클럽';
+
+    const text = `🎾 ${clubName} 회비 납부 안내 🎾
+
+안녕하세요, ${cycleText} 회비 납부 안내드립니다.
+아직 납부하지 않으신 회원님들은 아래 간편 납부 링크(토스 송금 / 계좌 복사) 또는 계좌로 입금 부탁드립니다!
+
+📌 미납자 명단: ${names || '(미납자 없음)'}
+📌 납부 금액: ${numAmt}원 (${feeCycle || '월납'})
+📌 입금 계좌: ${bankAccount || '미등록'} (예금주: ${accountHolder || '미등록'})
+
+💳 회비 간편 납부 링크 (토스로 내기 / 계좌 복사):
+👉 ${payUrl}
+
+원활한 클럽 운영을 위해 빠른 납부 부탁드립니다. 감사합니다!`;
+
+    setReminderText(text);
+    setShowReminderModal(true);
   };
 
   const handleSaveFullSettings = async (newData) => {
@@ -661,25 +694,60 @@ export default function MembersPage() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      {/* 1. 토스로 내기 */}
+                      {/* 미납자 독촉 글 생성 버튼 (회비 납부하기 영역으로 이동) */}
+                      {(isAdmin || canManageFee) && (
+                        <button
+                          type="button"
+                          onClick={handleGenerateReminder}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            height: '38px',
+                            padding: '0 14px',
+                            borderRadius: '10px',
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            fontSize: '12.5px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                            transition: 'all 0.2s ease',
+                            whiteSpace: 'nowrap',
+                            boxSizing: 'border-box'
+                          }}
+                          title="미납 정회원 대상 공지 및 독촉 글(간편 납부 링크 포함)을 생성합니다"
+                        >
+                          <NoticeIcon size={14} color="#1d4ed8" />
+                          <span>독촉 글 생성</span>
+                        </button>
+                      )}
+
+                      {/* 1. 토스로 내기 (계좌 복사 버튼과 동일한 크기 및 규격) */}
                       <button
                         type="button"
                         onClick={handlePayWithToss}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
                           gap: '6px',
-                          padding: '7px 14px',
-                          borderRadius: '9px',
+                          height: '38px',
+                          minWidth: '125px',
+                          padding: '0 16px',
+                          borderRadius: '10px',
                           background: '#0064FF',
                           color: '#ffffff',
                           border: 'none',
-                          fontSize: '12.5px',
+                          fontSize: '13px',
                           fontWeight: 800,
                           cursor: 'pointer',
                           boxShadow: '0 2px 8px rgba(0, 100, 255, 0.28)',
                           transition: 'all 0.2s ease',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          boxSizing: 'border-box'
                         }}
                         title="토스 앱을 열어 계좌와 금액이 자동 입력된 상태로 송금합니다"
                       >
@@ -690,52 +758,33 @@ export default function MembersPage() {
                         토스로 내기
                       </button>
 
-                      {/* 2. 계좌 복사 */}
+                      {/* 2. 계좌 복사 (토스로 내기 버튼과 동일한 크기 및 규격) */}
                       <button
                         type="button"
                         onClick={handleCopyAccount}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
                           gap: '6px',
-                          padding: '7px 14px',
-                          borderRadius: '9px',
+                          height: '38px',
+                          minWidth: '125px',
+                          padding: '0 16px',
+                          borderRadius: '10px',
                           background: copiedAccount ? '#f0fdf4' : '#ffffff',
                           color: copiedAccount ? '#15803d' : '#1e293b',
-                          border: `1px solid ${copiedAccount ? '#86efac' : '#cbd5e1'}`,
-                          fontSize: '12.5px',
-                          fontWeight: 700,
+                          border: `1.5px solid ${copiedAccount ? '#86efac' : '#cbd5e1'}`,
+                          fontSize: '13px',
+                          fontWeight: 800,
                           cursor: 'pointer',
                           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
                           transition: 'all 0.2s ease',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          boxSizing: 'border-box'
                         }}
                         title="입금 계좌번호를 클립보드에 복사합니다"
                       >
-                        {copiedAccount ? '✅ 복사 완료' : '📋 계좌 복사'}
-                      </button>
-
-                      {/* 3. 납부창 열기 모달 */}
-                      <button
-                        type="button"
-                        onClick={() => setShowPayModal(true)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '7px 12px',
-                          borderRadius: '9px',
-                          background: '#f8fafc',
-                          color: '#2563eb',
-                          border: '1px solid #bfdbfe',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                        title="회원에게 공유되는 회비 간편 납부 모달창을 엽니다"
-                      >
-                        💳 납부창
+                        {copiedAccount ? '✅' : '📋'} {copiedAccount ? '복사 완료' : '계좌 복사'}
                       </button>
                     </div>
                   </div>
@@ -989,6 +1038,50 @@ export default function MembersPage() {
             >
               닫기
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 9. 미납자 회비 납부 독촉 안내문 모달 ── */}
+      {showReminderModal && (
+        <div className="modal-overlay" style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 1000 }} onClick={() => setShowReminderModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '520px', width: '90%', borderRadius: '20px', padding: '24px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--txt)' }}>📝 미납자 회비 납부 안내문</h3>
+              <button 
+                type="button" 
+                onClick={() => setShowReminderModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--txt3)', cursor: 'pointer', padding: '4px' }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--txt2)', marginBottom: '12px', lineHeight: 1.5 }}>
+              현재 미납 회원 명단과 계좌 정보, 간편 납부 링크(?pay=1)가 자동으로 반영된 공지용 문구입니다.
+            </p>
+            <textarea
+              className="input"
+              style={{ width: '100%', height: '220px', resize: 'vertical', padding: '14px', lineHeight: '1.6', fontSize: '13.5px', borderRadius: '12px' }}
+              value={reminderText}
+              onChange={(e) => setReminderText(e.target.value)}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '20px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a', fontWeight: 700 }}
+                onClick={() => window.location.href = '/posters?tab=fee'}
+              >
+                🎨 회비 카드 이미지 제작하기
+              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowReminderModal(false)}>닫기</button>
+                <button className="btn btn-primary btn-sm" onClick={() => {
+                  navigator.clipboard.writeText(reminderText);
+                  showToast('📋 공지 문구가 클립보드에 복사되었습니다.');
+                }}>📋 문구 복사하기</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
