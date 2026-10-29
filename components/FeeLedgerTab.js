@@ -81,7 +81,6 @@ export default function FeeLedgerTab({
   canManageFee = false,
   members = [],
   currentClub = {},
-  onRequireLogin
 }) {
   const canEdit = Boolean(isAdmin || canManageFee);
 
@@ -89,10 +88,14 @@ export default function FeeLedgerTab({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // 조회 월 상태 (기본: 현재 연월 YYYY-MM)
-  const [selectedMonth, setSelectedMonth] = useState(() => getTodayYMD().substring(0, 7));
-  const [viewAllMonths, setViewAllMonths] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState('ALL'); // 'ALL' | 'INCOME_ALL' | 'EXPENSE_ALL' | 'INCOME:회비' 등
+  // 조회 시작월 ~ 종료월 상태 (기본: 현재 연월 YYYY-MM ~ YYYY-MM)
+  const currentYm = getTodayYMD().substring(0, 7);
+  const [startMonth, setStartMonth] = useState(currentYm);
+  const [endMonth, setEndMonth] = useState(currentYm);
+
+  // 상세내역 조회 필터 콤보박스 상태
+  const [filterType, setFilterType] = useState('ALL'); // 'ALL' | 'INCOME' | 'EXPENSE'
+  const [filterCategory, setFilterCategory] = useState('ALL'); // 'ALL' | 'INCOME:회비' | 'EXPENSE:대관료' 등
   const [searchQuery, setSearchQuery] = useState('');
 
   // 입력 / 수정 폼 상태 (기본값: 수입 - '회비' 120,000원)
@@ -120,33 +123,57 @@ export default function FeeLedgerTab({
     };
   }, []);
 
-  // 선택된 월이 바뀔 때 신규 입력 중이면 사용일 기본값을 해당 월로 맞춤
-  const handleMonthChange = (newMonth) => {
-    if (!newMonth) return;
-    setSelectedMonth(newMonth);
-    setViewAllMonths(false);
+  // 시작월 변경 핸들러
+  const handleStartMonthChange = (newStart) => {
+    if (!newStart) return;
+    setStartMonth(newStart);
+    if (newStart > endMonth) {
+      setEndMonth(newStart);
+    }
     if (!editingId) {
       const today = getTodayYMD();
-      if (today.startsWith(newMonth)) {
+      if (today.startsWith(newStart)) {
         setFormDate(today);
       } else {
-        setFormDate(`${newMonth}-01`);
+        setFormDate(`${newStart}-01`);
       }
     }
   };
 
-  const shiftMonth = (delta) => {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const d = new Date(y, m - 1 + delta, 1);
-    const nextYm = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    handleMonthChange(nextYm);
+  // 종료월 변경 핸들러
+  const handleEndMonthChange = (newEnd) => {
+    if (!newEnd) return;
+    setEndMonth(newEnd);
+    if (newEnd < startMonth) {
+      setStartMonth(newEnd);
+    }
   };
 
-  // 내용(카테고리) 및 구분(수입/지출) 변경 핸들러
-  // - '회비' 클릭 시 120,000원 기본 입력
-  // - '게스트비' 클릭 시 15,000원 기본 입력
+  // 빠른 기간 선택 (이번 달 / 올해 전체)
+  const applyQuickPeriod = (mode) => {
+    const todayYm = getTodayYMD().substring(0, 7);
+    const thisYear = todayYm.substring(0, 4);
+    if (mode === 'THIS_MONTH') {
+      setStartMonth(todayYm);
+      setEndMonth(todayYm);
+    } else if (mode === 'THIS_YEAR') {
+      setStartMonth(`${thisYear}-01`);
+      setEndMonth(`${thisYear}-12`);
+    }
+  };
+
+  // 입력 폼: 구분(수입/지출) 콤보박스 변경 핸들러
+  const handleFormTypeChange = (nextType) => {
+    if (nextType === formType) return;
+    const defaultCat = nextType === 'INCOME' ? '회비' : '대관료';
+    handleCategoryChange(defaultCat, nextType);
+  };
+
+  // 입력 폼: 내용(항목) 콤보박스 변경 핸들러
+  // - '회비' 선택 시 120,000원 기본 입력
+  // - '게스트비' 선택 시 15,000원 기본 입력
   const handleCategoryChange = (newCat, explicitType = null) => {
-    const nextType = explicitType || (INCOME_CATEGORIES.includes(newCat) && newCat !== '기타' ? 'INCOME' : formType);
+    const nextType = explicitType || formType;
     const prevKey = `${formType}:${formCategory}`;
     const nextKey = `${nextType}:${newCat}`;
     const prevDefaultAmt = DEFAULT_CATEGORY_AMOUNTS[prevKey];
@@ -156,7 +183,6 @@ export default function FeeLedgerTab({
     setFormCategory(newCat);
 
     if (nextDefaultAmt) {
-      // 회비(120,000원) 또는 게스트비(15,000원) 클릭 시 기본값 자동 세팅
       setFormIncome(formatNum(nextDefaultAmt));
       setFormExpense('');
       return;
@@ -182,12 +208,10 @@ export default function FeeLedgerTab({
     }
   };
 
-  // 셀렉트 박스('TYPE:CATEGORY') 변경 핸들러
-  const handleSelectChange = (val) => {
-    const [selType, selCat] = String(val).split(':');
-    if (selType && selCat) {
-      handleCategoryChange(selCat, selType);
-    }
+  // 상세내역 조회 필터: 구분(전체/수입/지출) 콤보박스 변경 핸들러
+  const handleFilterTypeChange = (nextFilterType) => {
+    setFilterType(nextFilterType);
+    setFilterCategory('ALL');
   };
 
   // 금액 빠른 추가 버튼
@@ -206,7 +230,7 @@ export default function FeeLedgerTab({
   const resetForm = () => {
     setEditingId(null);
     const today = getTodayYMD();
-    setFormDate(today.startsWith(selectedMonth) ? today : `${selectedMonth}-01`);
+    setFormDate((today.substring(0, 7) >= startMonth && today.substring(0, 7) <= endMonth) ? today : `${endMonth}-01`);
     setFormType('INCOME');
     setFormCategory('회비');
     setFormIncome('120,000');
@@ -227,11 +251,13 @@ export default function FeeLedgerTab({
     });
   }, [entries]);
 
-  // 해당 월(또는 전체 기간) 내역 및 누적 잔액 계산
+  // 조회 시작월 ~ 종료월 내역 및 누적 잔액 계산
   const periodEntriesWithBalance = useMemo(() => {
-    const targetList = viewAllMonths
-      ? sortedAllEntries
-      : sortedAllEntries.filter(e => (e.date || '').startsWith(selectedMonth));
+    const targetList = sortedAllEntries.filter(e => {
+      const ym = (e.date || '').substring(0, 7);
+      if (!ym) return false;
+      return ym >= startMonth && ym <= endMonth;
+    });
 
     let runningBalance = 0;
     return targetList.map((item, idx) => {
@@ -248,11 +274,11 @@ export default function FeeLedgerTab({
         balance: runningBalance,
       };
     });
-  }, [sortedAllEntries, selectedMonth, viewAllMonths]);
+  }, [sortedAllEntries, startMonth, endMonth]);
 
-  // 이전 달까지의 누적 잔액 계산 (전월 이월잔액 자동 입력용)
+  // 시작월 이전 달의 최종 잔액 계산 (전월 이월잔액 자동 입력용)
   const prevMonthClosingBalance = useMemo(() => {
-    const prevEntries = sortedAllEntries.filter(e => e.date && e.date < `${selectedMonth}-01`);
+    const prevEntries = sortedAllEntries.filter(e => e.date && e.date < `${startMonth}-01`);
     if (prevEntries.length === 0) return null;
     const prevMonths = [...new Set(prevEntries.map(e => e.date.substring(0, 7)))].sort();
     const lastMonth = prevMonths[prevMonths.length - 1];
@@ -262,20 +288,19 @@ export default function FeeLedgerTab({
       month: lastMonth,
       balance: lastMonthBalance
     };
-  }, [sortedAllEntries, selectedMonth]);
+  }, [sortedAllEntries, startMonth]);
 
-  // 화면 필터링된 내역 (카테고리 필터 및 검색어 적용)
+  // 화면 필터링된 내역 (구분/항목 콤보박스 및 검색어 적용)
   const filteredEntries = useMemo(() => {
     return periodEntriesWithBalance.filter(item => {
       const itemType = item.type;
       const itemKey = `${itemType}:${item.category}`;
 
-      if (categoryFilter === 'INCOME_ALL') {
-        if (itemType !== 'INCOME') return false;
-      } else if (categoryFilter === 'EXPENSE_ALL') {
-        if (itemType !== 'EXPENSE') return false;
-      } else if (categoryFilter !== 'ALL') {
-        if (itemKey !== categoryFilter) return false;
+      if (filterType === 'INCOME' && itemType !== 'INCOME') return false;
+      if (filterType === 'EXPENSE' && itemType !== 'EXPENSE') return false;
+
+      if (filterCategory !== 'ALL') {
+        if (itemKey !== filterCategory) return false;
       }
 
       if (searchQuery.trim()) {
@@ -287,9 +312,9 @@ export default function FeeLedgerTab({
       }
       return true;
     });
-  }, [periodEntriesWithBalance, categoryFilter, searchQuery]);
+  }, [periodEntriesWithBalance, filterType, filterCategory, searchQuery]);
 
-  // 월별(기간별) 수입/지출/잔액 및 항목별 합계 요약
+  // 기간별 수입/지출/잔액 및 항목별 합계 요약
   const summary = useMemo(() => {
     const incomeTotals = {};
     const expenseTotals = {};
@@ -329,21 +354,8 @@ export default function FeeLedgerTab({
     };
   }, [periodEntriesWithBalance, filteredEntries]);
 
-  // 정회원 완납 인원 및 월회비 자동 계산 도우미 정보
-  const regularPaidInfo = useMemo(() => {
-    const regularMembers = members.filter(m => m?.role !== '게스트' && !m?.isGuest);
-    const paidMembers = regularMembers.filter(m => m.feePaid);
-    const unitFee = parseNumInput(currentClub?.feeAmount) || 120000;
-    return {
-      paidCount: paidMembers.length,
-      totalRegular: regularMembers.length,
-      unitFee,
-      totalFeeAmount: paidMembers.length * unitFee
-    };
-  }, [members, currentClub]);
-
   const handleFillCarryover = () => {
-    setFormDate(`${selectedMonth}-01`);
+    setFormDate(`${startMonth}-01`);
     setFormType('INCOME');
     setFormCategory('이월잔액');
     setFormExpense('');
@@ -355,15 +367,6 @@ export default function FeeLedgerTab({
       setFormIncome('');
       setFormMemo('전월 이월잔액');
     }
-  };
-
-  const handleFillRegularFees = () => {
-    const [, mNum] = selectedMonth.split('-').map(Number);
-    setFormType('INCOME');
-    setFormCategory('회비');
-    setFormExpense('');
-    setFormIncome(formatNum(regularPaidInfo.totalFeeAmount));
-    setFormMemo(`${mNum}월 정회원 회비 (${regularPaidInfo.paidCount}명 완납 기준)`);
   };
 
   const handleSubmit = async (e) => {
@@ -404,11 +407,11 @@ export default function FeeLedgerTab({
         await addFeeLedgerEntry(payload);
       }
 
-      // 입력한 날짜의 월로 자동 포커스 이동
+      // 입력한 날짜가 현재 조회 기간 밖이면 조회 기간을 자동 확장
       const entryYm = formDate.substring(0, 7);
-      if (!viewAllMonths && entryYm !== selectedMonth) {
-        setSelectedMonth(entryYm);
-      }
+      if (entryYm < startMonth) setStartMonth(entryYm);
+      if (entryYm > endMonth) setEndMonth(entryYm);
+
       resetForm();
     } catch (err) {
       console.error('Failed to save fee ledger entry:', err);
@@ -429,7 +432,7 @@ export default function FeeLedgerTab({
     setFormExpense(item.expense > 0 ? formatNum(item.expense) : '');
     setFormMemo(item.memo || '');
     if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 180, behavior: 'smooth' });
+      window.scrollTo({ top: 150, behavior: 'smooth' });
     }
   };
 
@@ -446,12 +449,18 @@ export default function FeeLedgerTab({
     }
   };
 
-  // 월 포맷 표시 (예: 2026년 10월)
+  // 조회 기간 타이틀 포맷 (예: 2026년 10월 또는 2026년 1월 ~ 2026년 10월)
   const formattedPeriodTitle = useMemo(() => {
-    if (viewAllMonths) return '전체 기간';
-    const [y, m] = selectedMonth.split('-').map(Number);
-    return `${y}년 ${m}월`;
-  }, [selectedMonth, viewAllMonths]);
+    const [sy, sm] = startMonth.split('-').map(Number);
+    const [ey, em] = endMonth.split('-').map(Number);
+    if (startMonth === endMonth) {
+      return `${sy}년 ${sm}월`;
+    }
+    if (sy === ey) {
+      return `${sy}년 ${sm}월 ~ ${em}월`;
+    }
+    return `${sy}년 ${sm}월 ~ ${ey}년 ${em}월`;
+  }, [startMonth, endMonth]);
 
   // 엑셀(CSV) 다운로드
   const handleDownloadCsv = () => {
@@ -485,7 +494,7 @@ export default function FeeLedgerTab({
     const link = document.createElement('a');
     link.href = url;
     const clubName = currentClub?.name || '테친회';
-    const filePeriod = viewAllMonths ? '전체기간' : selectedMonth;
+    const filePeriod = startMonth === endMonth ? startMonth : `${startMonth}_${endMonth}`;
     link.setAttribute('download', `${clubName}_회비내역_${filePeriod}.csv`);
     document.body.appendChild(link);
     link.click();
@@ -590,9 +599,9 @@ export default function FeeLedgerTab({
             <table style={{ borderCollapse: 'collapse', border: '1px solid #334155', fontSize: '10.5px', textAlign: 'center' }}>
               <thead>
                 <tr style={{ background: '#f1f5f9' }}>
-                  <th style={{ border: '1px solid #334155', padding: '3px 14px', fontWeight: 800, color: '#0f172a' }}>작성 (총무)</th>
-                  <th style={{ border: '1px solid #334155', padding: '3px 14px', fontWeight: 800, color: '#0f172a' }}>검토 (감사)</th>
-                  <th style={{ border: '1px solid #334155', padding: '3px 14px', fontWeight: 800, color: '#0f172a' }}>승인 (회장)</th>
+                  <th style={{ border: '1px solid #334155', padding: '3px 14px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>작성 (총무)</th>
+                  <th style={{ border: '1px solid #334155', padding: '3px 14px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>검토 (감사)</th>
+                  <th style={{ border: '1px solid #334155', padding: '3px 14px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>승인 (회장)</th>
                 </tr>
               </thead>
               <tbody>
@@ -650,22 +659,22 @@ export default function FeeLedgerTab({
               </tr>
               <tr style={{ background: '#f8fafc', fontWeight: 700, color: '#334155' }}>
                 {INCOME_CATEGORIES.map(c => (
-                  <th key={`inc-${c}`} style={{ border: '1px solid #94a3b8', padding: '4px 2px', width: `${100 / totalCatCount}%` }}>{c}</th>
+                  <th key={`inc-${c}`} style={{ border: '1px solid #94a3b8', padding: '4px 2px', width: `${100 / totalCatCount}%`, whiteSpace: 'nowrap' }}>{c}</th>
                 ))}
                 {EXPENSE_CATEGORIES.map(c => (
-                  <th key={`exp-${c}`} style={{ border: '1px solid #94a3b8', padding: '4px 2px', width: `${100 / totalCatCount}%` }}>{c}</th>
+                  <th key={`exp-${c}`} style={{ border: '1px solid #94a3b8', padding: '4px 2px', width: `${100 / totalCatCount}%`, whiteSpace: 'nowrap' }}>{c}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               <tr style={{ fontWeight: 800 }}>
                 {INCOME_CATEGORIES.map(c => (
-                  <td key={`inc-val-${c}`} style={{ border: '1px solid #94a3b8', padding: '5px 2px', color: summary.incomeTotals[c] > 0 ? '#1d4ed8' : '#64748b' }}>
+                  <td key={`inc-val-${c}`} style={{ border: '1px solid #94a3b8', padding: '5px 2px', color: summary.incomeTotals[c] > 0 ? '#1d4ed8' : '#64748b', whiteSpace: 'nowrap' }}>
                     {formatNum(summary.incomeTotals[c])}
                   </td>
                 ))}
                 {EXPENSE_CATEGORIES.map(c => (
-                  <td key={`exp-val-${c}`} style={{ border: '1px solid #94a3b8', padding: '5px 2px', color: summary.expenseTotals[c] > 0 ? '#be123c' : '#64748b' }}>
+                  <td key={`exp-val-${c}`} style={{ border: '1px solid #94a3b8', padding: '5px 2px', color: summary.expenseTotals[c] > 0 ? '#be123c' : '#64748b', whiteSpace: 'nowrap' }}>
                     {formatNum(summary.expenseTotals[c])}
                   </td>
                 ))}
@@ -678,13 +687,13 @@ export default function FeeLedgerTab({
         <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #0f172a', fontSize: isCompact ? '10.5px' : '11.5px' }}>
           <thead>
             <tr style={{ background: '#e2e8f0', color: '#0f172a' }}>
-              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px' : '6px', width: '36px', textAlign: 'center', fontWeight: 900 }}>No.</th>
-              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '92px', textAlign: 'center', fontWeight: 900 }}>사용일</th>
-              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '88px', textAlign: 'center', fontWeight: 900 }}>내용</th>
-              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '98px', textAlign: 'right', fontWeight: 900, color: '#1e3a8a' }}>수입</th>
-              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '98px', textAlign: 'right', fontWeight: 900, color: '#9f1239' }}>지출</th>
-              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '104px', textAlign: 'right', fontWeight: 900, color: '#065f46' }}>잔액</th>
-              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 8px' : '6px 10px', textAlign: 'left', fontWeight: 900 }}>적요</th>
+              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px' : '6px', width: '36px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>No.</th>
+              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '92px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>사용일</th>
+              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '88px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>내용</th>
+              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '98px', textAlign: 'right', fontWeight: 900, color: '#1e3a8a', whiteSpace: 'nowrap' }}>수입</th>
+              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '98px', textAlign: 'right', fontWeight: 900, color: '#9f1239', whiteSpace: 'nowrap' }}>지출</th>
+              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '104px', textAlign: 'right', fontWeight: 900, color: '#065f46', whiteSpace: 'nowrap' }}>잔액</th>
+              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 8px' : '6px 10px', textAlign: 'left', fontWeight: 900, whiteSpace: 'nowrap' }}>적요</th>
             </tr>
           </thead>
           <tbody>
@@ -697,7 +706,7 @@ export default function FeeLedgerTab({
             ) : (
               periodEntriesWithBalance.map((item, idx) => (
                 <tr key={item.id || idx} style={{ background: idx % 2 === 1 ? '#f8fafc' : '#ffffff' }}>
-                  <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px' : '6px', textAlign: 'center', fontWeight: 700, color: '#475569' }}>
+                  <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px' : '6px', textAlign: 'center', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
                     {item.rowNum}
                   </td>
                   <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px 6px' : '6px 8px', textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>
@@ -724,7 +733,7 @@ export default function FeeLedgerTab({
           </tbody>
           <tfoot>
             <tr style={{ background: '#f1f5f9', fontWeight: 900, fontSize: isCompact ? '11.5px' : '12.5px' }}>
-              <td colSpan={3} style={{ border: '1.5px solid #0f172a', padding: '7px 8px', textAlign: 'center', color: '#0f172a' }}>
+              <td colSpan={3} style={{ border: '1.5px solid #0f172a', padding: '7px 8px', textAlign: 'center', color: '#0f172a', whiteSpace: 'nowrap' }}>
                 {formattedPeriodTitle} 합 계 ({periodEntriesWithBalance.length}건)
               </td>
               <td style={{ border: '1.5px solid #0f172a', padding: '7px 6px', textAlign: 'right', color: '#1d4ed8', whiteSpace: 'nowrap' }}>
@@ -736,7 +745,7 @@ export default function FeeLedgerTab({
               <td style={{ border: '1.5px solid #0f172a', padding: '7px 6px', textAlign: 'right', color: '#047857', background: '#ecfdf5', whiteSpace: 'nowrap' }}>
                 {formatNum(summary.netBalance)}원
               </td>
-              <td style={{ border: '1.5px solid #0f172a', padding: '7px 8px', textAlign: 'left', fontSize: '10.5px', color: '#475569' }}>
+              <td style={{ border: '1.5px solid #0f172a', padding: '7px 8px', textAlign: 'left', fontSize: '10.5px', color: '#475569', whiteSpace: 'nowrap' }}>
                 잔액 = 총수입 - 총지출
               </td>
             </tr>
@@ -756,6 +765,7 @@ export default function FeeLedgerTab({
   }
 
   const activeIsIncome = formType === 'INCOME';
+  const currentCategoryOptions = activeIsIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   return (
     <div>
@@ -766,371 +776,48 @@ export default function FeeLedgerTab({
 
       {/* ── 화면용 UI 컨테이너 (인쇄 시 숨김) ── */}
       <div className="no-print">
-        {/* 1. 상단 월 선택 네비게이터 및 출력 도구 모음 */}
-        <div className="card" style={{
-          marginBottom: '18px',
-          padding: '16px 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-          border: '1px solid #e2e8f0'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: '#334155', marginRight: '4px' }}>
-              📅 조회 기간
-            </span>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => shiftMonth(-1)}
-              disabled={viewAllMonths}
-              style={{ padding: '6px 10px', fontWeight: 800 }}
-              title="이전 달"
-            >
-              ◀
-            </button>
-            <input
-              type="month"
-              className="input"
-              value={selectedMonth}
-              disabled={viewAllMonths}
-              onChange={(e) => handleMonthChange(e.target.value)}
-              style={{
-                width: 'auto',
-                minWidth: '150px',
-                padding: '6px 12px',
-                fontWeight: 800,
-                fontSize: '15px',
-                color: '#0f172a',
-                borderRadius: '10px',
-                textAlign: 'center'
-              }}
-            />
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => shiftMonth(1)}
-              disabled={viewAllMonths}
-              style={{ padding: '6px 10px', fontWeight: 800 }}
-              title="다음 달"
-            >
-              ▶
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => handleMonthChange(getTodayYMD().substring(0, 7))}
-              style={{
-                padding: '6px 12px',
-                fontSize: '12.5px',
-                fontWeight: 700,
-                background: (!viewAllMonths && selectedMonth === getTodayYMD().substring(0, 7)) ? '#eff6ff' : '#ffffff',
-                color: (!viewAllMonths && selectedMonth === getTodayYMD().substring(0, 7)) ? '#1d4ed8' : '#475569',
-                borderColor: (!viewAllMonths && selectedMonth === getTodayYMD().substring(0, 7)) ? '#93c5fd' : '#cbd5e1'
-              }}
-            >
-              이번 달
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setViewAllMonths(prev => !prev)}
-              style={{
-                padding: '6px 12px',
-                fontSize: '12.5px',
-                fontWeight: 700,
-                background: viewAllMonths ? '#1e293b' : '#ffffff',
-                color: viewAllMonths ? '#ffffff' : '#475569',
-                borderColor: viewAllMonths ? '#1e293b' : '#cbd5e1'
-              }}
-            >
-              {viewAllMonths ? '✓ 전체 기간 보기 중' : '전체 기간 보기'}
-            </button>
-          </div>
 
-          {/* 우측 출력 & 내보내기 버튼 그룹 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => setShowPrintModal(true)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 15px',
-                borderRadius: '10px',
-                border: '1px solid #1d4ed8',
-                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                color: '#ffffff',
-                fontWeight: 800,
-                fontSize: '13px',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
-              }}
-            >
-              <span>🖨️</span>
-              <span>{viewAllMonths ? '전체 내역 출력 (A4)' : '월별 전체 내역 출력 (A4)'}</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={handleDownloadCsv}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '8px 12px',
-                borderRadius: '10px',
-                fontWeight: 700,
-                fontSize: '12.5px',
-                background: '#ffffff',
-                color: '#15803d',
-                borderColor: '#86efac'
-              }}
-              title="현재 조회 중인 월의 전체 내역을 엑셀(CSV) 파일로 저장합니다"
-            >
-              📊 엑셀(CSV) 저장
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={handleCopyTextSummary}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '8px 12px',
-                borderRadius: '10px',
-                fontWeight: 700,
-                fontSize: '12.5px',
-                background: '#ffffff',
-                color: '#334155',
-                borderColor: '#cbd5e1'
-              }}
-              title="카카오톡/밴드 공지용 텍스트로 복사합니다"
-            >
-              📋 카톡 공지 복사
-            </button>
-          </div>
-        </div>
-
-        {/* 2. 월별 수지 요약 대시보드 카드 (수입 / 지출 / 잔액 & 세부 항목별 집계) */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-          gap: '14px',
-          marginBottom: '20px'
-        }}>
-          {/* 총 수입 카드 */}
+        {/* 1. 회비 내역 입력 / 수정 폼 (구분 및 내용 콤보박스 적용) */}
+        {canEdit && (
           <div className="card" style={{
-            padding: '18px 20px',
-            background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)',
-            border: '1px solid #bfdbfe',
-            borderRadius: '16px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e40af' }}>
-                🔵 {formattedPeriodTitle} 총 수입
-              </span>
-              <span className="badge" style={{ background: '#dbeafe', color: '#1d4ed8', fontSize: '11px', fontWeight: 800 }}>
-                수입 6개 항목
-              </span>
-            </div>
-            <div style={{ fontSize: '24px', fontWeight: 900, color: '#1d4ed8', letterSpacing: '-0.02em', marginBottom: '12px' }}>
-              +{formatNum(summary.totalIncome)}원
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', fontSize: '11.5px' }}>
-              {INCOME_CATEGORIES.map(cat => {
-                const filterKey = `INCOME:${cat}`;
-                const meta = getCategoryMeta(cat, 'INCOME');
-                return (
-                  <div
-                    key={filterKey}
-                    onClick={() => setCategoryFilter(categoryFilter === filterKey ? 'ALL' : filterKey)}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '2px',
-                      padding: '5px 7px',
-                      borderRadius: '8px',
-                      background: categoryFilter === filterKey ? '#1d4ed8' : 'rgba(255,255,255,0.85)',
-                      color: categoryFilter === filterKey ? '#ffffff' : '#334155',
-                      border: '1px solid #dbeafe',
-                      cursor: 'pointer',
-                      fontWeight: 700
-                    }}
-                    title={`클릭하여 '${cat} (수입)' 내역만 필터링`}
-                  >
-                    <span style={{ whiteSpace: 'nowrap' }}>{meta.icon} {cat}</span>
-                    <span style={{ fontWeight: 800, fontSize: '12px' }}>{formatNum(summary.incomeTotals[cat])}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 총 지출 카드 */}
-          <div className="card" style={{
-            padding: '18px 20px',
-            background: 'linear-gradient(135deg, #ffffff 0%, #fff1f2 100%)',
-            border: '1px solid #fecdd3',
-            borderRadius: '16px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#9f1239' }}>
-                🔴 {formattedPeriodTitle} 총 지출
-              </span>
-              <span className="badge" style={{ background: '#ffe4e6', color: '#be123c', fontSize: '11px', fontWeight: 800 }}>
-                지출 4개 항목
-              </span>
-            </div>
-            <div style={{ fontSize: '24px', fontWeight: 900, color: '#be123c', letterSpacing: '-0.02em', marginBottom: '12px' }}>
-              -{formatNum(summary.totalExpense)}원
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '12px' }}>
-              {EXPENSE_CATEGORIES.map(cat => {
-                const filterKey = `EXPENSE:${cat}`;
-                const meta = getCategoryMeta(cat, 'EXPENSE');
-                return (
-                  <div
-                    key={filterKey}
-                    onClick={() => setCategoryFilter(categoryFilter === filterKey ? 'ALL' : filterKey)}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '5px 8px',
-                      borderRadius: '8px',
-                      background: categoryFilter === filterKey ? '#be123c' : 'rgba(255,255,255,0.85)',
-                      color: categoryFilter === filterKey ? '#ffffff' : '#334155',
-                      border: '1px solid #ffe4e6',
-                      cursor: 'pointer',
-                      fontWeight: 700
-                    }}
-                    title={`클릭하여 '${cat} (지출)' 내역만 필터링`}
-                  >
-                    <span>{meta.icon} {cat}</span>
-                    <span style={{ fontWeight: 800 }}>{formatNum(summary.expenseTotals[cat])}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 최종 잔액 카드 */}
-          <div className="card" style={{
-            padding: '18px 20px',
-            background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
-            border: '1px solid #bbf7d0',
-            borderRadius: '16px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between'
-          }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800, color: '#166534' }}>
-                  🟢 {formattedPeriodTitle} 최종 잔액
-                </span>
-                <span className="badge" style={{ background: '#dcfce7', color: '#15803d', fontSize: '11px', fontWeight: 800 }}>
-                  수입 - 지출
-                </span>
-              </div>
-              <div style={{
-                fontSize: '26px',
-                fontWeight: 900,
-                color: summary.netBalance >= 0 ? '#15803d' : '#dc2626',
-                letterSpacing: '-0.02em',
-                marginBottom: '8px'
-              }}>
-                {formatNum(summary.netBalance)}원
-              </div>
-            </div>
-            <div style={{
-              padding: '8px 10px',
-              borderRadius: '10px',
-              background: 'rgba(255,255,255,0.85)',
-              border: '1px solid #dcfce7',
-              fontSize: '12px',
-              color: '#334155',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '4px'
-            }}>
-              <span>당월 순수입(이월 제외): <strong>+{formatNum(summary.totalIncome - (summary.incomeTotals['이월잔액'] || 0))}원</strong></span>
-              <span style={{ color: '#64748b' }}>총 {periodEntriesWithBalance.length}건</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. 회비 내역 입력 / 수정 폼 (운영진 또는 회비관리 권한 보유자) */}
-        {canEdit ? (
-          <div className="card" style={{
-            marginBottom: '22px',
-            padding: '20px',
+            marginBottom: '16px',
+            padding: '16px',
             border: editingId ? '2px solid #2563eb' : '1px solid var(--border)',
             background: editingId ? '#f8faff' : '#ffffff'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
                   {editingId ? '✏️ 회비 내역 수정' : '📝 회비 내역 입력'}
                 </h3>
-                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-                  관리항목: 사용일 · 내용 · 수입 · 지출 · 적요
-                </span>
               </div>
 
               {/* 빠른 자동 입력 도우미 버튼 */}
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {!viewAllMonths && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={handleFillCarryover}
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      padding: '5px 10px',
-                      background: '#eff6ff',
-                      color: '#1d4ed8',
-                      borderColor: '#bfdbfe'
-                    }}
-                    title="전월 최종 잔액을 계산하여 당월 1일자 이월잔액으로 자동 세팅합니다"
-                  >
-                    🏦 전월 이월잔액 불러오기
-                    {prevMonthClosingBalance ? ` (${formatNum(prevMonthClosingBalance.balance)}원)` : ''}
-                  </button>
-                )}
-                {regularPaidInfo.paidCount > 0 && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={handleFillRegularFees}
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      padding: '5px 10px',
-                      background: '#f0fdf4',
-                      color: '#15803d',
-                      borderColor: '#bbf7d0'
-                    }}
-                    title="현재 회비 완납 체크된 정회원 수 × 회비 금액을 자동으로 채웁니다"
-                  >
-                    💳 완납 정회원 회비 계산 ({regularPaidInfo.paidCount}명 · {formatNum(regularPaidInfo.totalFeeAmount)}원)
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleFillCarryover}
+                  style={{
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    padding: '4px 10px',
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    borderColor: '#bfdbfe',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="전월 최종 잔액을 계산하여 시작월 1일자 이월잔액으로 자동 세팅합니다"
+                >
+                  🏦 전월 이월잔액 불러오기
+                  {prevMonthClosingBalance ? ` (${formatNum(prevMonthClosingBalance.balance)}원)` : ''}
+                </button>
                 {editingId && (
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
                     onClick={resetForm}
-                    style={{ fontSize: '12px', fontWeight: 700, padding: '5px 10px' }}
+                    style={{ fontSize: '11.5px', fontWeight: 700, padding: '4px 10px', whiteSpace: 'nowrap' }}
                   >
                     수정 취소
                   </button>
@@ -1138,95 +825,17 @@ export default function FeeLedgerTab({
               </div>
             </div>
 
-            {/* 내용(수입 6항목 / 지출 4항목) 원클릭 선택 바 */}
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '10px',
-              marginBottom: '16px',
-              padding: '12px 14px',
-              borderRadius: '12px',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12px', fontWeight: 800, color: '#1d4ed8', paddingRight: '4px' }}>
-                  🔵 수입 항목:
-                </span>
-                {INCOME_CATEGORIES.map(cat => {
-                  const active = formType === 'INCOME' && formCategory === cat;
-                  const meta = getCategoryMeta(cat, 'INCOME');
-                  return (
-                    <button
-                      key={`btn-inc-${cat}`}
-                      type="button"
-                      onClick={() => handleCategoryChange(cat, 'INCOME')}
-                      style={{
-                        padding: '6px 13px',
-                        borderRadius: '999px',
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        border: active ? '1.5px solid #1d4ed8' : '1px solid #cbd5e1',
-                        background: active ? '#1d4ed8' : '#ffffff',
-                        color: active ? '#ffffff' : '#334155',
-                        boxShadow: active ? '0 2px 6px rgba(29, 78, 216, 0.25)' : 'none',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {meta.icon} {cat}
-                      {cat === '회비' && <span style={{ fontSize: '11px', opacity: 0.85, marginLeft: '3px' }}>(12만)</span>}
-                      {cat === '게스트비' && <span style={{ fontSize: '11px', opacity: 0.85, marginLeft: '3px' }}>(1.5만)</span>}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div style={{ width: '1px', background: '#cbd5e1', margin: '0 4px' }} />
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12px', fontWeight: 800, color: '#be123c', paddingRight: '4px' }}>
-                  🔴 지출 항목:
-                </span>
-                {EXPENSE_CATEGORIES.map(cat => {
-                  const active = formType === 'EXPENSE' && formCategory === cat;
-                  const meta = getCategoryMeta(cat, 'EXPENSE');
-                  return (
-                    <button
-                      key={`btn-exp-${cat}`}
-                      type="button"
-                      onClick={() => handleCategoryChange(cat, 'EXPENSE')}
-                      style={{
-                        padding: '6px 13px',
-                        borderRadius: '999px',
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        border: active ? '1.5px solid #be123c' : '1px solid #cbd5e1',
-                        background: active ? '#be123c' : '#ffffff',
-                        color: active ? '#ffffff' : '#334155',
-                        boxShadow: active ? '0 2px 6px rgba(190, 18, 60, 0.25)' : 'none',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {meta.icon} {cat}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 5대 관리항목 입력 그리드: 사용일 / 내용 / 수입 / 지출 / 적요 */}
+            {/* 콤보박스 기반 관리항목 입력 폼: 사용일 / 구분 / 내용 / 수입 / 지출 / 적요 */}
             <form onSubmit={handleSubmit}>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                gap: '12px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
+                gap: '10px',
                 alignItems: 'end'
               }}>
                 {/* 1. 사용일 */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#334155', marginBottom: '5px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                     📅 사용일
                   </label>
                   <input
@@ -1235,50 +844,75 @@ export default function FeeLedgerTab({
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
                     required
-                    style={{ width: '100%', fontWeight: 700 }}
+                    style={{ width: '100%', fontWeight: 700, fontSize: '13px', padding: '8px 10px' }}
                   />
                 </div>
 
-                {/* 2. 내용 */}
+                {/* 2-1. 수입/지출 구분 콤보박스 */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#334155', marginBottom: '5px' }}>
-                    🏷️ 내용 ({activeIsIncome ? '수입' : '지출'})
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                    🔄 수입/지출 구분
                   </label>
                   <select
                     className="select"
-                    value={`${formType}:${formCategory}`}
-                    onChange={(e) => handleSelectChange(e.target.value)}
+                    value={formType}
+                    onChange={(e) => handleFormTypeChange(e.target.value)}
                     style={{
                       width: '100%',
                       fontWeight: 800,
+                      fontSize: '13px',
+                      padding: '8px 10px',
                       color: activeIsIncome ? '#1d4ed8' : '#be123c',
                       backgroundColor: activeIsIncome ? '#eff6ff' : '#fff1f2',
                       borderColor: activeIsIncome ? '#93c5fd' : '#fda4af'
                     }}
                   >
-                    <optgroup label="🔵 수입 항목">
-                      {INCOME_CATEGORIES.map(c => (
-                        <option key={`opt-inc-${c}`} value={`INCOME:${c}`}>{c} (수입)</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="🔴 지출 항목">
-                      {EXPENSE_CATEGORIES.map(c => (
-                        <option key={`opt-exp-${c}`} value={`EXPENSE:${c}`}>{c} (지출)</option>
-                      ))}
-                    </optgroup>
+                    <option value="INCOME">🔵 수입</option>
+                    <option value="EXPENSE">🔴 지출</option>
+                  </select>
+                </div>
+
+                {/* 2-2. 내용(항목) 콤보박스 */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                    🏷️ 내용 ({activeIsIncome ? '수입 항목' : '지출 항목'})
+                  </label>
+                  <select
+                    className="select"
+                    value={formCategory}
+                    onChange={(e) => handleCategoryChange(e.target.value, formType)}
+                    style={{
+                      width: '100%',
+                      fontWeight: 800,
+                      fontSize: '13px',
+                      padding: '8px 10px',
+                      color: activeIsIncome ? '#1d4ed8' : '#be123c',
+                      backgroundColor: '#ffffff',
+                      borderColor: activeIsIncome ? '#60a5fa' : '#fb7185'
+                    }}
+                  >
+                    {currentCategoryOptions.map(c => {
+                      const meta = getCategoryMeta(c, formType);
+                      const defaultHint = c === '회비' ? ' (120,000원)' : c === '게스트비' ? ' (15,000원)' : '';
+                      return (
+                        <option key={c} value={c}>
+                          {meta.icon} {c}{defaultHint}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
                 {/* 3. 수입 금액 */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: activeIsIncome ? '#1d4ed8' : '#94a3b8', marginBottom: '5px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: activeIsIncome ? '#1d4ed8' : '#94a3b8', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                     🔵 수입 (원)
                   </label>
                   <input
                     type="text"
                     inputMode="numeric"
                     className="input"
-                    placeholder={activeIsIncome ? '수입 금액 입력' : '- (지출 항목 선택됨)'}
+                    placeholder={activeIsIncome ? '수입 금액 입력' : '-'}
                     value={formIncome}
                     disabled={!activeIsIncome}
                     onChange={(e) => {
@@ -1290,6 +924,8 @@ export default function FeeLedgerTab({
                       width: '100%',
                       textAlign: 'right',
                       fontWeight: 800,
+                      fontSize: '13px',
+                      padding: '8px 10px',
                       color: '#1d4ed8',
                       backgroundColor: activeIsIncome ? '#ffffff' : '#f1f5f9',
                       borderColor: activeIsIncome ? '#60a5fa' : '#e2e8f0'
@@ -1299,14 +935,14 @@ export default function FeeLedgerTab({
 
                 {/* 4. 지출 금액 */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: !activeIsIncome ? '#be123c' : '#94a3b8', marginBottom: '5px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: !activeIsIncome ? '#be123c' : '#94a3b8', marginBottom: '4px', whiteSpace: 'nowrap' }}>
                     🔴 지출 (원)
                   </label>
                   <input
                     type="text"
                     inputMode="numeric"
                     className="input"
-                    placeholder={!activeIsIncome ? '지출 금액 입력' : '- (수입 항목 선택됨)'}
+                    placeholder={!activeIsIncome ? '지출 금액 입력' : '-'}
                     value={formExpense}
                     disabled={activeIsIncome}
                     onChange={(e) => {
@@ -1318,6 +954,8 @@ export default function FeeLedgerTab({
                       width: '100%',
                       textAlign: 'right',
                       fontWeight: 800,
+                      fontSize: '13px',
+                      padding: '8px 10px',
                       color: '#be123c',
                       backgroundColor: !activeIsIncome ? '#ffffff' : '#f1f5f9',
                       borderColor: !activeIsIncome ? '#fb7185' : '#e2e8f0'
@@ -1326,265 +964,463 @@ export default function FeeLedgerTab({
                 </div>
 
                 {/* 5. 적요 (기본 한글 입력 모드 유지) */}
-                <div style={{ gridColumn: 'span 2', minWidth: '220px' }}>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#334155', marginBottom: '5px' }}>
-                    📝 적요 (상세 내역 / 비고 · 한글 입력 기본)
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                    📝 적요 (상세 내역 / 비고)
                   </label>
-                  <input
-                    type="text"
-                    lang="ko"
-                    inputMode="text"
-                    autoComplete="off"
-                    className="input ime-ko"
-                    placeholder={
-                      formCategory === '이월잔액' ? '예: 전월 이월잔액'
-                        : formCategory === '회비' ? '예: 홍길동 연회비/월회비 납부'
-                        : formCategory === '게스트비' ? '예: 김철수 게스트 참가비'
-                        : formCategory === '찬조' ? '예: 회장님 대회 찬조금'
-                        : formCategory === '대회참가비' ? '예: 정기 월례대회 참가비'
-                        : formType === 'INCOME' && formCategory === '기타' ? '예: 예금 이자 및 기타 수입'
-                        : formCategory === '대관료' ? '예: 시립테니스장 2코트 대관료'
-                        : formCategory === '식음료' ? '예: 정기모임 음료 및 간식 구입'
-                        : formCategory === '대회상품' ? '예: 정기대회 시상품(테니스공) 구매'
-                        : '예: 구급약품 및 클럽 용품 구입'
-                    }
-                    value={formMemo}
-                    onChange={(e) => setFormMemo(e.target.value)}
-                    style={{
-                      width: '100%',
-                      fontWeight: 600,
-                      imeMode: 'active',
-                      WebkitImeMode: 'active'
-                    }}
-                  />
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      lang="ko"
+                      inputMode="text"
+                      autoComplete="off"
+                      className="input ime-ko"
+                      placeholder={
+                        formCategory === '이월잔액' ? '예: 전월 이월잔액'
+                          : formCategory === '회비' ? '예: 홍길동 연회비/월회비 납부'
+                          : formCategory === '게스트비' ? '예: 김철수 게스트 참가비'
+                          : formCategory === '찬조' ? '예: 회장님 대회 찬조금'
+                          : formCategory === '대회참가비' ? '예: 정기 월례대회 참가비'
+                          : formType === 'INCOME' && formCategory === '기타' ? '예: 예금 이자 및 기타 수입'
+                          : formCategory === '대관료' ? '예: 시립테니스장 2코트 대관료'
+                          : formCategory === '식음료' ? '예: 정기모임 음료 및 간식 구입'
+                          : formCategory === '대회상품' ? '예: 정기대회 시상품(테니스공) 구매'
+                          : '예: 구급약품 및 클럽 용품 구입'
+                      }
+                      value={formMemo}
+                      onChange={(e) => setFormMemo(e.target.value)}
+                      style={{
+                        flex: '1 1 200px',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        padding: '8px 12px',
+                        imeMode: 'active',
+                        WebkitImeMode: 'active'
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={submitting}
+                      style={{
+                        padding: '8px 20px',
+                        borderRadius: '10px',
+                        fontWeight: 800,
+                        fontSize: '13.5px',
+                        background: editingId
+                          ? '#2563eb'
+                          : (activeIsIncome ? '#1d4ed8' : '#be123c'),
+                        border: 'none',
+                        color: '#ffffff',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 3px 10px rgba(0, 0, 0, 0.12)'
+                      }}
+                    >
+                      {submitting
+                        ? '저장 중...'
+                        : editingId
+                          ? '💾 수정 저장'
+                          : `➕ ${formCategory} 등록`}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* 하단 금액 빠른 입력 버튼 & 등록 버튼 */}
+              {/* 빠른 금액 입력 바 */}
               <div style={{
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                marginTop: '14px',
-                paddingTop: '12px',
+                gap: '5px',
+                marginTop: '10px',
+                paddingTop: '10px',
                 borderTop: '1px dashed #e2e8f0',
-                flexWrap: 'wrap',
-                gap: '10px'
+                flexWrap: 'wrap'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>⚡ 빠른 금액 입력:</span>
-                  {[
-                    { label: '+5천', val: 5000 },
-                    { label: '+1만', val: 10000 },
-                    { label: '+1.5만', val: 15000 },
-                    { label: '+3만', val: 30000 },
-                    { label: '+5만', val: 50000 },
-                    { label: '+12만', val: 120000 },
-                  ].map(btn => (
-                    <button
-                      key={btn.label}
-                      type="button"
-                      onClick={() => addQuickAmount(btn.val)}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        background: '#ffffff',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        color: '#334155',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {btn.label}
-                    </button>
-                  ))}
+                <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>⚡ 금액:</span>
+                {[
+                  { label: '+5천', val: 5000 },
+                  { label: '+1만', val: 10000 },
+                  { label: '+1.5만', val: 15000 },
+                  { label: '+3만', val: 30000 },
+                  { label: '+5만', val: 50000 },
+                  { label: '+12만', val: 120000 },
+                ].map(btn => (
                   <button
+                    key={btn.label}
                     type="button"
-                    onClick={() => { setFormIncome(''); setFormExpense(''); }}
+                    onClick={() => addQuickAmount(btn.val)}
                     style={{
-                      padding: '4px 10px',
-                      borderRadius: '8px',
-                      border: '1px solid #fecaca',
-                      background: '#fef2f2',
-                      fontSize: '12px',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      fontSize: '11.5px',
                       fontWeight: 700,
-                      color: '#b91c1c',
-                      cursor: 'pointer'
+                      color: '#334155',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
                     }}
                   >
-                    금액 0초기화
+                    {btn.label}
                   </button>
-                </div>
-
+                ))}
                 <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={submitting}
+                  type="button"
+                  onClick={() => { setFormIncome(''); setFormExpense(''); }}
                   style={{
-                    padding: '10px 24px',
-                    borderRadius: '10px',
-                    fontWeight: 800,
-                    fontSize: '14px',
-                    background: editingId
-                      ? '#2563eb'
-                      : (activeIsIncome ? '#1d4ed8' : '#be123c'),
-                    border: 'none',
-                    color: '#ffffff',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    color: '#b91c1c',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)'
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  {submitting
-                    ? '저장 중...'
-                    : editingId
-                      ? '💾 수정 내역 저장'
-                      : `➕ ${formCategory} (${activeIsIncome ? '수입' : '지출'}) 내역 등록`}
+                  초기화
                 </button>
               </div>
             </form>
           </div>
-        ) : (
-          <div style={{
-            marginBottom: '16px',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '8px'
-          }}>
-            <span style={{ fontSize: '13px', color: '#475569', fontWeight: 600 }}>
-              💡 회비 수입·지출 내역 열람 및 월별 내역서 출력이 가능합니다. (내역 입력/수정은 운영진 전용)
-            </span>
-            {onRequireLogin && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={onRequireLogin}
-                style={{ fontSize: '12px', fontWeight: 700 }}
-              >
-                🔒 운영자 로그인
-              </button>
-            )}
-          </div>
         )}
 
-        {/* 4. 내역 조회 필터 바 & 테이블 */}
-        <div className="card" style={{ padding: '20px' }}>
+        {/* 2. 기간별 수지 요약 카드 (간결한 3단 요약) */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '10px',
+          marginBottom: '16px'
+        }}>
+          {/* 총 수입 */}
+          <div className="card" style={{
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)',
+            border: '1px solid #bfdbfe',
+            borderRadius: '14px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af', whiteSpace: 'nowrap' }}>
+                🔵 {formattedPeriodTitle} 총 수입
+              </span>
+              <span style={{ fontSize: '18px', fontWeight: 900, color: '#1d4ed8', whiteSpace: 'nowrap' }}>
+                +{formatNum(summary.totalIncome)}원
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
+              {INCOME_CATEGORIES.map(c => (
+                <span key={c} style={{ whiteSpace: 'nowrap' }}>
+                  {c}: <strong style={{ color: '#1e293b' }}>{formatNum(summary.incomeTotals[c])}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* 총 지출 */}
+          <div className="card" style={{
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, #ffffff 0%, #fff1f2 100%)',
+            border: '1px solid #fecdd3',
+            borderRadius: '14px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: '#9f1239', whiteSpace: 'nowrap' }}>
+                🔴 {formattedPeriodTitle} 총 지출
+              </span>
+              <span style={{ fontSize: '18px', fontWeight: 900, color: '#be123c', whiteSpace: 'nowrap' }}>
+                -{formatNum(summary.totalExpense)}원
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
+              {EXPENSE_CATEGORIES.map(c => (
+                <span key={c} style={{ whiteSpace: 'nowrap' }}>
+                  {c}: <strong style={{ color: '#1e293b' }}>{formatNum(summary.expenseTotals[c])}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* 최종 잔액 */}
+          <div className="card" style={{
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
+            border: '1px solid #bbf7d0',
+            borderRadius: '14px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: '#166534', whiteSpace: 'nowrap' }}>
+                🟢 최종 잔액 (수입 - 지출)
+              </span>
+              <span style={{
+                fontSize: '19px',
+                fontWeight: 900,
+                color: summary.netBalance >= 0 ? '#15803d' : '#dc2626',
+                whiteSpace: 'nowrap'
+              }}>
+                {formatNum(summary.netBalance)}원
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
+              <span style={{ whiteSpace: 'nowrap' }}>당월 순수입(이월 제외): +{formatNum(summary.totalIncome - (summary.incomeTotals['이월잔액'] || 0))}원</span>
+              <span style={{ whiteSpace: 'nowrap' }}>총 {periodEntriesWithBalance.length}건</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. 회비 상세내역 카드 (조회 시작월~종료월 + 수입/지출 콤보박스 조건 + 가로형 테이블) */}
+        <div className="card" style={{ padding: '16px' }}>
+          {/* 상단 제목 및 출력 버튼 바 */}
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: 'wrap',
-            gap: '10px',
-            marginBottom: '14px'
+            gap: '8px',
+            marginBottom: '12px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--txt)' }}>
-                📋 {formattedPeriodTitle} 회비 상세 내역
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--txt)', whiteSpace: 'nowrap' }}>
+                📋 회비 상세내역
               </h3>
-              <span className="badge" style={{ background: '#f1f5f9', color: '#334155', fontSize: '12px', fontWeight: 800 }}>
-                총 {filteredEntries.length}건
+              <span className="badge" style={{ background: '#f1f5f9', color: '#334155', fontSize: '11.5px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                {filteredEntries.length}건
               </span>
             </div>
 
-            {/* 적요/내용 검색창 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* 출력 및 공유 버튼 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #1d4ed8',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span>🖨️</span>
+                <span>내역 출력 (A4)</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleDownloadCsv}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  background: '#ffffff',
+                  color: '#15803d',
+                  borderColor: '#86efac',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                📊 CSV
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleCopyTextSummary}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  background: '#ffffff',
+                  color: '#334155',
+                  borderColor: '#cbd5e1',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                📋 복사
+              </button>
+            </div>
+          </div>
+
+          {/* 조회 조건 박스: 시작월 ~ 종료월 + 구분 콤보박스 + 내용(항목) 콤보박스 + 검색어 */}
+          <div style={{
+            padding: '12px',
+            borderRadius: '12px',
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            marginBottom: '14px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
+            gap: '10px',
+            alignItems: 'end'
+          }}>
+            {/* 조회 시작월 */}
+            <div>
+              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                📅 조회 시작월
+              </label>
+              <input
+                type="month"
+                className="input"
+                value={startMonth}
+                onChange={(e) => handleStartMonthChange(e.target.value)}
+                style={{ width: '100%', fontSize: '13px', fontWeight: 700, padding: '7px 10px' }}
+              />
+            </div>
+
+            {/* 조회 종료월 */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 800, color: '#475569', whiteSpace: 'nowrap' }}>
+                  📅 조회 종료월
+                </label>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => applyQuickPeriod('THIS_MONTH')}
+                    style={{
+                      padding: '1px 6px',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      borderRadius: '4px',
+                      border: '1px solid #cbd5e1',
+                      background: (startMonth === currentYm && endMonth === currentYm) ? '#1d4ed8' : '#ffffff',
+                      color: (startMonth === currentYm && endMonth === currentYm) ? '#ffffff' : '#475569',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    이번달
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyQuickPeriod('THIS_YEAR')}
+                    style={{
+                      padding: '1px 6px',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      borderRadius: '4px',
+                      border: '1px solid #cbd5e1',
+                      background: (startMonth.endsWith('-01') && endMonth.endsWith('-12')) ? '#1d4ed8' : '#ffffff',
+                      color: (startMonth.endsWith('-01') && endMonth.endsWith('-12')) ? '#ffffff' : '#475569',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    올해전체
+                  </button>
+                </div>
+              </div>
+              <input
+                type="month"
+                className="input"
+                value={endMonth}
+                onChange={(e) => handleEndMonthChange(e.target.value)}
+                style={{ width: '100%', fontSize: '13px', fontWeight: 700, padding: '7px 10px' }}
+              />
+            </div>
+
+            {/* 수입/지출 구분 조건 콤보박스 */}
+            <div>
+              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                🔄 수입/지출 구분
+              </label>
+              <select
+                className="select"
+                value={filterType}
+                onChange={(e) => handleFilterTypeChange(e.target.value)}
+                style={{ width: '100%', fontSize: '13px', fontWeight: 700, padding: '7px 10px', backgroundColor: '#ffffff' }}
+              >
+                <option value="ALL">전체 (수입 + 지출)</option>
+                <option value="INCOME">🔵 수입 항목만</option>
+                <option value="EXPENSE">🔴 지출 항목만</option>
+              </select>
+            </div>
+
+            {/* 내용(항목) 조건 콤보박스 */}
+            <div>
+              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                🏷️ 내용 (항목 선택)
+              </label>
+              <select
+                className="select"
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                style={{ width: '100%', fontSize: '13px', fontWeight: 700, padding: '7px 10px', backgroundColor: '#ffffff' }}
+              >
+                <option value="ALL">전체 항목</option>
+                {(filterType === 'ALL' || filterType === 'INCOME') && (
+                  <optgroup label="🔵 수입 항목">
+                    {INCOME_CATEGORIES.map(c => (
+                      <option key={`flt-inc-${c}`} value={`INCOME:${c}`}>
+                        {getCategoryMeta(c, 'INCOME').icon} {c} (수입)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {(filterType === 'ALL' || filterType === 'EXPENSE') && (
+                  <optgroup label="🔴 지출 항목">
+                    {EXPENSE_CATEGORIES.map(c => (
+                      <option key={`flt-exp-${c}`} value={`EXPENSE:${c}`}>
+                        {getCategoryMeta(c, 'EXPENSE').icon} {c} (지출)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+
+            {/* 적요 검색 */}
+            <div>
+              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                🔍 적요 검색
+              </label>
               <input
                 type="text"
                 lang="ko"
                 className="input ime-ko"
-                placeholder="🔍 적요, 내용, 날짜 검색..."
+                placeholder="적요, 날짜 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '210px', padding: '6px 12px', fontSize: '13px', imeMode: 'active', WebkitImeMode: 'active' }}
+                style={{ width: '100%', padding: '7px 10px', fontSize: '13px', imeMode: 'active', WebkitImeMode: 'active', backgroundColor: '#ffffff' }}
               />
-              {(categoryFilter !== 'ALL' || searchQuery) && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => { setCategoryFilter('ALL'); setSearchQuery(''); }}
-                  style={{ fontSize: '12px', fontWeight: 700, padding: '6px 10px' }}
-                >
-                  필터 초기화
-                </button>
-              )}
             </div>
           </div>
 
-          {/* 항목별 필터 탭 칩 */}
-          <div style={{
-            display: 'flex',
-            gap: '6px',
-            flexWrap: 'wrap',
-            marginBottom: '16px',
-            paddingBottom: '12px',
-            borderBottom: '1px solid #e2e8f0'
-          }}>
-            {[
-              { key: 'ALL', label: `전체 (${periodEntriesWithBalance.length})` },
-              { key: 'INCOME_ALL', label: '🔵 수입 전체' },
-              ...INCOME_CATEGORIES.map(c => {
-                const m = getCategoryMeta(c, 'INCOME');
-                return { key: `INCOME:${c}`, label: `${m.icon} ${c === '기타' ? '기타(수입)' : c}` };
-              }),
-              { key: 'EXPENSE_ALL', label: '🔴 지출 전체' },
-              ...EXPENSE_CATEGORIES.map(c => {
-                const m = getCategoryMeta(c, 'EXPENSE');
-                return { key: `EXPENSE:${c}`, label: `${m.icon} ${c === '기타' ? '기타(지출)' : c}` };
-              }),
-            ].map(tab => {
-              const active = categoryFilter === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setCategoryFilter(tab.key)}
-                  style={{
-                    padding: '5px 11px',
-                    borderRadius: '999px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    border: active ? '1px solid #0f172a' : '1px solid #cbd5e1',
-                    background: active ? '#0f172a' : '#f8fafc',
-                    color: active ? '#ffffff' : '#475569'
-                  }}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* 내역 테이블 */}
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', fontSize: '13.5px' }}>
+          {/* 상세 내역 테이블 (모바일 환경에서 세로 줄바꿈 원천 차단: 전 셀 whiteSpace: nowrap 적용) */}
+          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', minWidth: '660px', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', color: '#334155' }}>
-                  <th style={{ padding: '10px 8px', width: '48px', textAlign: 'center', fontWeight: 800 }}>No.</th>
-                  <th style={{ padding: '10px 10px', width: '110px', textAlign: 'center', fontWeight: 800 }}>사용일</th>
-                  <th style={{ padding: '10px 10px', width: '112px', textAlign: 'center', fontWeight: 800 }}>내용</th>
-                  <th style={{ padding: '10px 12px', width: '120px', textAlign: 'right', fontWeight: 800, color: '#1d4ed8' }}>수입</th>
-                  <th style={{ padding: '10px 12px', width: '120px', textAlign: 'right', fontWeight: 800, color: '#be123c' }}>지출</th>
-                  <th style={{ padding: '10px 12px', width: '125px', textAlign: 'right', fontWeight: 800, color: '#047857' }}>잔액</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 800 }}>적요</th>
+                  <th style={{ padding: '9px 6px', width: '42px', textAlign: 'center', fontWeight: 800, whiteSpace: 'nowrap' }}>No.</th>
+                  <th style={{ padding: '9px 8px', width: '98px', textAlign: 'center', fontWeight: 800, whiteSpace: 'nowrap' }}>사용일</th>
+                  <th style={{ padding: '9px 8px', width: '96px', textAlign: 'center', fontWeight: 800, whiteSpace: 'nowrap' }}>내용</th>
+                  <th style={{ padding: '9px 10px', width: '108px', textAlign: 'right', fontWeight: 800, color: '#1d4ed8', whiteSpace: 'nowrap' }}>수입</th>
+                  <th style={{ padding: '9px 10px', width: '108px', textAlign: 'right', fontWeight: 800, color: '#be123c', whiteSpace: 'nowrap' }}>지출</th>
+                  <th style={{ padding: '9px 10px', width: '112px', textAlign: 'right', fontWeight: 800, color: '#047857', whiteSpace: 'nowrap' }}>잔액</th>
+                  <th style={{ padding: '9px 10px', minWidth: '170px', textAlign: 'left', fontWeight: 800, whiteSpace: 'nowrap' }}>적요</th>
                   {canEdit && (
-                    <th style={{ padding: '10px 8px', width: '104px', textAlign: 'center', fontWeight: 800 }}>관리</th>
+                    <th style={{ padding: '9px 6px', width: '94px', textAlign: 'center', fontWeight: 800, whiteSpace: 'nowrap' }}>관리</th>
                   )}
                 </tr>
               </thead>
               <tbody>
                 {filteredEntries.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 8 : 7} style={{ padding: '42px 16px', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>
+                    <td colSpan={canEdit ? 8 : 7} style={{ padding: '38px 16px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {periodEntriesWithBalance.length === 0
-                        ? `${formattedPeriodTitle}에 등록된 회비 수입·지출 내역이 없습니다.`
-                        : '선택한 필터/검색 조건에 일치하는 내역이 없습니다.'}
+                        ? `${formattedPeriodTitle} 기간에 등록된 회비 수입·지출 내역이 없습니다.`
+                        : '선택한 조회 조건에 일치하는 내역이 없습니다.'}
                     </td>
                   </tr>
                 ) : (
@@ -1600,31 +1436,32 @@ export default function FeeLedgerTab({
                           transition: 'background 0.15s ease'
                         }}
                       >
-                        <td style={{ padding: '11px 8px', textAlign: 'center', color: '#64748b', fontWeight: 700 }}>
+                        <td style={{ padding: '10px 6px', textAlign: 'center', color: '#64748b', fontWeight: 700, whiteSpace: 'nowrap' }}>
                           {item.rowNum}
                         </td>
-                        <td style={{ padding: '11px 10px', textAlign: 'center', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
                           {item.date}
                         </td>
-                        <td style={{ padding: '11px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
-                            padding: '3px 10px',
+                            padding: '2.5px 9px',
                             borderRadius: '999px',
-                            fontSize: '12px',
+                            fontSize: '11.5px',
                             fontWeight: 800,
                             background: meta.bg,
                             color: meta.color,
-                            border: `1px solid ${meta.border}`
+                            border: `1px solid ${meta.border}`,
+                            whiteSpace: 'nowrap'
                           }}>
                             <span>{meta.icon}</span>
                             <span>{item.category}</span>
                           </span>
                         </td>
                         <td style={{
-                          padding: '11px 12px',
+                          padding: '10px 10px',
                           textAlign: 'right',
                           fontWeight: 800,
                           color: item.income > 0 ? '#1d4ed8' : '#cbd5e1',
@@ -1633,7 +1470,7 @@ export default function FeeLedgerTab({
                           {item.income > 0 ? `+${formatNum(item.income)}원` : '-'}
                         </td>
                         <td style={{
-                          padding: '11px 12px',
+                          padding: '10px 10px',
                           textAlign: 'right',
                           fontWeight: 800,
                           color: item.expense > 0 ? '#be123c' : '#cbd5e1',
@@ -1642,7 +1479,7 @@ export default function FeeLedgerTab({
                           {item.expense > 0 ? `-${formatNum(item.expense)}원` : '-'}
                         </td>
                         <td style={{
-                          padding: '11px 12px',
+                          padding: '10px 10px',
                           textAlign: 'right',
                           fontWeight: 800,
                           color: '#0f172a',
@@ -1651,24 +1488,25 @@ export default function FeeLedgerTab({
                         }}>
                           {formatNum(item.balance)}원
                         </td>
-                        <td style={{ padding: '11px 12px', textAlign: 'left', color: '#334155', fontWeight: 600 }}>
+                        <td style={{ padding: '10px 10px', textAlign: 'left', color: '#334155', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {item.memo || <span style={{ color: '#cbd5e1' }}>-</span>}
                         </td>
                         {canEdit && (
-                          <td style={{ padding: '11px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                            <div style={{ display: 'inline-flex', gap: '4px' }}>
+                          <td style={{ padding: '10px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'inline-flex', gap: '4px', whiteSpace: 'nowrap' }}>
                               <button
                                 type="button"
                                 onClick={() => handleStartEdit(item)}
                                 style={{
-                                  padding: '4px 8px',
+                                  padding: '3.5px 8px',
                                   borderRadius: '6px',
                                   border: '1px solid #bfdbfe',
                                   background: '#eff6ff',
                                   color: '#1d4ed8',
                                   fontSize: '11.5px',
                                   fontWeight: 700,
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap'
                                 }}
                               >
                                 수정
@@ -1677,14 +1515,15 @@ export default function FeeLedgerTab({
                                 type="button"
                                 onClick={() => handleDelete(item)}
                                 style={{
-                                  padding: '4px 8px',
+                                  padding: '3.5px 8px',
                                   borderRadius: '6px',
                                   border: '1px solid #fecaca',
                                   background: '#fef2f2',
                                   color: '#b91c1c',
                                   fontSize: '11.5px',
                                   fontWeight: 700,
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap'
                                 }}
                               >
                                 삭제
@@ -1699,20 +1538,20 @@ export default function FeeLedgerTab({
               </tbody>
               {filteredEntries.length > 0 && (
                 <tfoot>
-                  <tr style={{ background: '#f1f5f9', borderTop: '2px solid #334155', fontWeight: 900, fontSize: '14px' }}>
-                    <td colSpan={3} style={{ padding: '12px 10px', textAlign: 'center', color: '#0f172a' }}>
-                      {categoryFilter === 'ALL' && !searchQuery ? `${formattedPeriodTitle} 전체 합계` : '필터링 내역 합계'}
+                  <tr style={{ background: '#f1f5f9', borderTop: '2px solid #334155', fontWeight: 900, fontSize: '13px' }}>
+                    <td colSpan={3} style={{ padding: '10px 8px', textAlign: 'center', color: '#0f172a', whiteSpace: 'nowrap' }}>
+                      {filterType === 'ALL' && filterCategory === 'ALL' && !searchQuery ? `${formattedPeriodTitle} 합계` : '조회 조건 합계'}
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#1d4ed8', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '10px', textAlign: 'right', color: '#1d4ed8', whiteSpace: 'nowrap' }}>
                       +{formatNum(summary.filteredIncome)}원
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#be123c', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '10px', textAlign: 'right', color: '#be123c', whiteSpace: 'nowrap' }}>
                       -{formatNum(summary.filteredExpense)}원
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#047857', background: '#ecfdf5', whiteSpace: 'nowrap' }}>
-                      {formatNum(categoryFilter === 'ALL' && !searchQuery ? summary.netBalance : summary.filteredBalance)}원
+                    <td style={{ padding: '10px', textAlign: 'right', color: '#047857', background: '#ecfdf5', whiteSpace: 'nowrap' }}>
+                      {formatNum(filterType === 'ALL' && filterCategory === 'ALL' && !searchQuery ? summary.netBalance : summary.filteredBalance)}원
                     </td>
-                    <td colSpan={canEdit ? 2 : 1} style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#475569' }}>
+                    <td colSpan={canEdit ? 2 : 1} style={{ padding: '10px', textAlign: 'left', fontSize: '11.5px', color: '#475569', whiteSpace: 'nowrap' }}>
                       수입 {formatNum(summary.filteredIncome)}원 - 지출 {formatNum(summary.filteredExpense)}원
                     </td>
                   </tr>
@@ -1723,7 +1562,7 @@ export default function FeeLedgerTab({
         </div>
       </div>
 
-      {/* ── 5. 월별 전체 내역 출력 미리보기 & 인쇄 모달 ── */}
+      {/* ── 4. 기간별 전체 내역 출력 미리보기 & 인쇄 모달 ── */}
       {showPrintModal && (
         <div
           className="no-print"
@@ -1847,7 +1686,7 @@ export default function FeeLedgerTab({
                   checked={printIncludeCategorySummary}
                   onChange={(e) => setPrintIncludeCategorySummary(e.target.checked)}
                 />
-                <span>항목별(이월/회비/게스트비/찬조/대회참가비/기타 · 대관료/식음료/대회상품/기타) 소계표 표시</span>
+                <span>항목별 소계표 표시</span>
               </label>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
                 <input

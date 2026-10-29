@@ -154,38 +154,38 @@ export default function MembersPage() {
     <div className={styles.page}>
       <Navbar />
       <main className={styles.main}>
-        <div className={`${styles.header} no-print`}>
+        <div className={`${styles.header} no-print`} style={{ gap: '10px', marginBottom: '12px' }}>
           <div>
-            <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h1 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'clamp(1.2rem, 4vw, 1.5rem)' }}>
               <PageHeaderIcon type="members" />
               <span>회원 관리</span>
             </h1>
-            <p className={styles.sub}>
-              {isAdmin ? '클럽 정회원/준회원/게스트 명단과 회비 수입·지출 내역을 관리합니다.' : '클럽 정회원/준회원/게스트 명부 및 회비 내역입니다.'}
+            <p className={styles.sub} style={{ fontSize: '12.5px', marginTop: '2px' }}>
+              {isAdmin ? '정회원/게스트 명단과 회비 내역을 관리합니다.' : '클럽 정회원 및 게스트 명부입니다.'}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
               className="btn btn-secondary btn-sm"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '4px',
                 fontWeight: 700,
-                fontSize: '12.5px',
-                padding: '6px 12px',
+                fontSize: '12px',
+                padding: '5px 10px',
                 borderRadius: '8px',
                 backgroundColor: '#ffffff',
                 borderColor: '#bfdbfe',
                 color: '#1d4ed8',
-                boxShadow: '0 1px 3px rgba(29, 78, 216, 0.08)'
+                whiteSpace: 'nowrap'
               }}
               onClick={() => setShowRolesModal(true)}
               title="운영진 5대 직책별 주요 업무 및 협업 체계 가이드 보기"
             >
-              <IconClipboardList size={15} color="#1d4ed8" />
-              <span>직책별 주요 업무</span>
+              <IconClipboardList size={14} color="#1d4ed8" />
+              <span>직책 업무</span>
             </button>
             {(isAdmin || canViewBylaws) && (
               <button
@@ -194,26 +194,26 @@ export default function MembersPage() {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '4px',
                   fontWeight: 700,
-                  fontSize: '12.5px',
-                  padding: '6px 12px',
+                  fontSize: '12px',
+                  padding: '5px 10px',
                   borderRadius: '8px',
                   backgroundColor: '#ffffff',
                   borderColor: '#bfdbfe',
                   color: '#1d4ed8',
-                  boxShadow: '0 1px 3px rgba(29, 78, 216, 0.08)'
+                  whiteSpace: 'nowrap'
                 }}
                 onClick={() => setShowRulesModal(true)}
                 title="테친회 동호회 공식 회칙 및 역대 개정 이력 보기"
               >
-                <IconBookOpen size={15} color="#1d4ed8" />
-                <span>동호회 회칙</span>
+                <IconBookOpen size={14} color="#1d4ed8" />
+                <span>회칙</span>
               </button>
             )}
             {(isAdmin || canEditMember) ? (
-              <span className="badge badge-blue" style={{ fontSize: '12px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                {isAdmin ? '👑 운영자 모드' : '✏️ 회원 관리 모드'}
+              <span className="badge badge-blue" style={{ fontSize: '11.5px', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                {isAdmin ? '👑 관리자' : '✏️ 편집권한'}
               </span>
             ) : (
               <button
@@ -226,239 +226,194 @@ export default function MembersPage() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '34px',
-                  height: '32px',
+                  width: '32px',
+                  height: '30px',
                   padding: 0,
-                  borderRadius: '10px'
+                  borderRadius: '8px'
                 }}
               >
-                <LockIcon size={15} color="#ffffff" />
+                <LockIcon size={14} color="#ffffff" />
               </button>
             )}
-            <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>대시보드</button>
           </div>
         </div>
 
-        <div style={{ marginTop: '1rem' }}>
+        <div style={{ marginTop: '0.5rem' }}>
           
-          {/* ── 1. 회원 현황 종합 요약 카드 (정회원 vs 게스트 분리 요약) ── */}
+          {/* ── 1. 회원 현황 종합 요약 바 (컴팩트 모바일 최적화) ── */}
           <div className="card no-print" style={{
-            marginBottom: '16px',
-            padding: '16px 20px',
+            marginBottom: '12px',
+            padding: '12px 14px',
             background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(240,247,255,0.95) 100%)',
-            borderRadius: '16px',
-            border: '1px solid rgba(37, 99, 235, 0.18)',
-            boxShadow: '0 4px 18px rgba(0, 0, 0, 0.04)'
+            borderRadius: '14px',
+            border: '1px solid rgba(37, 99, 235, 0.16)',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <div>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {memberCategory === 'GUEST' ? '🙋 등록 게스트 현황' : '📊 클럽 정회원 현황'}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
-                  {memberCategory === 'GUEST' ? (
-                    <>
-                      <span style={{ fontSize: '22px', fontWeight: 900, color: 'var(--txt)' }}>
-                        게스트 총 {guestCount}명
-                      </span>
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#7e22ce' }}>
-                        (남자 {guestMaleCount}명, 여자 {guestFemaleCount}명)
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ fontSize: '22px', fontWeight: 900, color: 'var(--txt)' }}>
-                        정회원 총 {totalCount}명
-                      </span>
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#1d4ed8' }}>
-                        (남자 {maleCount}명, 여자 {femaleCount}명)
-                      </span>
-                    </>
-                  )}
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+                {memberCategory === 'GUEST' ? (
+                  <>
+                    <span style={{ fontSize: '16px', fontWeight: 900, color: 'var(--txt)', whiteSpace: 'nowrap' }}>
+                      🙋 게스트 {guestCount}명
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#7e22ce', whiteSpace: 'nowrap' }}>
+                      (남 {guestMaleCount} · 여 {guestFemaleCount})
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: '16px', fontWeight: 900, color: 'var(--txt)', whiteSpace: 'nowrap' }}>
+                      🎾 정회원 {totalCount}명
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#1d4ed8', whiteSpace: 'nowrap' }}>
+                      (남 {maleCount} · 여 {femaleCount})
+                    </span>
+                  </>
+                )}
               </div>
 
-              {/* 세부 분류 뱃지 (클릭하여 정회원 / 게스트 / 회비 내역 탭 빠른 전환 가능) */}
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => { setActiveSubTab('members'); setMemberCategory('REGULAR'); }}
-                  className="badge"
-                  style={{
-                    background: (activeSubTab === 'members' && memberCategory === 'REGULAR') ? '#1d4ed8' : '#eff6ff',
-                    color: (activeSubTab === 'members' && memberCategory === 'REGULAR') ? '#ffffff' : '#1d4ed8',
-                    border: '1px solid #bfdbfe',
-                    padding: '5px 11px',
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  🎾 정회원 {regularCount}명
-                </button>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                 {associateCount > 0 && (
-                  <span className="badge" style={{ background: '#fefce8', color: '#a16207', border: '1px solid #fef08a', padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}>
+                  <span className="badge" style={{ background: '#fefce8', color: '#a16207', border: '1px solid #fef08a', padding: '3px 8px', fontSize: '11.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>
                     🌱 준회원 {associateCount}명
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => { setActiveSubTab('members'); setMemberCategory('GUEST'); }}
-                  className="badge"
-                  style={{
-                    background: (activeSubTab === 'members' && memberCategory === 'GUEST') ? '#7c3aed' : '#f5f3ff',
-                    color: (activeSubTab === 'members' && memberCategory === 'GUEST') ? '#ffffff' : '#6d28d9',
-                    border: '1px solid #ddd6fe',
-                    padding: '5px 11px',
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  🙋 게스트 {guestCount}명
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('ledger')}
-                  className="badge"
-                  style={{
-                    background: activeSubTab === 'ledger' ? '#047857' : '#ecfdf5',
-                    color: activeSubTab === 'ledger' ? '#ffffff' : '#047857',
-                    border: '1px solid #a7f3d0',
-                    padding: '5px 11px',
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  📒 회비 내역 (수입·지출)
-                </button>
                 {(isAdmin || canManageFee) && memberCategory === 'REGULAR' && (
-                  <span className="badge" style={{ background: unpaidCount === 0 ? '#f0fdf4' : '#fef2f2', color: unpaidCount === 0 ? '#15803d' : '#b91c1c', border: `1px solid ${unpaidCount === 0 ? '#bbf7d0' : '#fecaca'}`, padding: '5px 10px', fontSize: '12px', fontWeight: 700 }}>
-                    {unpaidCount === 0 ? '✅ 정회원 회비 전원 완납' : `💰 미납 ${unpaidCount}명`}
+                  <span className="badge" style={{ background: unpaidCount === 0 ? '#f0fdf4' : '#fef2f2', color: unpaidCount === 0 ? '#15803d' : '#b91c1c', border: `1px solid ${unpaidCount === 0 ? '#bbf7d0' : '#fecaca'}`, padding: '3px 9px', fontSize: '11.5px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                    {unpaidCount === 0 ? '✅ 회비 전원 완납' : `💰 미납 ${unpaidCount}명`}
                   </span>
                 )}
               </div>
             </div>
           </div>
 
-          {/* ── 2. 서브 탭 전환 버튼 (회원 명단 관리 / 회비 내역 입력·조회 / 코트비 & 최적 인원 산출기) ── */}
-          <div className="no-print" style={{
-            display: 'flex',
-            gap: '8px',
-            marginBottom: '20px',
-            background: 'rgba(0, 0, 0, 0.05)',
-            padding: '5px',
-            borderRadius: 'var(--radius-full)',
-            width: 'fit-content',
-            maxWidth: '100%',
-            overflowX: 'auto',
-            WebkitOverflowScrolling: 'touch',
-            boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.06)'
-          }}>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('members')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '10px 20px',
-                borderRadius: 'var(--radius-full)',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                background: activeSubTab === 'members' ? '#ffffff' : 'transparent',
-                color: activeSubTab === 'members' ? 'var(--ios-blue)' : 'var(--txt2)',
-                boxShadow: activeSubTab === 'members' ? '0 3px 10px rgba(0, 122, 255, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <MembersIcon size={16} color={activeSubTab === 'members' ? 'var(--ios-blue)' : 'var(--txt2)'} active={activeSubTab === 'members'} />
-              <span>회원 명단 관리</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('ledger')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '10px 20px',
-                borderRadius: 'var(--radius-full)',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                background: activeSubTab === 'ledger' ? '#ffffff' : 'transparent',
-                color: activeSubTab === 'ledger' ? 'var(--ios-blue)' : 'var(--txt2)',
-                boxShadow: activeSubTab === 'ledger' ? '0 3px 10px rgba(0, 122, 255, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <span>📒 회비 내역 입력 · 조회</span>
-            </button>
-            {(isAdmin || canCourtFinance) && (
+          {/* ── 2. 서브 탭 전환 버튼 (모바일 가로 스크롤 없이 한 줄 고정: 회원 명단 관리 / 회비 내역 / 코트비&최적 인원 산출기) ── */}
+          {(isAdmin || canManageFee || canCourtFinance) && (
+            <div className="no-print" style={{
+              display: 'grid',
+              gridTemplateColumns: (isAdmin || (canManageFee && canCourtFinance))
+                ? '1fr 0.85fr 1.25fr'
+                : '1fr 1fr',
+              gap: '4px',
+              marginBottom: '14px',
+              background: '#e2e8f0',
+              padding: '4px',
+              borderRadius: '12px',
+              width: '100%',
+              overflow: 'hidden',
+              boxSizing: 'border-box'
+            }}>
               <button
                 type="button"
-                onClick={() => setActiveSubTab('finance')}
+                onClick={() => setActiveSubTab('members')}
                 style={{
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
-                  padding: '10px 20px',
-                  borderRadius: 'var(--radius-full)',
+                  padding: '9px 4px',
+                  borderRadius: '9px',
                   border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
+                  fontWeight: activeSubTab === 'members' ? 800 : 700,
+                  fontSize: 'clamp(11px, 3vw, 13.5px)',
+                  letterSpacing: '-0.04em',
                   cursor: 'pointer',
-                  background: activeSubTab === 'finance' ? '#ffffff' : 'transparent',
-                  color: activeSubTab === 'finance' ? 'var(--ios-blue)' : 'var(--txt2)',
-                  boxShadow: activeSubTab === 'finance' ? '0 3px 10px rgba(0, 122, 255, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  whiteSpace: 'nowrap'
+                  background: activeSubTab === 'members' ? '#ffffff' : 'transparent',
+                  color: activeSubTab === 'members' ? '#1d4ed8' : '#475569',
+                  boxShadow: activeSubTab === 'members' ? '0 2px 6px rgba(15, 23, 42, 0.1)' : 'none',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  minWidth: 0
                 }}
               >
-                🏟️ 코트비 & 최적 인원 산출기
+                회원 명단 관리
               </button>
-            )}
-          </div>
+              {(isAdmin || canManageFee) && (
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('ledger')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '9px 4px',
+                    borderRadius: '9px',
+                    border: 'none',
+                    fontWeight: activeSubTab === 'ledger' ? 800 : 700,
+                    fontSize: 'clamp(11px, 3vw, 13.5px)',
+                    letterSpacing: '-0.04em',
+                    cursor: 'pointer',
+                    background: activeSubTab === 'ledger' ? '#ffffff' : 'transparent',
+                    color: activeSubTab === 'ledger' ? '#1d4ed8' : '#475569',
+                    boxShadow: activeSubTab === 'ledger' ? '0 2px 6px rgba(15, 23, 42, 0.1)' : 'none',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    minWidth: 0
+                  }}
+                >
+                  회비 내역
+                </button>
+              )}
+              {(isAdmin || canCourtFinance) && (
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('finance')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '9px 4px',
+                    borderRadius: '9px',
+                    border: 'none',
+                    fontWeight: activeSubTab === 'finance' ? 800 : 700,
+                    fontSize: 'clamp(11px, 3vw, 13.5px)',
+                    letterSpacing: '-0.04em',
+                    cursor: 'pointer',
+                    background: activeSubTab === 'finance' ? '#ffffff' : 'transparent',
+                    color: activeSubTab === 'finance' ? '#1d4ed8' : '#475569',
+                    boxShadow: activeSubTab === 'finance' ? '0 2px 6px rgba(15, 23, 42, 0.1)' : 'none',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    minWidth: 0
+                  }}
+                >
+                  코트비&최적 인원 산출기
+                </button>
+              )}
+            </div>
+          )}
 
           {/* ── 3. 회원 명단 탭 ── */}
-          {activeSubTab === 'members' && (
+          {(activeSubTab === 'members' || (!isAdmin && !canManageFee && !canCourtFinance)) && (
             <>
               {(isAdmin || canManageFee) && memberCategory === 'REGULAR' && (
-                <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)', margin: 0, letterSpacing: '-0.02em' }}>💰 클럽 회비 / 계좌 설정</h3>
-                    <button className="btn btn-primary btn-sm" onClick={handleSaveFinanceInfo}>저장</button>
+                <div className="card" style={{ marginBottom: '14px', padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--txt)', margin: 0, letterSpacing: '-0.02em' }}>💰 클럽 회비 / 계좌 설정</h3>
+                    <button className="btn btn-primary btn-sm" style={{ padding: '4px 12px', fontSize: '12px' }} onClick={handleSaveFinanceInfo}>저장</button>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '10px' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--txt2)' }}>납부 주기</label>
-                      <select className="select" value={feeCycle} onChange={e => setFeeCycle(e.target.value)}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>납부 주기</label>
+                      <select className="select input-sm" value={feeCycle} onChange={e => setFeeCycle(e.target.value)}>
                         <option value="월납">월납</option>
                         <option value="분기납">분기납</option>
                         <option value="연납">연납</option>
                       </select>
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px', color: 'var(--text-muted)' }}>회비 금액</label>
-                      <input className="input" type="text" placeholder="예: 30,000" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} />
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>회비 금액</label>
+                      <input className="input input-sm" type="text" placeholder="예: 120,000" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px', color: 'var(--text-muted)' }}>회비 통장 (은행 및 계좌번호)</label>
-                      <input className="input" type="text" placeholder="예: 국민 1234-5678" value={bankAccount} onChange={e => setBankAccount(e.target.value)} />
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>회비 통장</label>
+                      <input className="input input-sm" type="text" placeholder="예: 국민 1234-5678" value={bankAccount} onChange={e => setBankAccount(e.target.value)} />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '15px', marginBottom: '4px', color: 'var(--text-muted)' }}>예금주</label>
-                      <input className="input" type="text" placeholder="예: 홍길동" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} />
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--txt2)' }}>예금주</label>
+                      <input className="input input-sm" type="text" placeholder="예: 홍길동" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} />
                     </div>
                   </div>
                 </div>
@@ -481,8 +436,8 @@ export default function MembersPage() {
             </>
           )}
 
-          {/* ── 4. 회비 내역 입력 · 조회 탭 ── */}
-          {activeSubTab === 'ledger' && (
+          {/* ── 4. 회비 내역 입력 · 조회 탭 (관리자 권한 전용) ── */}
+          {(isAdmin || canManageFee) && activeSubTab === 'ledger' && (
             <FeeLedgerTab
               isAdmin={isAdmin}
               canManageFee={canManageFee}
@@ -490,7 +445,7 @@ export default function MembersPage() {
               currentClub={{
                 ...currentClub,
                 name: clubProfile?.name || currentClub?.name || '테친회',
-                feeAmount: feeAmount || currentClub?.feeAmount || '30000',
+                feeAmount: feeAmount || currentClub?.feeAmount || '120000',
                 bankAccount: bankAccount || currentClub?.bankAccount || '',
                 accountHolder: accountHolder || currentClub?.accountHolder || ''
               }}

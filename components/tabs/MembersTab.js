@@ -240,15 +240,15 @@ export default function MembersTab({
 
   return (
     <div>
-      {/* ── 0. 정회원 관리 vs 게스트 별도 관리 상단 전환 탭 바 ── */}
+      {/* ── 0. 정회원 관리 vs 게스트 별도 관리 상단 전환 탭 바 (모바일 간결 최적화) ── */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
-        gap: '10px',
-        marginBottom: '16px',
-        padding: '6px',
+        gap: '6px',
+        marginBottom: '12px',
+        padding: '4px',
         backgroundColor: '#f1f5f9',
-        borderRadius: '14px',
+        borderRadius: '12px',
         border: '1px solid #e2e8f0'
       }}>
         <button
@@ -258,25 +258,24 @@ export default function MembersTab({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '8px',
-            padding: '11px 16px',
-            borderRadius: '10px',
+            gap: '6px',
+            padding: '8px 10px',
+            borderRadius: '9px',
             border: !isGuestView ? '1.5px solid #2563eb' : '1px solid transparent',
             backgroundColor: !isGuestView ? '#ffffff' : 'transparent',
             color: !isGuestView ? '#1d4ed8' : '#64748b',
             fontWeight: !isGuestView ? 800 : 600,
-            fontSize: '14px',
+            fontSize: '13px',
             cursor: 'pointer',
-            boxShadow: !isGuestView ? '0 2px 8px rgba(37, 99, 235, 0.12)' : 'none',
-            transition: 'all 0.18s ease'
+            boxShadow: !isGuestView ? '0 2px 6px rgba(37, 99, 235, 0.1)' : 'none',
+            whiteSpace: 'nowrap'
           }}
         >
-          <span>🎾</span>
-          <span>정회원 관리</span>
+          <span>🎾 정회원</span>
           <span style={{
-            padding: '2px 8px',
+            padding: '1px 7px',
             borderRadius: '999px',
-            fontSize: '11.5px',
+            fontSize: '11px',
             fontWeight: 800,
             backgroundColor: !isGuestView ? '#dbeafe' : '#e2e8f0',
             color: !isGuestView ? '#1d4ed8' : '#475569'
@@ -292,25 +291,24 @@ export default function MembersTab({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '8px',
-            padding: '11px 16px',
-            borderRadius: '10px',
+            gap: '6px',
+            padding: '8px 10px',
+            borderRadius: '9px',
             border: isGuestView ? '1.5px solid #7c3aed' : '1px solid transparent',
             backgroundColor: isGuestView ? '#ffffff' : 'transparent',
             color: isGuestView ? '#6d28d9' : '#64748b',
             fontWeight: isGuestView ? 800 : 600,
-            fontSize: '14px',
+            fontSize: '13px',
             cursor: 'pointer',
-            boxShadow: isGuestView ? '0 2px 8px rgba(124, 58, 237, 0.14)' : 'none',
-            transition: 'all 0.18s ease'
+            boxShadow: isGuestView ? '0 2px 6px rgba(124, 58, 237, 0.12)' : 'none',
+            whiteSpace: 'nowrap'
           }}
         >
-          <span>🙋</span>
-          <span>게스트 관리</span>
+          <span>🙋 게스트</span>
           <span style={{
-            padding: '2px 8px',
+            padding: '1px 7px',
             borderRadius: '999px',
-            fontSize: '11.5px',
+            fontSize: '11px',
             fontWeight: 800,
             backgroundColor: isGuestView ? '#ede9fe' : '#e2e8f0',
             color: isGuestView ? '#6d28d9' : '#475569'
@@ -320,31 +318,32 @@ export default function MembersTab({
         </button>
       </div>
 
-      <div className={`card ${styles.section}`} style={{ padding: '20px' }}>
+      <div className={`card ${styles.section}`} style={{ padding: '14px' }}>
         
         {/* ── 1. 명단 헤더 & 상단 툴바 ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
               <span>{isGuestView ? '🙋' : '👥'}</span>
               <span>{isGuestView ? '게스트 명단' : '정회원 명단'}</span>
             </h2>
             <span
               className="hero-chip"
               style={{
-                fontSize: '12px',
-                padding: '3px 10px',
+                fontSize: '11.5px',
+                padding: '2px 8px',
                 color: isGuestView ? '#6d28d9' : '#1d4ed8',
                 background: isGuestView ? 'rgba(124, 58, 237, 0.1)' : 'rgba(37,99,235,0.08)',
-                fontWeight: 700
+                fontWeight: 800,
+                whiteSpace: 'nowrap'
               }}
             >
-              총 {targetPool.length}명
+              {targetPool.length}명
             </span>
           </div>
 
           {/* 우측 상단 액션 버튼 */}
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
             {hasEditPerm && (
               <>
                 <button
@@ -353,22 +352,20 @@ export default function MembersTab({
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '5px',
-                    padding: '6px 12px',
+                    gap: '4px',
+                    padding: '5px 10px',
                     borderRadius: '8px',
-                    fontSize: '12.5px',
+                    fontSize: '12px',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    transition: 'all 0.18s ease',
                     backgroundColor: isQuickEdit ? '#eff6ff' : '#ffffff',
                     color: isQuickEdit ? '#1d4ed8' : '#475569',
                     border: isQuickEdit ? '1px solid #93c5fd' : '1px solid #cbd5e1',
-                    boxShadow: isQuickEdit ? '0 0 0 2px rgba(59, 130, 246, 0.2)' : 'none'
+                    whiteSpace: 'nowrap'
                   }}
                   title="표 내에서 직접 이름, 역할, 성별을 바로 수정할 수 있는 인라인 편집 모드"
                 >
-                  <span>{isQuickEdit ? '✓' : '⚡'}</span>
-                  <span>{isQuickEdit ? '표 편집 완료' : '빠른 편집'}</span>
+                  <span>{isQuickEdit ? '✓ 편집완료' : '⚡ 빠른편집'}</span>
                 </button>
                 <button 
                   type="button"
@@ -376,249 +373,115 @@ export default function MembersTab({
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '5px',
-                    padding: '6px 14px',
+                    gap: '4px',
+                    padding: '5px 11px',
                     borderRadius: '8px',
-                    fontSize: '12.5px',
+                    fontSize: '12px',
                     fontWeight: 800,
                     backgroundColor: isGuestView ? '#7c3aed' : '#007aff',
                     color: '#ffffff',
                     border: 'none',
                     cursor: 'pointer',
-                    boxShadow: isGuestView ? '0 2px 6px rgba(124, 58, 237, 0.25)' : '0 2px 6px rgba(0, 122, 255, 0.25)',
-                    transition: 'all 0.15s ease'
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  <UserPlusIcon size={14} color="#ffffff" />
-                  <span>{isGuestView ? '새 게스트 등록' : '새 정회원 추가'}</span>
+                  <UserPlusIcon size={13} color="#ffffff" />
+                  <span>{isGuestView ? '게스트 등록' : '정회원 추가'}</span>
                 </button>
               </>
             )}
           </div>
         </div>
 
-        {/* 게스트 관리 전용 안내 배너 */}
-        {isGuestView && (
-          <div style={{
-            marginBottom: '14px',
-            padding: '10px 14px',
-            borderRadius: '10px',
-            backgroundColor: '#f5f3ff',
-            border: '1px solid #ddd6fe',
-            color: '#5b21b6',
-            fontSize: '12.5px',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '8px'
-          }}>
-            <span>💡 모임·대진표에 참여하는 <strong>게스트</strong>를 정회원 명단과 분리하여 별도 관리합니다. (월회비 관리 대상에서 제외)</span>
-            {hasEditPerm && (
-              <span style={{ fontSize: '11.5px', color: '#6d28d9', fontWeight: 700 }}>
-                ※ 게스트가 클럽 가입 시 우측 [🔄 정회원 전환] 버튼으로 즉시 전환 가능
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* ── 2. 검색 및 필터 툴바 ── */}
+        {/* ── 2. 검색 및 필터 툴바 (콤보박스로 모바일 간결화) ── */}
         <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '10px',
+          display: 'grid',
+          gridTemplateColumns: !isGuestView ? '1.2fr 1fr 0.85fr' : '1.4fr 0.85fr',
+          gap: '6px',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '16px',
-          padding: '12px 14px',
+          marginBottom: '12px',
+          padding: '8px 10px',
           backgroundColor: '#f8fafc',
-          borderRadius: '12px',
+          borderRadius: '10px',
           border: '1px solid #e2e8f0'
         }}>
           {/* 검색창 */}
-          <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: '280px' }}>
+          <div style={{ position: 'relative', minWidth: 0 }}>
             <input 
               type="text" 
-              placeholder={isGuestView ? '게스트 이름 검색...' : '정회원 이름 검색...'} 
+              placeholder={isGuestView ? '이름 검색...' : '이름 검색...'} 
               value={searchKeyword} 
               onChange={e => setSearchKeyword(e.target.value)}
               className="input input-sm"
               style={{
                 width: '100%',
-                paddingLeft: '32px',
-                paddingRight: searchKeyword ? '28px' : '10px',
+                paddingLeft: '26px',
+                paddingRight: searchKeyword ? '22px' : '8px',
                 borderRadius: '8px',
-                fontSize: '13px',
-                backgroundColor: '#ffffff'
+                fontSize: '12.5px',
+                backgroundColor: '#ffffff',
+                height: '34px'
               }}
             />
-            <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '13px', pointerEvents: 'none' }}>
+            <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '12px', pointerEvents: 'none' }}>
               🔍
             </span>
             {searchKeyword && (
               <button 
                 type="button" 
                 onClick={() => setSearchKeyword('')} 
-                style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', padding: 0 }}
+                style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px', padding: 0 }}
               >
                 ✕
               </button>
             )}
           </div>
 
-          {/* 역할별 필터 칩 (정회원 탭에서만 세부 직책/미납 필터 표시) */}
-          {!isGuestView ? (
-            <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexWrap: 'wrap', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={() => setFilterRole('ALL')}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: filterRole === 'ALL' ? 800 : 600,
-                  border: filterRole === 'ALL' ? '1px solid #007aff' : '1px solid #cbd5e1',
-                  backgroundColor: filterRole === 'ALL' ? '#007aff' : '#ffffff',
-                  color: filterRole === 'ALL' ? '#ffffff' : '#475569',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                전체 ({clubMembers.length})
-              </button>
-              {execCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setFilterRole('EXEC')}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: filterRole === 'EXEC' ? 800 : 600,
-                    border: filterRole === 'EXEC' ? '1px solid #4338ca' : '1px solid #cbd5e1',
-                    backgroundColor: filterRole === 'EXEC' ? '#4338ca' : '#ffffff',
-                    color: filterRole === 'EXEC' ? '#ffffff' : '#475569',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  👑 임원진 ({execCount})
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setFilterRole('정회원')}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: filterRole === '정회원' ? 800 : 600,
-                  border: filterRole === '정회원' ? '1px solid #2563eb' : '1px solid #cbd5e1',
-                  backgroundColor: filterRole === '정회원' ? '#2563eb' : '#ffffff',
-                  color: filterRole === '정회원' ? '#ffffff' : '#475569',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                정회원 ({regularCount})
-              </button>
-              {associateCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setFilterRole('준회원')}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: filterRole === '준회원' ? 800 : 600,
-                    border: filterRole === '준회원' ? '1px solid #ca8a04' : '1px solid #cbd5e1',
-                    backgroundColor: filterRole === '준회원' ? '#ca8a04' : '#ffffff',
-                    color: filterRole === '준회원' ? '#ffffff' : '#475569',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  준회원 ({associateCount})
-                </button>
-              )}
-              {hasFeePerm && unpaidCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setFilterRole('UNPAID')}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: filterRole === 'UNPAID' ? 800 : 600,
-                    border: filterRole === 'UNPAID' ? '1px solid #dc2626' : '1px solid #fecaca',
-                    backgroundColor: filterRole === 'UNPAID' ? '#dc2626' : '#fef2f2',
-                    color: filterRole === 'UNPAID' ? '#ffffff' : '#b91c1c',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  💰 미납 ({unpaidCount})
-                </button>
-              )}
-            </div>
-          ) : (
-            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-              🙋 등록 게스트: 총 {guestCount}명 (남 {guestMembers.filter(m => m.gender === 'M').length}명 · 여 {guestMembers.filter(m => m.gender === 'F').length}명)
-            </div>
+          {/* 역할별 필터 콤보박스 (정회원 탭 전용) */}
+          {!isGuestView && (
+            <select
+              className="select input-sm"
+              value={filterRole}
+              onChange={e => setFilterRole(e.target.value)}
+              style={{
+                width: '100%',
+                height: '34px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 700,
+                backgroundColor: '#ffffff',
+                color: filterRole === 'UNPAID' ? '#dc2626' : '#334155',
+                padding: '0 6px'
+              }}
+            >
+              <option value="ALL">직책 전체 ({clubMembers.length})</option>
+              {execCount > 0 && <option value="EXEC">👑 임원진 ({execCount})</option>}
+              <option value="정회원">🎾 정회원 ({regularCount})</option>
+              {associateCount > 0 && <option value="준회원">🌱 준회원 ({associateCount})</option>}
+              {hasFeePerm && unpaidCount > 0 && <option value="UNPAID">💰 미납 ({unpaidCount})</option>}
+            </select>
           )}
 
-          {/* 성별 필터 */}
-          <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setFilterGender('ALL')}
-              style={{
-                padding: '3px 8px',
-                borderRadius: '6px',
-                fontSize: '11.5px',
-                fontWeight: filterGender === 'ALL' ? 700 : 500,
-                border: '1px solid #cbd5e1',
-                backgroundColor: filterGender === 'ALL' ? '#334155' : '#ffffff',
-                color: filterGender === 'ALL' ? '#ffffff' : '#64748b',
-                cursor: 'pointer'
-              }}
-            >
-              전체
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterGender('M')}
-              style={{
-                padding: '3px 8px',
-                borderRadius: '6px',
-                fontSize: '11.5px',
-                fontWeight: filterGender === 'M' ? 700 : 500,
-                border: '1px solid #bfdbfe',
-                backgroundColor: filterGender === 'M' ? '#2563eb' : '#eff6ff',
-                color: filterGender === 'M' ? '#ffffff' : '#2563eb',
-                cursor: 'pointer'
-              }}
-            >
-              남
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterGender('F')}
-              style={{
-                padding: '3px 8px',
-                borderRadius: '6px',
-                fontSize: '11.5px',
-                fontWeight: filterGender === 'F' ? 700 : 500,
-                border: '1px solid #fbcfe8',
-                backgroundColor: filterGender === 'F' ? '#db2777' : '#fdf2f8',
-                color: filterGender === 'F' ? '#ffffff' : '#db2777',
-                cursor: 'pointer'
-              }}
-            >
-              여
-            </button>
-          </div>
+          {/* 성별 필터 콤보박스 */}
+          <select
+            className="select input-sm"
+            value={filterGender}
+            onChange={e => setFilterGender(e.target.value)}
+            style={{
+              width: '100%',
+              height: '34px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 700,
+              backgroundColor: '#ffffff',
+              color: filterGender === 'M' ? '#2563eb' : filterGender === 'F' ? '#db2777' : '#334155',
+              padding: '0 6px'
+            }}
+          >
+            <option value="ALL">성별 전체</option>
+            <option value="M">남성</option>
+            <option value="F">여성</option>
+          </select>
         </div>
 
         {/* ── 3. 깔끔한 표 형태의 회원 명단 (Clean Table) ── */}
@@ -1006,71 +869,68 @@ export default function MembersTab({
           </table>
         </div>
 
-        {/* ── 4. 하단 액션 툴바 (운영자 전용) ── */}
+        {/* ── 4. 하단 회비 일괄 관리 바 (운영자 전용 · 모바일 2x2 컴팩트 그리드) ── */}
         {hasEditPerm ? (
-          <div className={styles.memberFooterBar} style={{ marginTop: '16px' }}>
-            {/* 회원/게스트 추가 액션 */}
-            <div className={styles.memberAddArea}>
-              <button 
-                type="button"
-                className={styles.btnAddMember} 
-                style={isGuestView ? { backgroundColor: '#7c3aed' } : undefined}
-                onClick={() => handleOpenAddModal(isGuestView ? '게스트' : '정회원')}
-              >
-                <UserPlusIcon size={17} color="#ffffff" />
-                <span>{isGuestView ? '새 게스트 등록' : '새 정회원 추가'}</span>
-              </button>
-            </div>
-
-            {/* 회비 일괄 관리 툴 (정회원 관리 탭에서만 표시) */}
-            {!isGuestView && (
-              <div className={styles.feeActionsGroup}>
-                <span className={styles.feeGroupLabel}>
-                  <span>💰</span>
-                  <span>정회원 회비 일괄 관리</span>
-                </span>
-                <div className={styles.feeButtonsRow}>
-                  <button 
-                    type="button"
-                    className={styles.btnFeePaid} 
-                    onClick={() => onBulkUpdateFeeStatus(true)}
-                    title="전체 정회원을 납부완료 상태로 변경 (게스트 제외)"
-                  >
-                    <CheckCircleIcon size={16} color="#15803d" />
-                    <span>일괄 납부완료</span>
-                  </button>
-                  <button 
-                    type="button"
-                    className={styles.btnFeeUnpaid} 
-                    onClick={() => onBulkUpdateFeeStatus(false)}
-                    title="전체 정회원을 미납 상태로 변경 (게스트 제외)"
-                  >
-                    <RefreshIcon size={16} color="#b91c1c" />
-                    <span>일괄 미납</span>
-                  </button>
-                  <button 
-                    type="button"
-                    className={styles.btnFeeNotice} 
-                    onClick={handleGenerateReminder}
-                    title="미납 정회원 대상 공지 및 독촉 글 생성"
-                  >
-                    <NoticeIcon size={16} color="#1d4ed8" />
-                    <span>미납자 독촉 글 생성</span>
-                  </button>
-                  <button 
-                    type="button"
-                    className={styles.btnFeeNotice} 
-                    style={{ backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a' }}
-                    onClick={() => window.location.href = '/posters?tab=fee'}
-                    title="회비 안내 카드 이미지 제작 화면으로 이동"
-                  >
-                    <span>🎨</span>
-                    <span>회비 카드 이미지 제작</span>
-                  </button>
-                </div>
+          !isGuestView && (
+            <div style={{
+              marginTop: '14px',
+              padding: '12px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '10px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#475569', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>💰</span>
+                <span>정회원 회비 일괄 관리</span>
               </div>
-            )}
-          </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: '6px'
+              }}>
+                <button 
+                  type="button"
+                  className={styles.btnFeePaid}
+                  style={{ justifyContent: 'center', padding: '7px 8px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                  onClick={() => onBulkUpdateFeeStatus(true)}
+                  title="전체 정회원을 납부완료 상태로 변경 (게스트 제외)"
+                >
+                  <CheckCircleIcon size={14} color="#15803d" />
+                  <span>일괄 납부완료</span>
+                </button>
+                <button 
+                  type="button"
+                  className={styles.btnFeeUnpaid}
+                  style={{ justifyContent: 'center', padding: '7px 8px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                  onClick={() => onBulkUpdateFeeStatus(false)}
+                  title="전체 정회원을 미납 상태로 변경 (게스트 제외)"
+                >
+                  <RefreshIcon size={14} color="#b91c1c" />
+                  <span>일괄 미납</span>
+                </button>
+                <button 
+                  type="button"
+                  className={styles.btnFeeNotice}
+                  style={{ justifyContent: 'center', padding: '7px 8px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                  onClick={handleGenerateReminder}
+                  title="미납 정회원 대상 공지 및 독촉 글 생성"
+                >
+                  <NoticeIcon size={14} color="#1d4ed8" />
+                  <span>독촉 글 생성</span>
+                </button>
+                <button 
+                  type="button"
+                  className={styles.btnFeeNotice} 
+                  style={{ justifyContent: 'center', padding: '7px 8px', fontSize: '12px', backgroundColor: '#fefce8', color: '#b45309', borderColor: '#fef08a', whiteSpace: 'nowrap' }}
+                  onClick={() => window.location.href = '/posters?tab=fee'}
+                  title="회비 안내 카드 이미지 제작 화면으로 이동"
+                >
+                  <span>🎨</span>
+                  <span>회비 카드 제작</span>
+                </button>
+              </div>
+            </div>
+          )
         ) : (
           <div style={{
             marginTop: '16px',
