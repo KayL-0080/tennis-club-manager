@@ -1198,7 +1198,11 @@ export default function FeeLedgerTab({
             marginBottom: '16px',
             padding: '16px',
             border: editingId ? '2px solid #2563eb' : '1px solid var(--border)',
-            background: editingId ? '#f8faff' : '#ffffff'
+            background: editingId ? '#f8faff' : '#ffffff',
+            overflow: 'hidden',
+            width: '100%',
+            maxWidth: '100%',
+            boxSizing: 'border-box'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -1241,10 +1245,10 @@ export default function FeeLedgerTab({
             </div>
 
             {/* 콤보박스 기반 관리항목 입력 폼: 사용일 / 구분 / 내용 / 금액 / 적요 (모바일 1열 스택으로 겹침 원천 차단) */}
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
               <div className="fee-form-grid">
                 {/* 1. 사용일 */}
-                <div style={{ minWidth: 0 }}>
+                <div style={{ minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '5px', whiteSpace: 'nowrap' }}>
                     📅 사용일
                   </label>
@@ -1255,8 +1259,13 @@ export default function FeeLedgerTab({
                     onChange={(e) => setFormDate(e.target.value)}
                     required
                     style={{
+                      display: 'block',
                       width: '100%',
+                      maxWidth: '100%',
+                      minWidth: 0,
                       boxSizing: 'border-box',
+                      WebkitAppearance: 'none',
+                      appearance: 'none',
                       fontWeight: 700,
                       fontSize: '13.5px',
                       padding: '8px 10px',
@@ -1692,11 +1701,15 @@ export default function FeeLedgerTab({
             borderRadius: '12px',
             background: '#f8fafc',
             border: '1px solid #e2e8f0',
-            marginBottom: '14px'
+            marginBottom: '14px',
+            overflow: 'hidden',
+            width: '100%',
+            maxWidth: '100%',
+            boxSizing: 'border-box'
           }}>
             <div className="fee-filter-grid">
               {/* 1. 조회 기간 (시작월 ~ 종료월 단일 행 결합으로 겹침 원천 차단) */}
-              <div style={{ minWidth: 0 }}>
+              <div style={{ minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px', flexWrap: 'wrap', gap: '4px' }}>
                   <label style={{ fontSize: '12px', fontWeight: 800, color: '#334155', whiteSpace: 'nowrap' }}>
                     📅 조회 기간 (시작월 ~ 종료월)
@@ -1738,7 +1751,7 @@ export default function FeeLedgerTab({
                     </button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                   <input
                     type="month"
                     className="input"
@@ -1746,8 +1759,13 @@ export default function FeeLedgerTab({
                     onChange={(e) => handleStartMonthChange(e.target.value)}
                     style={{
                       flex: 1,
+                      display: 'block',
+                      width: '100%',
+                      maxWidth: '100%',
                       minWidth: 0,
                       boxSizing: 'border-box',
+                      WebkitAppearance: 'none',
+                      appearance: 'none',
                       fontSize: '13px',
                       fontWeight: 700,
                       padding: '8px 8px',
@@ -1762,8 +1780,13 @@ export default function FeeLedgerTab({
                     onChange={(e) => handleEndMonthChange(e.target.value)}
                     style={{
                       flex: 1,
+                      display: 'block',
+                      width: '100%',
+                      maxWidth: '100%',
                       minWidth: 0,
                       boxSizing: 'border-box',
+                      WebkitAppearance: 'none',
+                      appearance: 'none',
                       fontSize: '13px',
                       fontWeight: 700,
                       padding: '8px 8px',

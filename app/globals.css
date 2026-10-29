@@ -680,33 +680,79 @@ tr:hover td { background: rgba(0, 122, 255, 0.04); }
   }
 }
 
-/* ── 회비 관리 모바일 입력 폼 & 조회 조건 반응형 (겹침 원천 방지) ── */
+/* ── 날짜 및 월 선택 인풋 모바일 레이아웃 이탈(Overflow) 원천 차단 (WebKit/iOS Safari/Chrome) ── */
+input[type="date"],
+input[type="month"],
+input[type="time"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+input[type="date"]::-webkit-date-and-time-value,
+input[type="month"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  line-height: 1.4;
+  min-height: 1.4em;
+}
+
+input[type="date"]::-webkit-inner-spin-button,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-inner-spin-button,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+/* ── 회비 관리 모바일 입력 폼 & 조회 조건 반응형 (겹침 및 레이어 이탈 원천 방지) ── */
 .fee-form-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.fee-form-grid > div {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 @media (min-width: 640px) {
   .fee-form-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
   }
 }
 @media (min-width: 900px) {
   .fee-form-grid {
-    grid-template-columns: 1.1fr 1fr 1.3fr 1.1fr;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.1fr);
     align-items: end;
   }
 }
 
 .fee-filter-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.fee-filter-grid > div {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 @media (min-width: 640px) {
   .fee-filter-grid {
-    grid-template-columns: 1.8fr 1fr 1.2fr 1.2fr;
+    grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.2fr);
     gap: 12px;
     align-items: end;
   }
