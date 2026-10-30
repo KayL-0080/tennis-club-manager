@@ -100,6 +100,7 @@ export default function FeeLedgerTab({
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortOrder, setSortOrder] = useState('DESC'); // 'DESC': 최근일순(기본값), 'ASC': 과거순
 
   // 입력 / 수정 폼 상태 (기본값: 수입 - '회비' 120,000원)
   const [editingId, setEditingId] = useState(null);
@@ -248,7 +249,7 @@ export default function FeeLedgerTab({
     });
   }, [entries]);
 
-  // 조회 시작월 ~ 종료월 내역 및 누적 잔액 계산
+  // 조회 시작월 ~ 종료월 내역 및 누적 잔액 계산 (사용일 기준 최근일부터 조회 지원)
   const periodEntriesWithBalance = useMemo(() => {
     const targetList = sortedAllEntries.filter(e => {
       const ym = (e.date || '').substring(0, 7);
@@ -256,8 +257,9 @@ export default function FeeLedgerTab({
       return ym >= startMonth && ym <= endMonth;
     });
 
+    // 1단계: 시간순(과거 -> 최근)으로 누적 잔액 정확히 계산
     let runningBalance = 0;
-    return targetList.map((item, idx) => {
+    const withBalance = targetList.map((item) => {
       const inc = Number(item.income) || 0;
       const exp = Number(item.expense) || 0;
       const resolvedType = resolveItemType(item);
@@ -265,13 +267,19 @@ export default function FeeLedgerTab({
       return {
         ...item,
         type: resolvedType,
-        rowNum: idx + 1,
         income: inc,
         expense: exp,
         balance: runningBalance,
       };
     });
-  }, [sortedAllEntries, startMonth, endMonth]);
+
+    // 2단계: 사용일 기준 최근일부터(내림차순, 기본값) 또는 과거순(오름차순) 정렬 및 번호 부여
+    const ordered = sortOrder === 'DESC' ? [...withBalance].reverse() : withBalance;
+    return ordered.map((item, idx) => ({
+      ...item,
+      rowNum: idx + 1,
+    }));
+  }, [sortedAllEntries, startMonth, endMonth, sortOrder]);
 
   // 시작월 이전 달의 최종 잔액 계산 (전월 이월잔액 자동 입력용)
   const prevMonthClosingBalance = useMemo(() => {
@@ -311,10 +319,10 @@ export default function FeeLedgerTab({
     });
   }, [periodEntriesWithBalance, filterType, filterCategory, searchQuery]);
 
-  // 조회 조건/검색어/페이지크기 변경 시 1페이지로 이동
+  // 조회 조건/검색어/페이지크기/정렬순서 변경 시 1페이지로 이동
   useEffect(() => {
     setCurrentPage(1);
-  }, [startMonth, endMonth, filterType, filterCategory, searchQuery, pageSize]);
+  }, [startMonth, endMonth, filterType, filterCategory, searchQuery, pageSize, sortOrder]);
 
   // 페이징 계산
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
@@ -859,7 +867,9 @@ export default function FeeLedgerTab({
           <thead>
             <tr style={{ background: '#e2e8f0', color: '#0f172a' }}>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px' : '6px', width: '36px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>No.</th>
-              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '92px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>사용일</th>
+              <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '92px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>
+                사용일 {sortOrder === 'DESC' ? '(최근순)' : '(과거순)'}
+              </th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '88px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>내용</th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '98px', textAlign: 'right', fontWeight: 900, color: '#1e3a8a', whiteSpace: 'nowrap' }}>수입</th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '98px', textAlign: 'right', fontWeight: 900, color: '#9f1239', whiteSpace: 'nowrap' }}>지출</th>
@@ -1597,13 +1607,34 @@ export default function FeeLedgerTab({
             gap: '8px',
             marginBottom: '12px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--txt)', whiteSpace: 'nowrap' }}>
                 📋 회비 상세내역
               </h3>
               <span className="badge" style={{ background: '#f1f5f9', color: '#334155', fontSize: '11.5px', fontWeight: 800, whiteSpace: 'nowrap' }}>
                 {filteredEntries.length}건
               </span>
+              <button
+                type="button"
+                onClick={() => setSortOrder(prev => prev === 'DESC' ? 'ASC' : 'DESC')}
+                title="클릭하여 사용일 정렬 순서 변경 (최근일순 ↔ 과거순)"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid #bfdbfe',
+                  background: sortOrder === 'DESC' ? '#eff6ff' : '#f8fafc',
+                  color: sortOrder === 'DESC' ? '#1d4ed8' : '#475569',
+                  fontSize: '11.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span>{sortOrder === 'DESC' ? '▼ 최근일부터' : '▲ 과거순'}</span>
+              </button>
             </div>
 
             {/* 출력 및 공유 버튼 */}
@@ -1892,7 +1923,33 @@ export default function FeeLedgerTab({
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', color: '#334155' }}>
                   <th style={{ padding: '9px 6px', width: '42px', textAlign: 'center', fontWeight: 800, whiteSpace: 'nowrap' }}>No.</th>
-                  <th style={{ padding: '9px 8px', width: '98px', textAlign: 'center', fontWeight: 800, whiteSpace: 'nowrap' }}>사용일</th>
+                  <th
+                    onClick={() => setSortOrder(prev => prev === 'DESC' ? 'ASC' : 'DESC')}
+                    title="클릭하여 정렬 순서 변경 (최근일순 ↔ 과거순)"
+                    style={{
+                      padding: '9px 8px',
+                      width: '108px',
+                      textAlign: 'center',
+                      fontWeight: 800,
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      userSelect: 'none'
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                      <span>사용일</span>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                        background: sortOrder === 'DESC' ? '#dbeafe' : '#f1f5f9',
+                        color: sortOrder === 'DESC' ? '#1d4ed8' : '#64748b',
+                        fontWeight: 800
+                      }}>
+                        {sortOrder === 'DESC' ? '▼최근' : '▲과거'}
+                      </span>
+                    </span>
+                  </th>
                   <th style={{ padding: '9px 8px', width: '96px', textAlign: 'center', fontWeight: 800, whiteSpace: 'nowrap' }}>내용</th>
                   <th style={{ padding: '9px 10px', width: '108px', textAlign: 'right', fontWeight: 800, color: '#1d4ed8', whiteSpace: 'nowrap' }}>수입</th>
                   <th style={{ padding: '9px 10px', width: '108px', textAlign: 'right', fontWeight: 800, color: '#be123c', whiteSpace: 'nowrap' }}>지출</th>
@@ -2434,6 +2491,31 @@ export default function FeeLedgerTab({
                   />
                   <span>결재란</span>
                 </label>
+                {printMode === 'DETAIL' && (
+                  <button
+                    type="button"
+                    onClick={() => setSortOrder(prev => prev === 'DESC' ? 'ASC' : 'DESC')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      color: '#334155',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <span>정렬:</span>
+                    <span style={{ color: '#1d4ed8', fontWeight: 800 }}>
+                      {sortOrder === 'DESC' ? '▼ 최근일순' : '▲ 과거순'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
 
