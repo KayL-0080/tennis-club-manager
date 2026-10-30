@@ -1192,7 +1192,92 @@ export default function FeeLedgerTab({
       {/* ── 화면용 UI 컨테이너 (인쇄 시 숨김) ── */}
       <div className="no-print">
 
-        {/* 1. 회비 내역 입력 / 수정 폼 (구분 및 내용 콤보박스 적용) */}
+        {/* 1. 기간별 수지 요약 카드 (총수입 / 총지출 / 최종잔액 현황 - 최상단 배치) */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '10px',
+          marginBottom: '16px'
+        }}>
+          {/* 총 수입 */}
+          <div className="card" style={{
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)',
+            border: '1px solid #bfdbfe',
+            borderRadius: '14px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af', whiteSpace: 'nowrap' }}>
+                🔵 {formattedPeriodTitle} 총 수입
+              </span>
+              <span style={{ fontSize: '18px', fontWeight: 900, color: '#1d4ed8', whiteSpace: 'nowrap' }}>
+                +{formatNum(summary.totalIncome)}원
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
+              {INCOME_CATEGORIES.map(c => (
+                <span key={c} style={{ whiteSpace: 'nowrap' }}>
+                  {c}: <strong style={{ color: '#1e293b' }}>{formatNum(summary.incomeTotals[c])}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* 총 지출 */}
+          <div className="card" style={{
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, #ffffff 0%, #fff1f2 100%)',
+            border: '1px solid #fecdd3',
+            borderRadius: '14px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: '#9f1239', whiteSpace: 'nowrap' }}>
+                🔴 {formattedPeriodTitle} 총 지출
+              </span>
+              <span style={{ fontSize: '18px', fontWeight: 900, color: '#be123c', whiteSpace: 'nowrap' }}>
+                -{formatNum(summary.totalExpense)}원
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
+              {EXPENSE_CATEGORIES.map(c => (
+                <span key={c} style={{ whiteSpace: 'nowrap' }}>
+                  {c}: <strong style={{ color: '#1e293b' }}>{formatNum(summary.expenseTotals[c])}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* 최종 잔액 */}
+          <div className="card" style={{
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
+            border: '1px solid #bbf7d0',
+            borderRadius: '14px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: '#166534', whiteSpace: 'nowrap' }}>
+                🟢 최종 잔액 (수입 - 지출)
+              </span>
+              <span style={{
+                fontSize: '19px',
+                fontWeight: 900,
+                color: summary.netBalance >= 0 ? '#15803d' : '#dc2626',
+                whiteSpace: 'nowrap'
+              }}>
+                {formatNum(summary.netBalance)}원
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
+              <span style={{ whiteSpace: 'nowrap' }}>당월 순수입(이월 제외): +{formatNum(summary.totalIncome - (summary.incomeTotals['이월잔액'] || 0))}원</span>
+              <span style={{ whiteSpace: 'nowrap' }}>총 {periodEntriesWithBalance.length}건</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. 회비 내역 입력 / 수정 폼 (구분 및 내용 콤보박스 적용) */}
         {canEdit && (
           <div className="card" style={{
             marginBottom: '16px',
@@ -1500,91 +1585,6 @@ export default function FeeLedgerTab({
             </form>
           </div>
         )}
-
-        {/* 2. 기간별 수지 요약 카드 (간결한 3단 요약) */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '10px',
-          marginBottom: '16px'
-        }}>
-          {/* 총 수입 */}
-          <div className="card" style={{
-            padding: '14px 16px',
-            background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)',
-            border: '1px solid #bfdbfe',
-            borderRadius: '14px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af', whiteSpace: 'nowrap' }}>
-                🔵 {formattedPeriodTitle} 총 수입
-              </span>
-              <span style={{ fontSize: '18px', fontWeight: 900, color: '#1d4ed8', whiteSpace: 'nowrap' }}>
-                +{formatNum(summary.totalIncome)}원
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
-              {INCOME_CATEGORIES.map(c => (
-                <span key={c} style={{ whiteSpace: 'nowrap' }}>
-                  {c}: <strong style={{ color: '#1e293b' }}>{formatNum(summary.incomeTotals[c])}</strong>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* 총 지출 */}
-          <div className="card" style={{
-            padding: '14px 16px',
-            background: 'linear-gradient(135deg, #ffffff 0%, #fff1f2 100%)',
-            border: '1px solid #fecdd3',
-            borderRadius: '14px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#9f1239', whiteSpace: 'nowrap' }}>
-                🔴 {formattedPeriodTitle} 총 지출
-              </span>
-              <span style={{ fontSize: '18px', fontWeight: 900, color: '#be123c', whiteSpace: 'nowrap' }}>
-                -{formatNum(summary.totalExpense)}원
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
-              {EXPENSE_CATEGORIES.map(c => (
-                <span key={c} style={{ whiteSpace: 'nowrap' }}>
-                  {c}: <strong style={{ color: '#1e293b' }}>{formatNum(summary.expenseTotals[c])}</strong>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* 최종 잔액 */}
-          <div className="card" style={{
-            padding: '14px 16px',
-            background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
-            border: '1px solid #bbf7d0',
-            borderRadius: '14px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#166534', whiteSpace: 'nowrap' }}>
-                🟢 최종 잔액 (수입 - 지출)
-              </span>
-              <span style={{
-                fontSize: '19px',
-                fontWeight: 900,
-                color: summary.netBalance >= 0 ? '#15803d' : '#dc2626',
-                whiteSpace: 'nowrap'
-              }}>
-                {formatNum(summary.netBalance)}원
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
-              <span style={{ whiteSpace: 'nowrap' }}>당월 순수입(이월 제외): +{formatNum(summary.totalIncome - (summary.incomeTotals['이월잔액'] || 0))}원</span>
-              <span style={{ whiteSpace: 'nowrap' }}>총 {periodEntriesWithBalance.length}건</span>
-            </div>
-          </div>
-        </div>
 
         {/* 3. 회비 상세내역 카드 (조회 시작월~종료월 + 수입/지출 콤보박스 조건 + 가로형 테이블) */}
         <div className="card" style={{ padding: '16px' }}>
