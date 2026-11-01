@@ -76,6 +76,42 @@ const parseNumInput = (val) => {
   return cleaned ? parseInt(cleaned, 10) : 0;
 };
 
+// 영수증 이미지 압축 유틸리티 (최대 1200px, JPEG 품질 0.8)
+const compressImage = (file, maxDimension = 1200, quality = 0.8) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error('이미지를 읽을 수 없습니다.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function FeeLedgerTab({
   isAdmin = false,
   canManageFee = false,
@@ -110,6 +146,9 @@ export default function FeeLedgerTab({
   const [formIncome, setFormIncome] = useState('120,000');
   const [formExpense, setFormExpense] = useState('');
   const [formMemo, setFormMemo] = useState('');
+  const [formReceiptUrl, setFormReceiptUrl] = useState('');
+  const [receiptProcessing, setReceiptProcessing] = useState(false);
+  const [viewingReceiptItem, setViewingReceiptItem] = useState(null);
 
   // 출력 미리보기 모달 상태 ('DETAIL': 기간 상세내역 출력 | 'ANNUAL': 연간 월별 집계 출력)
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -226,6 +265,29 @@ export default function FeeLedgerTab({
     }
   };
 
+  // 영수증 이미지 파일 선택 핸들러 (사진 촬영 / 앨범 업로드)
+  const handleReceiptFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('영수증 이미지 파일(JPG, PNG 등)만 첨부할 수 있습니다.');
+      return;
+    }
+
+    setReceiptProcessing(true);
+    try {
+      const compressedDataUrl = await compressImage(file, 1200, 0.8);
+      setFormReceiptUrl(compressedDataUrl);
+    } catch (err) {
+      console.error('Receipt compression error:', err);
+      alert('영수증 이미지 압축 처리 중 오류가 발생했습니다.');
+    } finally {
+      setReceiptProcessing(false);
+      e.target.value = '';
+    }
+  };
+
   // 폼 초기화 시 현재 등록 중인 사용일(formDate)은 그대로 유지
   const resetForm = () => {
     setEditingId(null);
@@ -234,6 +296,7 @@ export default function FeeLedgerTab({
     setFormIncome('120,000');
     setFormExpense('');
     setFormMemo('');
+    setFormReceiptUrl('');
   };
 
   // 전체 내역 정렬 (사용일 오름차순 -> 같은 날짜면 '이월잔액' 최우선 -> 생성일시 순)
@@ -431,6 +494,7 @@ export default function FeeLedgerTab({
         income: finalIncome,
         expense: finalExpense,
         memo: formMemo.trim(),
+        receiptUrl: !isInc ? (formReceiptUrl || '') : '',
       };
 
       if (editingId) {
@@ -463,6 +527,7 @@ export default function FeeLedgerTab({
     setFormIncome(item.income > 0 ? formatNum(item.income) : '');
     setFormExpense(item.expense > 0 ? formatNum(item.expense) : '');
     setFormMemo(item.memo || '');
+    setFormReceiptUrl(item.receiptUrl || '');
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 150, behavior: 'smooth' });
     }
@@ -906,7 +971,7 @@ export default function FeeLedgerTab({
                     {formatNum(item.balance)}
                   </td>
                   <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px 8px' : '6px 10px', textAlign: 'left', color: '#1e293b', fontWeight: 600 }}>
-                    {item.memo || ''}
+                    {item.memo || ''}{item.receiptUrl ? ' [🧾영수증]' : ''}
                   </td>
                 </tr>
               ))
@@ -1469,6 +1534,140 @@ export default function FeeLedgerTab({
                   />
                 </div>
 
+                {/* 지출 영수증 첨부 (지출 등록 시 표시) */}
+                {(formType === 'EXPENSE' || formReceiptUrl) && (
+                  <div style={{
+                    gridColumn: '1 / -1',
+                    padding: '11px 14px',
+                    borderRadius: '10px',
+                    background: '#fff1f2',
+                    border: '1.5px dashed #fca5a5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                    boxSizing: 'border-box'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', width: '100%' }}>
+                      <label style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '7px 13px',
+                        borderRadius: '8px',
+                        background: '#ffffff',
+                        border: '1px solid #f87171',
+                        color: '#be123c',
+                        fontWeight: 800,
+                        fontSize: '12.5px',
+                        cursor: receiptProcessing ? 'wait' : 'pointer',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleReceiptFileChange}
+                          disabled={receiptProcessing}
+                          style={{ display: 'none' }}
+                        />
+                        <span>📷</span>
+                        <span>{receiptProcessing ? '영수증 압축 중...' : (formReceiptUrl ? '영수증 사진 변경' : '🧾 영수증 사진 촬영 / 파일 첨부')}</span>
+                      </label>
+
+                      {formReceiptUrl ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <div
+                            onClick={() => setViewingReceiptItem({
+                              category: formCategory,
+                              expense: parseNumInput(formExpense),
+                              date: formDate,
+                              memo: formMemo,
+                              receiptUrl: formReceiptUrl
+                            })}
+                            style={{
+                              position: 'relative',
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '6px',
+                              overflow: 'hidden',
+                              border: '1.5px solid #e11d48',
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                            title="클릭하여 영수증 크게 보기"
+                          >
+                            <img
+                              src={formReceiptUrl}
+                              alt="영수증 미리보기"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                            <span style={{
+                              position: 'absolute',
+                              bottom: 0,
+                              right: 0,
+                              background: 'rgba(0,0,0,0.65)',
+                              color: '#fff',
+                              fontSize: '9px',
+                              padding: '1px 3px',
+                              borderRadius: '2px 0 0 0'
+                            }}>🔍</span>
+                          </div>
+                          <span style={{ fontSize: '12px', fontWeight: 800, color: '#9f1239', whiteSpace: 'nowrap' }}>
+                            ✅ 영수증 첨부됨
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setViewingReceiptItem({
+                              category: formCategory,
+                              expense: parseNumInput(formExpense),
+                              date: formDate,
+                              memo: formMemo,
+                              receiptUrl: formReceiptUrl
+                            })}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              background: '#ffffff',
+                              color: '#334155',
+                              fontSize: '11.5px',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            미리보기
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFormReceiptUrl('')}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #fca5a5',
+                              background: '#ffffff',
+                              color: '#e11d48',
+                              fontSize: '11.5px',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            ❌ 삭제
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '11.5px', color: '#9f1239', fontWeight: 600 }}>
+                          카드전표, 현금영수증, 간이영수증 사진을 첨부할 수 있습니다. (선택사항)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* 5. 적요 (기본 한글 입력 모드 유지) */}
                 <div style={{ gridColumn: '1 / -1', minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '5px', whiteSpace: 'nowrap' }}>
@@ -2022,7 +2221,23 @@ export default function FeeLedgerTab({
                           color: item.expense > 0 ? '#be123c' : '#cbd5e1',
                           whiteSpace: 'nowrap'
                         }}>
-                          {item.expense > 0 ? `-${formatNum(item.expense)}원` : '-'}
+                          {item.expense > 0 ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                              {item.receiptUrl && (
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingReceiptItem(item);
+                                  }}
+                                  style={{ cursor: 'pointer', fontSize: '13px' }}
+                                  title="지출 영수증 첨부됨 (클릭하여 보기)"
+                                >
+                                  🧾
+                                </span>
+                              )}
+                              <span>-{formatNum(item.expense)}원</span>
+                            </span>
+                          ) : '-'}
                         </td>
                         <td style={{
                           padding: '10px 10px',
@@ -2035,7 +2250,37 @@ export default function FeeLedgerTab({
                           {formatNum(item.balance)}원
                         </td>
                         <td style={{ padding: '10px 10px', textAlign: 'left', color: '#334155', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          {item.memo || <span style={{ color: '#cbd5e1' }}>-</span>}
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span>{item.memo || <span style={{ color: '#cbd5e1' }}>-</span>}</span>
+                            {item.receiptUrl && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewingReceiptItem(item);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  padding: '2px 7px',
+                                  borderRadius: '6px',
+                                  background: '#fff1f2',
+                                  border: '1px solid #fecdd3',
+                                  color: '#be123c',
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="클릭하여 지출 영수증 보기"
+                              >
+                                <span>🧾</span>
+                                <span>영수증</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                         {canEdit && (
                           <td style={{ padding: '10px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>
@@ -2538,6 +2783,175 @@ export default function FeeLedgerTab({
               }}>
                 {printMode === 'ANNUAL' ? renderA4AnnualSheet() : renderA4LedgerSheet()}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 5. 지출 영수증 확인 모달 ── */}
+      {viewingReceiptItem && (
+        <div
+          className="no-print"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => setViewingReceiptItem(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '540px',
+              width: '100%',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '1px solid #e2e8f0'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 모달 상단 헤더 */}
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#f8fafc'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>🧾</span>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                    지출 영수증 확인
+                  </h4>
+                  <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 700 }}>
+                    {viewingReceiptItem.date} | {viewingReceiptItem.category} | -{formatNum(viewingReceiptItem.expense || 0)}원
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingReceiptItem(null)}
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  borderRadius: '8px',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  color: '#475569',
+                  fontWeight: 800
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 적요 안내 바 */}
+            {viewingReceiptItem.memo && (
+              <div style={{
+                padding: '9px 18px',
+                background: '#fff1f2',
+                borderBottom: '1px solid #fecdd3',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#9f1239',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <span>📝 적요:</span>
+                <span style={{ color: '#881337' }}>{viewingReceiptItem.memo}</span>
+              </div>
+            )}
+
+            {/* 영수증 이미지 영역 */}
+            <div style={{
+              padding: '16px',
+              overflowY: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#f1f5f9',
+              minHeight: '260px'
+            }}>
+              <img
+                src={viewingReceiptItem.receiptUrl}
+                alt="지출 영수증"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '62vh',
+                  objectFit: 'contain',
+                  borderRadius: '10px',
+                  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.12)',
+                  background: '#ffffff'
+                }}
+              />
+            </div>
+
+            {/* 모달 하단 버튼 바 */}
+            <div style={{
+              padding: '12px 18px',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#ffffff',
+              gap: '8px',
+              flexWrap: 'wrap'
+            }}>
+              <a
+                href={viewingReceiptItem.receiptUrl}
+                download={`${viewingReceiptItem.date}_${viewingReceiptItem.category}_영수증.jpg`}
+                className="btn btn-secondary btn-sm"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '7px 12px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  color: '#1e293b'
+                }}
+              >
+                <span>💾</span>
+                <span>영수증 다운로드</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setViewingReceiptItem(null)}
+                style={{
+                  padding: '7px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#475569',
+                  fontWeight: 800,
+                  fontSize: '12.5px',
+                  cursor: 'pointer'
+                }}
+              >
+                닫기
+              </button>
             </div>
           </div>
         </div>
