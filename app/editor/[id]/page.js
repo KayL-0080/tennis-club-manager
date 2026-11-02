@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getSchedule, updateSchedule, subscribeSchedule,
-  getMembers, initDefaultMembers, getClubSettings
+  getMembers, initDefaultMembers, getClubSettings,
+  getSchedules, getEvents
 } from '@/lib/firestore';
 import Navbar from '@/components/Navbar';
 import BracketTab   from '@/components/tabs/BracketTab';
@@ -47,6 +48,8 @@ export default function EditorPage({ params }) {
   const [useScore, setUseScore] = useState(true); // 경기 점수(스코어) 입력 활성화 여부
   const [maxGames, setMaxGames] = useState(6); // 경기 방식(게임수, 기본 6게임 선승)
   const [clubSettings, setClubSettings] = useState(null);
+  const [allSchedules, setAllSchedules] = useState([]);
+  const [allEvents, setAllEvents] = useState([]);
 
   /* ── 초기 데이터 로드 및 실시간 동기화 구독 (onSnapshot) ── */
   useEffect(() => {
@@ -56,12 +59,16 @@ export default function EditorPage({ params }) {
     (async () => {
       // 회원 목록 및 클럽 설정
       await initDefaultMembers('shared');
-      const [mbrs, settings] = await Promise.all([
+      const [mbrs, settings, scheds, evts] = await Promise.all([
         getMembers('shared'),
-        getClubSettings()
+        getClubSettings(),
+        getSchedules('shared'),
+        getEvents('shared')
       ]);
       setMembers(mbrs);
       setClubSettings(settings);
+      setAllSchedules(scheds || []);
+      setAllEvents(evts || []);
 
       // 대진표 문서 실시간 구독
       unsub = subscribeSchedule('shared', id, (data) => {
@@ -279,6 +286,8 @@ export default function EditorPage({ params }) {
             penaltyPaidMap={penaltyPaidMap} setPenaltyPaidMap={setPenaltyPaidMap}
             maxGames={maxGames} setMaxGames={setMaxGames}
             clubSettings={clubSettings}
+            allSchedules={allSchedules}
+            allEvents={allEvents}
             matchDate={matchDate}
             title={title}
             onSave={save}

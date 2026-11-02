@@ -624,13 +624,33 @@ export default function AddMemberToBracketModal({
                       </div>
 
                       {hasPlayed ? (
-                        <span 
-                          className="badge badge-gray" 
-                          style={{ fontSize: '11px', padding: '3px 8px' }}
-                          title="경기 스코어가 입력되어 있어 참가자에서 제외할 수 없습니다."
-                        >
-                          기록 있음 ({m.played}G)
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span 
+                            className="badge badge-gray" 
+                            style={{ fontSize: '10.5px', padding: '2px 6px' }}
+                            title="이미 완료된 경기 기록이 있습니다. 이전 기록은 보존된 채 잔여 경기에서 제외됩니다."
+                          >
+                            {m.played}G 완료
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleRemove(m)}
+                            title="이전 기록은 보존하고 현재 진행 중인 라운드 이후의 잔여 경기에서 제외합니다."
+                            style={{
+                              fontSize: '11px',
+                              padding: '3px 8px',
+                              height: '28px',
+                              fontWeight: 700,
+                              borderRadius: '8px',
+                              borderColor: '#fb923c',
+                              color: '#c2410c',
+                              backgroundColor: '#fff7ed'
+                            }}
+                          >
+                            🏃 조기 퇴장
+                          </button>
+                        </div>
                       ) : (
                         <button
                           type="button"

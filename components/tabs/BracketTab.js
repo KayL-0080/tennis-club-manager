@@ -1,7 +1,7 @@
 // components/tabs/BracketTab.js — 대진표(선수 드롭다운+점수입력) + 검증요약 + 개인순위 + 벌칙금 정산
 'use client';
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { makeEmptyMatch, teamNtrpSum, computeTodayStandings } from '@/lib/scheduler';
+import { makeEmptyMatch, teamNtrpSum, computeTodayStandings, generateSchedule } from '@/lib/scheduler';
 import AddMemberToBracketModal from '@/components/AddMemberToBracketModal';
 import MatchPlayerSelectModal, { getGameCountBadgeStyle } from '@/components/MatchPlayerSelectModal';
 import styles from './tabs.module.css';
@@ -83,6 +83,8 @@ export default function BracketTab({
   maxGames = 6, setMaxGames,
   useScore = true, setUseScore,
   clubSettings,
+  allSchedules = [],
+  allEvents = [],
   matchDate,
   title,
   onSave, onPrint, isAdmin, canEditPlayer = false, canEditScore = false, isReadOnly, isPastMatch,
@@ -131,6 +133,314 @@ export default function BracketTab({
   /* ── 👁️ 대진표 보기 모드 & 진행중 필터 상태 ── */
   const [viewMode, setViewMode] = useState('court'); // 'court' (코트별 선수 배치) | 'table' (라운드별 테이블)
   const [activeOnlyMode, setActiveOnlyMode] = useState(false); // true: 현재 진행중인 경기만, false: 전체 펼쳐보기
+
+  /* ── 🔄 잔여 대진 재구성 상태 관리 ── */
+  const [showReconfigModal, setShowReconfigModal] = useState(false);
+  const [reconfigFromRound, setReconfigFromRound] = useState(0);
+  const [reconfigCandidateParticipants, setReconfigCandidateParticipants] = useState(null);
+  const [reconfigRemovedPlayerId, setReconfigRemovedPlayerId] = useState(null);
+  const [reconfigReason, setReconfigReason] = useState('manual'); // 'add' | 'remove' | 'manual'
+  const [reconfigAddedNames, setReconfigAddedNames] = useState('');
+  const [reconfigRemovedName, setReconfigRemovedName] = useState('');
+
+  // 4주간 참석 횟수 및 우선순위 계산 헬퍼
+  const getNDaysBefore = (dateStr, days) => {
+    if (!dateStr) return null;
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length < 3) return null;
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      d.setDate(d.getDate() - days);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    } catch {
+      return null;
+    }
+  };
+
+  const didMemberAttendSchedule = (s, memberId) => {
+    if (!s || !memberId) return false;
+    if (s.participants && Array.isArray(s.participants)) {
+      if (s.participants.some(p => p.playerId === memberId)) return true;
+    }
+    if (s.schedule && Array.isArray(s.schedule)) {
+      for (const round of s.schedule) {
+        if (!Array.isArray(round)) continue;
+        for (const match of round) {
+          if (!match) continue;
+          if (
+            (match.teamA && match.teamA.includes(memberId)) ||
+            (match.teamB && match.teamB.includes(memberId))
+          ) return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const didMemberAttendEvent = (e, memberId) => {
+    if (!e || !memberId) return false;
+    return Boolean(e.attendees && e.attendees[memberId] === 'Y');
+  };
+
+  const get4WeeksAttendanceCount = (memberId) => {
+    if (!memberId) return 0;
+    const baseDate = matchDate || new Date().toISOString().substring(0, 10);
+    const startDate = getNDaysBefore(baseDate, 28);
+    if (!startDate) return 0;
+
+    const attendedDateSet = new Set();
+    (allSchedules || []).forEach(s => {
+      const sDate = s.matchDate || (s.date ? s.date.substring(0, 10) : null);
+      if (!sDate) return;
+      if (sDate >= startDate && sDate < baseDate) {
+        if (didMemberAttendSchedule(s, memberId)) {
+          attendedDateSet.add(sDate);
+        }
+      }
+    });
+
+    (allEvents || []).forEach(e => {
+      const eDate = e.date ? e.date.substring(0, 10) : null;
+      if (!eDate) return;
+      if (eDate >= startDate && eDate < baseDate) {
+        if (didMemberAttendEvent(e, memberId)) {
+          attendedDateSet.add(eDate);
+        }
+      }
+    });
+
+    return attendedDateSet.size;
+  };
+
+  const getPlayerBalancePriority = (playerId) => {
+    const m = members.find(x => x.id === playerId);
+    const isGuest = checkIsGuest(m);
+    if (isGuest) {
+      return {
+        rank: 1,
+        label: '게스트',
+        badgeText: '⭐ 1순위 (게스트)',
+        ntrp: Number(m?.ntrp ?? 2.5),
+        attendCount: null
+      };
+    }
+    const attendCount = get4WeeksAttendanceCount(playerId);
+    if (attendCount < 1) {
+      return {
+        rank: 2,
+        label: '4주 미참석',
+        badgeText: '⚡ 2순위 (4주 0회)',
+        ntrp: Number(m?.ntrp ?? 2.5),
+        attendCount: 0
+      };
+    }
+    return {
+      rank: 3,
+      label: '일반회원',
+      badgeText: `3순위 (${attendCount}회)`,
+      ntrp: Number(m?.ntrp ?? 2.5),
+      attendCount
+    };
+  };
+
+  // 현재 진행 중이거나 점수가 입력된 가장 마지막 라운드를 찾아 다음 라운드 index를 계산 (0-based)
+  const detectNextRoundIndex = () => {
+    if (!schedule || schedule.length === 0) return 0;
+    let maxScoredRi = -1;
+    schedule.forEach((round, ri) => {
+      if (!Array.isArray(round)) return;
+      const hasScore = round.some((_, ci) => {
+        const sc = scores[`${ri}-${ci}`];
+        return sc && sc.a !== null && sc.a !== undefined && sc.a !== '' &&
+                     sc.b !== null && sc.b !== undefined && sc.b !== '';
+      });
+      if (hasScore) {
+        maxScoredRi = Math.max(maxScoredRi, ri);
+      }
+    });
+
+    if (maxScoredRi >= 0) {
+      return Math.min(schedule.length - 1, maxScoredRi + 1);
+    }
+    return 0;
+  };
+
+  // 보존 라운드에서 이미 같은 팀으로 뛴 파트너 페어 수집
+  const getPreservedUsedPairs = (cutoffRoundIndex) => {
+    const pairKey = (a, b) => (a < b ? `${a}:${b}` : `${b}:${a}`);
+    const used = {};
+    if (!schedule) return used;
+    for (let ri = 0; ri < cutoffRoundIndex && ri < schedule.length; ri++) {
+      const round = schedule[ri];
+      if (!Array.isArray(round)) continue;
+      for (const m of round) {
+        if (!m) continue;
+        if (m.teamA && m.teamA[0] && m.teamA[1]) {
+          const k1 = pairKey(m.teamA[0], m.teamA[1]);
+          used[k1] = (used[k1] || 0) + 1;
+        }
+        if (m.teamB && m.teamB[0] && m.teamB[1]) {
+          const k2 = pairKey(m.teamB[0], m.teamB[1]);
+          used[k2] = (used[k2] || 0) + 1;
+        }
+      }
+    }
+    return used;
+  };
+
+  // 보존 라운드까지 각 선수의 실제 출전 경기 수 계산
+  const getPlayedSoFarMap = (cutoffRoundIndex) => {
+    const map = {};
+    if (!schedule) return map;
+    for (let ri = 0; ri < cutoffRoundIndex && ri < schedule.length; ri++) {
+      const round = schedule[ri];
+      if (!Array.isArray(round)) continue;
+      for (const m of round) {
+        if (!m) continue;
+        [...(m.teamA || []), ...(m.teamB || [])].forEach(pId => {
+          if (pId) map[pId] = (map[pId] || 0) + 1;
+        });
+      }
+    }
+    return map;
+  };
+
+  // 잔여 라운드 대진 자동 재구성 실행 함수
+  const executeReconfigureRemaining = ({ fromRound, candidateParticipants, removedPlayerId = null }) => {
+    if (!schedule || schedule.length === 0) {
+      alert('생성된 대진표가 없습니다.');
+      return false;
+    }
+    const totalRounds = schedule.length;
+    const cutoff = Math.max(0, Math.min(totalRounds, Number(fromRound)));
+    if (cutoff >= totalRounds) {
+      alert('재구성할 잔여 라운드가 없습니다. (모든 라운드가 이미 완료되었거나 마지막 라운드입니다)');
+      return false;
+    }
+
+    const courtsCount = (schedule[0] && schedule[0].length) || scheduleCourts || 2;
+    const remRounds = totalRounds - cutoff;
+    const remSlots = remRounds * courtsCount * 4;
+
+    // 참가자 목록 정비: candidateParticipants가 주어지면 그것 사용, 아니면 participants
+    let baseParticipants = [...(candidateParticipants || participants)];
+    if (removedPlayerId) {
+      // 제거 대상 제외
+      baseParticipants = baseParticipants.filter(p => p.playerId !== removedPlayerId);
+    }
+
+    const activePlayerIds = baseParticipants.map(p => p.playerId);
+    if (activePlayerIds.length < 4) {
+      alert('대진표를 구성하기 위한 참가자 수가 부족합니다. (최소 4명 이상 필요)');
+      return false;
+    }
+
+    // 보존 라운드까지 출전 수 및 잔여 목표 게임수 배분
+    const playedSoFar = getPlayedSoFarMap(cutoff);
+    const remainingTargets = {};
+    activePlayerIds.forEach(id => {
+      remainingTargets[id] = 0;
+    });
+
+    for (let slot = 0; slot < remSlots; slot++) {
+      const eligible = activePlayerIds.filter(id => (remainingTargets[id] || 0) < remRounds);
+      if (eligible.length === 0) break;
+
+      eligible.sort((aId, bId) => {
+        const totalA = (playedSoFar[aId] || 0) + (remainingTargets[aId] || 0);
+        const totalB = (playedSoFar[bId] || 0) + (remainingTargets[bId] || 0);
+        if (totalA !== totalB) return totalA - totalB; // 낮은 총 게임수 우선
+
+        // 우선순위: 1순위 게스트 -> 2순위 4주 0회 -> 3순위 NTRP 낮은순 -> 이름순
+        const prioA = getPlayerBalancePriority(aId);
+        const prioB = getPlayerBalancePriority(bId);
+        if (prioA.rank !== prioB.rank) return prioA.rank - prioB.rank;
+        if (prioA.ntrp !== prioB.ntrp) return prioA.ntrp - prioB.ntrp;
+        const mA = members.find(m => m.id === aId);
+        const mB = members.find(m => m.id === bId);
+        return (mA?.name || '').localeCompare(mB?.name || '', 'ko');
+      });
+
+      const chosen = eligible[0];
+      remainingTargets[chosen] = (remainingTargets[chosen] || 0) + 1;
+    }
+
+    // 스케줄러에 넘길 엔트리 준비
+    const remainingEntries = activePlayerIds.map(id => {
+      const m = members.find(x => x.id === id);
+      return m ? { ...m, target: remainingTargets[id] || 0 } : null;
+    }).filter(Boolean);
+
+    const initialUsedPairs = getPreservedUsedPairs(cutoff);
+
+    // 잔여 라운드 대진 생성 실행
+    const opts = {
+      initialUsedPairs,
+      noFF: true,
+      groups: []
+    };
+
+    const { result } = generateSchedule(remainingEntries, remRounds, courtsCount, opts, 2500, 3000);
+    if (!result || !result.scheduleRounds) {
+      alert('잔여 대진 생성에 실패했습니다. 참가자 수나 성비를 확인해주세요.');
+      return false;
+    }
+
+    // 대진 병합: 보존 라운드 + 새 잔여 라운드
+    const preservedRounds = schedule.slice(0, cutoff);
+    const combinedSchedule = [...preservedRounds, ...result.scheduleRounds];
+
+    // 스코어 정리: cutoff 이후의 점수 제거
+    const nextScores = { ...scores };
+    Object.keys(nextScores).forEach(key => {
+      const [rStr] = key.split('-');
+      const rIdx = parseInt(rStr, 10);
+      if (rIdx >= cutoff) {
+        delete nextScores[key];
+      }
+    });
+
+    // 참가자 목록 및 목표 게임수 갱신
+    const nextParticipants = activePlayerIds.map(id => {
+      const prev = baseParticipants.find(p => p.playerId === id);
+      const newTarget = (playedSoFar[id] || 0) + (remainingTargets[id] || 0);
+      return {
+        ...prev,
+        playerId: id,
+        target: newTarget
+      };
+    });
+
+    // 만약 조기 퇴장 회원(removedPlayerId)이 이전 보존 라운드에 출전한 기록이 있다면
+    // 통계 및 순위 유지를 위해 target = playedSoFar 로 보존 참가자로 남김
+    if (removedPlayerId) {
+      const removedPlayed = playedSoFar[removedPlayerId] || 0;
+      if (removedPlayed > 0) {
+        nextParticipants.push({
+          playerId: removedPlayerId,
+          target: removedPlayed,
+          leftEarly: true,
+          leftAtRound: cutoff + 1
+        });
+      }
+    }
+
+    setSchedule(combinedSchedule);
+    setScores(nextScores);
+    if (setParticipants) setParticipants(nextParticipants);
+    if (onSave) {
+      onSave({
+        schedule: combinedSchedule,
+        scores: nextScores,
+        participants: nextParticipants
+      });
+    }
+
+    return true;
+  };
   const [collapsedCourts, setCollapsedCourts] = useState({}); // { [courtIdx]: boolean }
 
   /* ── 🖨️ A4 한장 출력 (라운드별 전체 테이블) 옵션 및 미리보기 상태 ── */
@@ -334,15 +644,44 @@ export default function BracketTab({
     if (toAdd.length === 0) return;
     const newEntries = toAdd.map(id => ({ playerId: id, target: targetGames || 3 }));
     const nextParticipants = [...participants, ...newEntries];
-    if (setParticipants) setParticipants(nextParticipants);
-    if (onSave) onSave({ participants: nextParticipants });
+
+    const nextRound = detectNextRoundIndex();
+    const addedMembers = members.filter(m => toAdd.includes(m.id));
+    const addedNames = addedMembers.map(m => m.name).join(', ');
+
+    // 대진표가 이미 존재하고 재구성할 잔여 라운드가 있다면 재구성 확인 모달 띄움
+    if (schedule && schedule.length > 0 && nextRound < schedule.length) {
+      setReconfigCandidateParticipants(nextParticipants);
+      setReconfigRemovedPlayerId(null);
+      setReconfigFromRound(nextRound);
+      setReconfigReason('add');
+      setReconfigAddedNames(addedNames);
+      setShowReconfigModal(true);
+    } else {
+      if (setParticipants) setParticipants(nextParticipants);
+      if (onSave) onSave({ participants: nextParticipants });
+    }
   };
 
   const handleRemoveParticipant = (memberId) => {
     if (isReadOnly || !hasPlayerEditPerm) return;
     const playedCount = (todayRows.find(r => r.id === memberId)?.played) || 0;
+    const memberName = members.find(m => m.id === memberId)?.name || '회원';
+    const nextRound = detectNextRoundIndex();
+
+    // 대진표가 존재하고 잔여 라운드가 있다면 조기 퇴장 및 잔여 대진 재구성 모달 띄움
+    if (schedule && schedule.length > 0 && nextRound < schedule.length) {
+      setReconfigCandidateParticipants(participants);
+      setReconfigRemovedPlayerId(memberId);
+      setReconfigFromRound(nextRound);
+      setReconfigReason('remove');
+      setReconfigRemovedName(memberName);
+      setShowReconfigModal(true);
+      return;
+    }
+
     if (playedCount > 0) {
-      alert('이미 완료된 경기 기록이 있는 선수는 대진표 참가자에서 제외할 수 없습니다.');
+      alert('이미 완료된 경기 기록이 있는 선수는 대진표 참가자에서 완전히 제외할 수 없습니다.');
       return;
     }
     const assignedCount = playerAssignedCounts[memberId] || 0;
@@ -366,6 +705,20 @@ export default function BracketTab({
     const nextParticipants = participants.filter(p => p.playerId !== memberId);
     if (setParticipants) setParticipants(nextParticipants);
     if (onSave) onSave({ participants: nextParticipants });
+  };
+
+  const handleOpenManualReconfig = () => {
+    if (isReadOnly || !hasPlayerEditPerm) return;
+    if (!schedule || schedule.length === 0) {
+      alert('생성된 대진표가 없습니다.');
+      return;
+    }
+    const nextRound = detectNextRoundIndex();
+    setReconfigCandidateParticipants(participants);
+    setReconfigRemovedPlayerId(null);
+    setReconfigFromRound(nextRound);
+    setReconfigReason('manual');
+    setShowReconfigModal(true);
   };
 
   const handleMaxGamesChange = (newMax) => {
@@ -857,14 +1210,25 @@ export default function BracketTab({
                   참가 {participants.length}명
                 </span>
               </div>
-              <button 
-                type="button" 
-                className="btn btn-primary btn-sm" 
-                onClick={() => setShowAddMemberModal(true)}
-                style={{ width: '100%', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-              >
-                👥 정회원(추가참석) 추가
-              </button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-primary btn-sm" 
+                  onClick={() => setShowAddMemberModal(true)}
+                  style={{ width: '100%', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '11px' }}
+                >
+                  👥 회원 추가/제외
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={handleOpenManualReconfig}
+                  style={{ width: '100%', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '11px', borderColor: '#3b82f6', color: '#1d4ed8', backgroundColor: '#eff6ff' }}
+                  title="현재 진행 중인 라운드 이후의 잔여 대진을 재구성합니다"
+                >
+                  🔄 잔여 대진 재구성
+                </button>
+              </div>
             </div>
           )}
 
@@ -2379,6 +2743,241 @@ export default function BracketTab({
         onRemoveParticipant={handleRemoveParticipant}
         isAdmin={isAdmin}
       />
+
+      {/* 5.5. 🔄 잔여 대진 자동 재구성 모달 */}
+      {showReconfigModal && (
+        <div className="modal-overlay" style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1100 }}>
+          <div 
+            className="modal-content" 
+            style={{ 
+              maxWidth: '540px', 
+              width: '94%', 
+              borderRadius: '22px', 
+              padding: '24px',
+              boxShadow: '0 20px 45px rgba(0,0,0,0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '90vh'
+            }}
+          >
+            {/* 헤더 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '28px' }}>
+                  {reconfigReason === 'add' ? '👥' : reconfigReason === 'remove' ? '🏃' : '🔄'}
+                </span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--txt)' }}>
+                    {reconfigReason === 'add'
+                      ? `[${reconfigAddedNames}] 회원 추가 및 잔여 대진 재구성`
+                      : reconfigReason === 'remove'
+                      ? `[${reconfigRemovedName}] 조기 퇴장 및 잔여 대진 재구성`
+                      : '현재 진행 중인 대진 다음으로 재구성'}
+                  </h3>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: 'var(--txt3)' }}>
+                    완료/진행 중인 이전 라운드의 점수와 기록은 100% 안전하게 보존됩니다.
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowReconfigModal(false)}
+                style={{ 
+                  background: 'none', 
+                  border: 'none', 
+                  fontSize: '22px', 
+                  color: 'var(--txt3)', 
+                  cursor: 'pointer', 
+                  padding: '4px',
+                  lineHeight: 1
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 재구성 설정 카드 */}
+            <div style={{
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '14px',
+              padding: '14px',
+              marginBottom: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: 'var(--txt)', marginBottom: '6px' }}>
+                  🎯 재구성 시작 라운드 선택
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <select 
+                    className="select" 
+                    value={reconfigFromRound} 
+                    onChange={e => setReconfigFromRound(Number(e.target.value))}
+                    style={{ flex: 1, fontWeight: 700, padding: '8px 12px', borderRadius: '10px' }}
+                  >
+                    {schedule?.map((_, ri) => {
+                      const isNextDetected = ri === detectNextRoundIndex();
+                      const isPast = ri < detectNextRoundIndex();
+                      return (
+                        <option key={ri} value={ri}>
+                          {ri + 1}R부터 재구성 ({ri + 1}R ~ {schedule.length}R) {isNextDetected ? '⭐ (현재 진행 다음 라운드 - 추천)' : isPast ? '⚠️ (이전 라운드/기록 초기화 주의)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+
+              {/* 보존 vs 재구성 요약 칩 */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '2px' }}>
+                <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534' }}>
+                    🔒 보존되는 경기
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#14532d', marginTop: '2px' }}>
+                    {reconfigFromRound === 0 ? '보존 없음 (전체 재편성)' : `1R ~ ${reconfigFromRound}R (${reconfigFromRound}개 라운드)`}
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#16a34a', marginTop: '2px' }}>
+                    입력된 스코어 & 승패 100% 유지
+                  </div>
+                </div>
+
+                <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af' }}>
+                    🔄 새로 편성될 경기
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e3a8a', marginTop: '2px' }}>
+                    {reconfigFromRound + 1}R ~ {schedule?.length}R ({(schedule?.length || 0) - reconfigFromRound}개 라운드)
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#2563eb', marginTop: '2px' }}>
+                    파트너 중복 최소화 적용
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 배분 우선순위 안내 박스 */}
+            <div style={{
+              padding: '10px 12px',
+              borderRadius: '12px',
+              backgroundColor: '#faf5ff',
+              border: '1px solid #e9d5ff',
+              marginBottom: '16px',
+              fontSize: '12px'
+            }}>
+              <div style={{ fontWeight: 800, color: '#6b21a8', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
+                <span>⚖️ 잔여 경기 목표 균등 배분 우선순위</span>
+              </div>
+              <div style={{ color: '#581c87', fontSize: '11.5px', lineHeight: 1.5 }}>
+                잔여 게임수는 <strong>1순위 게스트</strong>, <strong>2순위 4주간 0회 참석자</strong>, <strong>3순위 NTRP 낮은 순</strong> 원칙에 따라 자동으로 균등 배분됩니다.
+                {reconfigReason === 'add' && ' 늦게 합류한 회원은 이전 미출전분을 만회할 수 있도록 우선 배정됩니다.'}
+                {reconfigReason === 'remove' && ' 조기 퇴장한 회원은 안전하게 제외되며 이전 완료 기록은 온전히 보존됩니다.'}
+              </div>
+            </div>
+
+            {/* 작업 버튼 영역 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  const success = executeReconfigureRemaining({
+                    fromRound: reconfigFromRound,
+                    candidateParticipants: reconfigCandidateParticipants,
+                    removedPlayerId: reconfigRemovedPlayerId
+                  });
+                  if (success) {
+                    setShowReconfigModal(false);
+                    setShowAddMemberModal(false);
+                    alert(`🎉 ${reconfigFromRound + 1}R부터 잔여 대진이 성공적으로 재구성되었습니다!`);
+                  }
+                }}
+                style={{
+                  padding: '11px',
+                  fontWeight: 800,
+                  fontSize: '14px',
+                  borderRadius: '12px',
+                  backgroundColor: 'var(--ios-blue)',
+                  boxShadow: '0 4px 12px rgba(0, 122, 255, 0.25)',
+                  cursor: 'pointer'
+                }}
+              >
+                🔄 {reconfigFromRound + 1}R부터 잔여 대진 자동 재구성 실행
+              </button>
+
+              {reconfigReason === 'add' && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    if (setParticipants) setParticipants(reconfigCandidateParticipants);
+                    if (onSave) onSave({ participants: reconfigCandidateParticipants });
+                    setShowReconfigModal(false);
+                    setShowAddMemberModal(false);
+                    alert('참가자 명단에 등록되었습니다. (대진표는 수동으로 배정할 수 있습니다)');
+                  }}
+                  style={{
+                    padding: '8px',
+                    fontWeight: 600,
+                    fontSize: '12.5px',
+                    borderRadius: '10px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  대진표 재구성 없이 참가자 목록에만 추가 (수동 배정)
+                </button>
+              )}
+
+              {reconfigReason === 'remove' && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    // 단순 참가자 제외 (대진 재구성 없이 슬롯만 비움)
+                    const nextSchedule = schedule.map((round, ri) => {
+                      if (ri < reconfigFromRound) return round;
+                      return round.map(m => ({
+                        ...m,
+                        teamA: (m.teamA || []).map(id => id === reconfigRemovedPlayerId ? null : id),
+                        teamB: (m.teamB || []).map(id => id === reconfigRemovedPlayerId ? null : id)
+                      }));
+                    });
+                    const nextParticipants = participants.filter(p => p.playerId !== reconfigRemovedPlayerId);
+                    setSchedule(nextSchedule);
+                    if (setParticipants) setParticipants(nextParticipants);
+                    if (onSave) onSave({ schedule: nextSchedule, participants: nextParticipants });
+                    setShowReconfigModal(false);
+                    setShowAddMemberModal(false);
+                    alert('선수가 제외되었습니다.');
+                  }}
+                  style={{
+                    padding: '8px',
+                    fontWeight: 600,
+                    fontSize: '12.5px',
+                    borderRadius: '10px',
+                    color: '#dc2626',
+                    cursor: 'pointer'
+                  }}
+                >
+                  대진 재구성 없이 해당 선수만 빈 슬롯으로 비우기
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowReconfigModal(false)}
+                style={{ padding: '8px', borderRadius: '10px', fontSize: '12.5px' }}
+              >
+                닫기 / 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 🖨️ 6. A4 한장 출력 미리보기 및 인쇄 설정 모달 (화면 전용, 인쇄 시 숨김) */}
       {showPrintModal && (
