@@ -666,6 +666,7 @@ export default function Dashboard() {
           <div style={{ marginTop: '20px' }}>
             <SettingsTab
               events={events}
+              schedules={schedules}
               matchDate={matchDate} setMatchDate={setMatchDate}
               members={members}
               participants={participants} setParticipants={setParticipants}

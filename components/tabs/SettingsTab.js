@@ -16,6 +16,7 @@ const numOptions = (min, max) => {
 
 export default function SettingsTab({
   events = [],
+  schedules = [],
   matchDate, setMatchDate,
   members, participants, setParticipants,
   rounds, setRounds, courts, setCourts,
@@ -49,6 +50,7 @@ export default function SettingsTab({
   const [localNtrpSplitMode, setLocalNtrpSplitMode] = useState(false);
   const [localNtrpSplitRounds, setLocalNtrpSplitRounds] = useState(() => calcDefaultSplitRounds(startTime, endTime, rounds));
   const [sortByNtrp, setSortByNtrp] = useState(false);
+  const [sortOrder, setSortOrder] = useState('NAME'); // 'NAME' | 'NTRP' | 'PRIORITY'
   const [askScoreModalOpen, setAskScoreModalOpen] = useState(false);
   const [pendingGenType, setPendingGenType] = useState('auto'); // 'auto' | 'manual'
   const [enableScoreInput, setEnableScoreInput] = useState(true); // 기본값: 점수 입력 사용
@@ -145,7 +147,121 @@ export default function SettingsTab({
   };
   const durationInfo = calcDuration(startTime, endTime);
 
-  // 균등 배분 계산 헬퍼
+  // YYYY-MM-DD 기준 N일 전 날짜 문자열 계산 (로컬 타임존 시프트 방지)
+  const getNDaysBefore = (baseDateStr, days = 28) => {
+    if (!baseDateStr) return '';
+    const parts = baseDateStr.split('-').map(Number);
+    if (parts.length < 3 || isNaN(parts[0])) return '';
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    d.setDate(d.getDate() - days);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const didMemberAttendSchedule = (s, memberId) => {
+    if (!s || !memberId) return false;
+    if (Array.isArray(s.participants)) {
+      if (s.participants.some(p => (typeof p === 'string' ? p === memberId : (p.playerId === memberId || p.id === memberId)))) {
+        return true;
+      }
+    }
+    if (Array.isArray(s.schedule)) {
+      for (const round of s.schedule) {
+        if (Array.isArray(round)) {
+          for (const m of round) {
+            if (m) {
+              if (Array.isArray(m.teamA) && m.teamA.includes(memberId)) return true;
+              if (Array.isArray(m.teamB) && m.teamB.includes(memberId)) return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  };
+
+  const didMemberAttendEvent = (e, memberId) => {
+    if (!e || !memberId) return false;
+    return Boolean(e.attendees && e.attendees[memberId] === 'Y');
+  };
+
+  // 최근 4주(28일) 동안 참석 일수 계산 (matchDate 이전 28일 기준)
+  const get4WeeksAttendanceCount = (memberId) => {
+    if (!memberId) return 0;
+    const baseDate = matchDate || new Date().toISOString().substring(0, 10);
+    const startDate = getNDaysBefore(baseDate, 28);
+    if (!startDate) return 0;
+
+    const attendedDateSet = new Set();
+
+    (schedules || []).forEach(s => {
+      const sDate = s.matchDate || (s.date ? s.date.substring(0, 10) : null);
+      if (!sDate) return;
+      if (sDate >= startDate && sDate < baseDate) {
+        if (didMemberAttendSchedule(s, memberId)) {
+          attendedDateSet.add(sDate);
+        }
+      }
+    });
+
+    (events || []).forEach(e => {
+      const eDate = e.date ? e.date.substring(0, 10) : null;
+      if (!eDate) return;
+      if (eDate >= startDate && eDate < baseDate) {
+        if (didMemberAttendEvent(e, memberId)) {
+          attendedDateSet.add(eDate);
+        }
+      }
+    });
+
+    return attendedDateSet.size;
+  };
+
+  // 참가자 목표 게임수 배분 우선순위 정보 반환
+  // 1순위: 게스트, 2순위: 4주 동안 1회 미만(0회) 참석자, 3순위: NTRP 낮은 순
+  const getPlayerBalancePriority = (playerId) => {
+    const m = members.find(x => x.id === playerId);
+    const isGuest = isGuestMember(m);
+    if (isGuest) {
+      return {
+        rank: 1,
+        label: '게스트',
+        badgeText: '⭐ 1순위 (게스트)',
+        badgeColor: '#7c3aed',
+        bg: '#f3e8ff',
+        border: '#d8b4fe',
+        ntrp: Number(m?.ntrp ?? 2.5),
+        attendCount: null
+      };
+    }
+    const attendCount = get4WeeksAttendanceCount(playerId);
+    if (attendCount < 1) {
+      return {
+        rank: 2,
+        label: '4주 미참석',
+        badgeText: '⚡ 2순위 (4주 0회)',
+        badgeColor: '#b45309',
+        bg: '#fef3c7',
+        border: '#fde68a',
+        ntrp: Number(m?.ntrp ?? 2.5),
+        attendCount: 0
+      };
+    }
+    return {
+      rank: 3,
+      label: '일반회원',
+      badgeText: `3순위 (${attendCount}회)`,
+      badgeColor: '#475569',
+      bg: '#f1f5f9',
+      border: '#e2e8f0',
+      ntrp: Number(m?.ntrp ?? 2.5),
+      attendCount
+    };
+  };
+
+  // 균등 배분 계산 함수 (우선순위: 1순위 게스트 -> 2순위 4주 1회미만 참석자 -> 3순위 NTRP 낮은순)
   const computeBalancedParticipants = (pts, rCount = rounds, cCount = courts, allowS = allowSingles) => {
     const n = pts.length;
     if (n === 0) return pts;
@@ -157,7 +273,38 @@ export default function SettingsTab({
     if (tSlots <= 0) return pts;
     const base = Math.floor(tSlots / n);
     let rem = tSlots - base * n;
-    return pts.map((pt, i) => ({ ...pt, target: base + (i < rem ? 1 : 0) }));
+
+    if (rem <= 0) {
+      return pts.map(pt => ({ ...pt, target: base }));
+    }
+
+    // 우선순위 정렬: 1순위 게스트 -> 2순위 4주 미참석 -> 3순위 NTRP 낮은 순
+    const sortedByPriority = [...pts].sort((a, b) => {
+      const prioA = getPlayerBalancePriority(a.playerId);
+      const prioB = getPlayerBalancePriority(b.playerId);
+
+      // 1. 순위별 (1순위 < 2순위 < 3순위)
+      if (prioA.rank !== prioB.rank) {
+        return prioA.rank - prioB.rank;
+      }
+
+      // 2. NTRP 낮은 순 (오름차순)
+      if (prioA.ntrp !== prioB.ntrp) {
+        return prioA.ntrp - prioB.ntrp;
+      }
+
+      // 3. 동점자: 이름순
+      const nameA = members.find(m => m.id === a.playerId)?.name || '';
+      const nameB = members.find(m => m.id === b.playerId)?.name || '';
+      return nameA.localeCompare(nameB, 'ko');
+    });
+
+    const bonusIds = new Set(sortedByPriority.slice(0, rem).map(p => p.playerId));
+
+    return pts.map(pt => ({
+      ...pt,
+      target: base + (bonusIds.has(pt.playerId) ? 1 : 0)
+    }));
   };
 
   // 추천 설정 적용 함수
@@ -387,6 +534,8 @@ export default function SettingsTab({
   const autoBalance = () => {
     const balanced = computeBalancedParticipants(participants, rounds, courts, allowSingles);
     setParticipants(balanced);
+    setStatus('⚖️ 우선순위(1순위 게스트 → 2순위 4주 미참석자 → 3순위 NTRP 낮은 순)에 맞춰 목표 게임수가 균등 배분되었습니다.');
+    setTimeout(() => setStatus(''), 4500);
   };
 
   const targetSum = participants.reduce((s, pt) => s + (pt.target || 0), 0);
@@ -400,7 +549,21 @@ export default function SettingsTab({
   }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
 
   const ntrpSplitInfo = splitPlayersByNtrp(entries);
-  const displayEntries = (effectiveSplitMode || sortByNtrp) ? ntrpSplitInfo.sorted : entries;
+
+  // 배분 우선순위 기준 정렬 (1순위 게스트 -> 2순위 4주 0회 -> 3순위 NTRP 낮은순)
+  const prioritySortedEntries = [...entries].sort((a, b) => {
+    const prioA = getPlayerBalancePriority(a.id);
+    const prioB = getPlayerBalancePriority(b.id);
+    if (prioA.rank !== prioB.rank) return prioA.rank - prioB.rank;
+    if (prioA.ntrp !== prioB.ntrp) return prioA.ntrp - prioB.ntrp;
+    return a.name.localeCompare(b.name, 'ko');
+  });
+
+  const displayEntries = effectiveSplitMode
+    ? ntrpSplitInfo.sorted
+    : (sortOrder === 'PRIORITY'
+      ? prioritySortedEntries
+      : (sortOrder === 'NTRP' || sortByNtrp ? ntrpSplitInfo.sorted : entries));
 
   const maleCount = entries.filter(e => e.gender === 'M').length;
   const femaleCount = entries.filter(e => e.gender === 'F').length;
@@ -1607,15 +1770,20 @@ export default function SettingsTab({
       {/* 4단계: 참가자 목표 게임수 설정 및 균등 배분 */}
       <div className={`card ${styles.section}`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <h2 className={styles.sectionTitle} style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>
-            4단계: 참가자 목표 게임수 설정 및 균등 배분
-          </h2>
+          <div>
+            <h2 className={styles.sectionTitle} style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>
+              4단계: 참가자 목표 게임수 설정 및 균등 배분
+            </h2>
+            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--txt2)' }}>
+              참가자별 목표 게임수를 확인하고 필요 시 직접 조정하거나 우선순위대로 자동 균등 배분합니다.
+            </p>
+          </div>
           {entries.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                className={`btn btn-sm ${!(effectiveSplitMode || sortByNtrp) ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setSortByNtrp(false)}
+                className={`btn btn-sm ${sortOrder === 'NAME' && !effectiveSplitMode ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => { setSortOrder('NAME'); setSortByNtrp(false); }}
                 disabled={!!effectiveSplitMode}
                 title={effectiveSplitMode ? 'NTRP 그룹 분리 옵션 활성화 중에는 NTRP 순서로 고정됩니다' : '가나다 이름순 정렬'}
                 style={{ fontSize: '11.5px', padding: '3px 9px' }}
@@ -1624,23 +1792,71 @@ export default function SettingsTab({
               </button>
               <button
                 type="button"
-                className={`btn btn-sm ${(effectiveSplitMode || sortByNtrp) ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setSortByNtrp(true)}
+                className={`btn btn-sm ${(sortOrder === 'NTRP' || effectiveSplitMode) ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => { setSortOrder('NTRP'); setSortByNtrp(true); }}
+                title="🏆 NTRP 순 (상·하위 그룹)"
                 style={{ fontSize: '11.5px', padding: '3px 9px' }}
               >
-                🏆 NTRP 순 (상·하위 그룹)
+                🏆 NTRP 순
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${sortOrder === 'PRIORITY' && !effectiveSplitMode ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => { setSortOrder('PRIORITY'); setSortByNtrp(false); }}
+                disabled={!!effectiveSplitMode}
+                title="1순위 게스트 ➔ 2순위 4주 0회 ➔ 3순위 NTRP 낮은 순"
+                style={{ fontSize: '11.5px', padding: '3px 9px', fontWeight: 800 }}
+              >
+                ⚖️ 배분 우선순위순
               </button>
             </div>
           )}
         </div>
+
+        {/* 잔여 게임 배분 우선순위 안내 배너 */}
+        <div style={{
+          padding: '10px 14px',
+          borderRadius: '10px',
+          backgroundColor: 'rgba(59, 130, 246, 0.06)',
+          border: '1px solid rgba(59, 130, 246, 0.2)',
+          fontSize: '12.5px',
+          color: 'var(--txt)',
+          marginTop: '12px',
+          marginBottom: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '8px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 800, color: '#1d4ed8' }}>⚖️ 목표 게임수 균등 배분 우선순위:</span>
+            <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#7e22ce', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#f3e8ff', border: '1px solid #d8b4fe' }}>
+              ⭐ 1순위: 게스트
+            </span>
+            <span style={{ color: 'var(--txt3)', fontSize: '11px' }}>➔</span>
+            <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#b45309', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#fef3c7', border: '1px solid #fde68a' }}>
+              ⚡ 2순위: 4주간 1회 미만(0회) 참석자
+            </span>
+            <span style={{ color: 'var(--txt3)', fontSize: '11px' }}>➔</span>
+            <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#1e40af', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+              🎾 3순위: NTRP 낮은 순
+            </span>
+          </div>
+          <span style={{ fontSize: '11.5px', color: 'var(--txt2)' }}>
+            * 잔여 게임(+1) 발생 시 위 우선순위대로 먼저 배분됩니다.
+          </span>
+        </div>
+
         <div className="table-wrap" style={{ marginTop: 10 }}>
           <table style={{ width: '100%' }}>
             <thead>
               <tr>
-                {(effectiveSplitMode || sortByNtrp) && <th style={{ width: '78px', whiteSpace: 'nowrap', padding: '8px 6px' }}>그룹</th>}
+                {(effectiveSplitMode || sortOrder === 'NTRP' || sortByNtrp) && <th style={{ width: '78px', whiteSpace: 'nowrap', padding: '8px 6px' }}>그룹</th>}
                 <th style={{ minWidth: '110px', whiteSpace: 'nowrap', padding: '8px 10px' }}>이름</th>
                 <th style={{ width: '48px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>성별</th>
                 <th style={{ width: '54px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>NTRP</th>
+                <th style={{ width: '135px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>배분 우선순위</th>
                 <th style={{ width: '82px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>목표 게임수</th>
                 <th style={{ width: '56px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}></th>
               </tr>
@@ -1648,14 +1864,15 @@ export default function SettingsTab({
             <tbody>
               {displayEntries.map((p, idx) => {
                 const isUpper = ntrpSplitInfo.upperIds.has(p.id);
+                const prio = getPlayerBalancePriority(p.id);
                 return (
                   <tr
                     key={p.id}
-                    style={(effectiveSplitMode || sortByNtrp) ? {
+                    style={(effectiveSplitMode || sortOrder === 'NTRP' || sortByNtrp) ? {
                       backgroundColor: isUpper ? 'rgba(255, 247, 237, 0.45)' : 'rgba(240, 253, 244, 0.45)'
                     } : undefined}
                   >
-                    {(effectiveSplitMode || sortByNtrp) && (
+                    {(effectiveSplitMode || sortOrder === 'NTRP' || sortByNtrp) && (
                       <td style={{ whiteSpace: 'nowrap', padding: '8px 6px' }}>
                         <span style={{
                           fontSize: '11px',
@@ -1672,12 +1889,29 @@ export default function SettingsTab({
                       </td>
                     )}
                     <td style={{ fontWeight: 700, minWidth: '110px', whiteSpace: 'nowrap', wordBreak: 'keep-all', padding: '8px 10px' }}>
-                      {(effectiveSplitMode || sortByNtrp) ? `${idx + 1}. ${p.name}` : p.name}
+                      {(effectiveSplitMode || sortOrder === 'NTRP' || sortByNtrp) ? `${idx + 1}. ${p.name}` : p.name}
                     </td>
                     <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>
                       <span className={`badge ${p.gender === 'F' ? 'badge-purple' : 'badge-blue'}`}>{p.gender === 'F' ? '여' : '남'}</span>
                     </td>
                     <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>{p.ntrp.toFixed(1)}</td>
+                    <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: prio.bg,
+                        color: prio.badgeColor,
+                        border: `1px solid ${prio.border}`,
+                        fontWeight: 800,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {prio.badgeText}
+                      </span>
+                    </td>
                     <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <select className="input input-sm" value={p.target} style={{ width: 56 }}
