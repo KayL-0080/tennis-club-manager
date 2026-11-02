@@ -153,6 +153,7 @@ export default function Dashboard() {
         startTime: finalStartTime,
         endTime: finalEndTime,
         usePenalty,
+        useScore: genStats?.useScore !== undefined ? Boolean(genStats.useScore) : true,
         maxGames: Number(genStats?.maxGames ?? maxGames) || 6,
         ntrpSplitMode: !!(genStats?.ntrpSplitMode ?? ntrpSplitMode),
         ntrpSplitRounds: (genStats?.ntrpSplitMode ?? ntrpSplitMode) ? (genStats?.splitRounds ?? ntrpSplitRounds) : null,
@@ -183,7 +184,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleScheduleManual = async (schedRounds) => {
+  const handleScheduleManual = async (schedRounds, manualOpts = {}) => {
     if (!isAdmin) {
       alert('대진표 생성 권한이 없습니다 (운영진 전용).');
       return;
@@ -211,6 +212,7 @@ export default function Dashboard() {
         startTime: finalStartTime,
         endTime: finalEndTime,
         usePenalty,
+        useScore: manualOpts?.useScore !== undefined ? Boolean(manualOpts.useScore) : true,
         maxGames: Number(maxGames) || 6,
         ntrpSplitMode: !!ntrpSplitMode,
         ntrpSplitRounds: ntrpSplitMode ? ntrpSplitRounds : null,
@@ -776,6 +778,11 @@ function ScheduleCard({ s, members, isAdmin, onOpen, onDelete, isCompleted }) {
           ) : (
             <span className="badge badge-gold" style={{ fontSize: '10.5px', fontWeight: 700, padding: '2px 6px' }}>
               미생성
+            </span>
+          )}
+          {s.useScore === false && (
+            <span className="badge" style={{ backgroundColor: '#f1f5f9', color: '#475569', fontSize: '10.5px', fontWeight: 700, padding: '2px 6px', border: '1px solid #cbd5e1' }}>
+              대진 전용
             </span>
           )}
         </div>

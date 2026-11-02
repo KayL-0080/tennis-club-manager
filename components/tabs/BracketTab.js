@@ -81,6 +81,7 @@ export default function BracketTab({
   penaltyAmount = 1000, setPenaltyAmount,
   penaltyPaidMap = {}, setPenaltyPaidMap,
   maxGames = 6, setMaxGames,
+  useScore = true, setUseScore,
   clubSettings,
   matchDate,
   title,
@@ -820,9 +821,25 @@ export default function BracketTab({
               </button>
               {isAdmin && (
                 <>
-                  <button className="btn btn-secondary btn-sm" onClick={clearScores}>
-                    점수 초기화
-                  </button>
+                  {useScore && (
+                    <button className="btn btn-secondary btn-sm" onClick={clearScores}>
+                      점수 초기화
+                    </button>
+                  )}
+                  {setUseScore && (
+                    <button 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => {
+                        const nextVal = !useScore;
+                        if (confirm(nextVal ? '점수 입력 기능을 활성화하시겠습니까?' : '점수 입력을 끄고 대진 전용 모드로 변경하시겠습니까?')) {
+                          setUseScore(nextVal);
+                        }
+                      }}
+                      title={useScore ? "점수 입력 숨기기 (대진 전용 모드)" : "점수 입력 활성화"}
+                    >
+                      {useScore ? '점수 끄기' : '점수 켜기'}
+                    </button>
+                  )}
                   <button className="btn btn-danger btn-sm" onClick={clearSchedule}>
                     🗑️ 전체 삭제
                   </button>
@@ -1284,25 +1301,39 @@ export default function BracketTab({
                               </div>
 
                               {/* 스코어 입력 영역 */}
-                              <div className={styles.courtScoreArea}>
-                                <select
-                                  disabled={isReadOnly}
-                                  className={styles.courtScoreBox}
-                                  value={sc.a === null || sc.a === undefined ? '' : sc.a}
-                                  onChange={e => onScore(ri, currentCi, 'a', e.target.value)}
-                                >
-                                  {scoreOptions(maxGames)}
-                                </select>
-                                <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--txt3)', userSelect: 'none' }}>:</span>
-                                <select
-                                  disabled={isReadOnly}
-                                  className={styles.courtScoreBox}
-                                  value={sc.b === null || sc.b === undefined ? '' : sc.b}
-                                  onChange={e => onScore(ri, currentCi, 'b', e.target.value)}
-                                >
-                                  {scoreOptions(maxGames)}
-                                </select>
-                              </div>
+                              {useScore ? (
+                                <div className={styles.courtScoreArea}>
+                                  <select
+                                    disabled={isReadOnly}
+                                    className={styles.courtScoreBox}
+                                    value={sc.a === null || sc.a === undefined ? '' : sc.a}
+                                    onChange={e => onScore(ri, currentCi, 'a', e.target.value)}
+                                  >
+                                    {scoreOptions(maxGames)}
+                                  </select>
+                                  <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--txt3)', userSelect: 'none' }}>:</span>
+                                  <select
+                                    disabled={isReadOnly}
+                                    className={styles.courtScoreBox}
+                                    value={sc.b === null || sc.b === undefined ? '' : sc.b}
+                                    onChange={e => onScore(ri, currentCi, 'b', e.target.value)}
+                                  >
+                                    {scoreOptions(maxGames)}
+                                  </select>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', flexShrink: 0 }}>
+                                  <span style={{
+                                    fontSize: '12px',
+                                    fontWeight: 800,
+                                    color: 'var(--txt3)',
+                                    padding: '4px 6px',
+                                    borderRadius: '6px',
+                                    background: 'var(--bg2, rgba(0,0,0,0.05))',
+                                    letterSpacing: '0.5px'
+                                  }}>VS</span>
+                                </div>
+                              )}
 
                               {/* Team B */}
                               <div 
@@ -1544,23 +1575,37 @@ export default function BracketTab({
                               })}
                             </div>
                             {/* 스코어 */}
-                            <div className={styles.scoreRow}>
-                              <select 
-                                disabled={isReadOnly}
-                                className={styles.scoreInput}
-                                value={sc.a === null || sc.a === undefined ? '' : sc.a}
-                                onChange={e => onScore(ri, ci, 'a', e.target.value)}>
-                                {scoreOptions(maxGames)}
-                              </select>
-                              <span className={styles.scoreSep}>:</span>
-                              <select 
-                                disabled={isReadOnly}
-                                className={styles.scoreInput}
-                                value={sc.b === null || sc.b === undefined ? '' : sc.b}
-                                onChange={e => onScore(ri, ci, 'b', e.target.value)}>
-                                {scoreOptions(maxGames)}
-                              </select>
-                            </div>
+                            {useScore ? (
+                              <div className={styles.scoreRow}>
+                                <select 
+                                  disabled={isReadOnly}
+                                  className={styles.scoreInput}
+                                  value={sc.a === null || sc.a === undefined ? '' : sc.a}
+                                  onChange={e => onScore(ri, ci, 'a', e.target.value)}>
+                                  {scoreOptions(maxGames)}
+                                </select>
+                                <span className={styles.scoreSep}>:</span>
+                                <select 
+                                  disabled={isReadOnly}
+                                  className={styles.scoreInput}
+                                  value={sc.b === null || sc.b === undefined ? '' : sc.b}
+                                  onChange={e => onScore(ri, ci, 'b', e.target.value)}>
+                                  {scoreOptions(maxGames)}
+                                </select>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 0' }}>
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  color: 'var(--txt3)',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  background: 'var(--bg2, rgba(0,0,0,0.05))',
+                                  letterSpacing: '0.5px'
+                                }}>VS</span>
+                              </div>
+                            )}
                             {/* 팀 B */}
                             <div className={`${styles.teamLine} ${winB ? styles.winner : ''}`}>
                               {[0, 1].map(slot => {
@@ -1649,9 +1694,43 @@ export default function BracketTab({
         )}
       </div>
 
-
-      {/* 💸 1. 최종 경기 벌칙금(진팀 벌금) 정산소 (usePenalty === true 일 때 표시) */}
-      {usePenalty && (
+      {/* 점수 미입력(대진 전용 모드) 안내 카드 또는 정산/순위표 */}
+      {!useScore ? (
+        <div className={`card ${styles.section} no-print`} style={{
+          marginTop: '24px',
+          padding: '28px 20px',
+          textAlign: 'center',
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          border: '1.5px dashed var(--border)',
+          borderRadius: '16px'
+        }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 6px 0', color: 'var(--txt)' }}>
+            대진표 편성 전용 모드
+          </h3>
+          <p style={{ fontSize: '13px', color: 'var(--txt2)', margin: '0 auto 16px auto', maxWidth: '420px', lineHeight: 1.5 }}>
+            경기 점수 입력을 사용하지 않는 대진표 전용 상태입니다.<br />
+            스코어 입력칸과 경기 순위표·벌칙금 정산이 숨김 처리되어 대진 확인 및 인쇄/공유에 집중할 수 있습니다.
+          </p>
+          {isAdmin && setUseScore && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              style={{ fontWeight: 700, padding: '7px 16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              onClick={() => {
+                if (confirm('점수 입력 기능을 활성화하시겠습니까? (스코어 박스와 순위표가 표시됩니다)')) {
+                  setUseScore(true);
+                }
+              }}
+            >
+              🎾 경기 점수 입력 활성화하기
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* 💸 1. 최종 경기 벌칙금(진팀 벌금) 정산소 (usePenalty === true 일 때 표시) */}
+          {usePenalty && (
         <div className={`card ${styles.section} no-print`} style={{ marginTop: '24px', border: '1px solid rgba(225, 29, 72, 0.25)', background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255, 241, 242, 0.4) 100%)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
             <div>
@@ -2234,6 +2313,8 @@ export default function BracketTab({
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* 3. 벌칙금 정산 안내 공유 모달 */}
       {showPenaltyShareModal && (
@@ -2662,7 +2743,7 @@ export default function BracketTab({
                             letterSpacing: '0.05em',
                             whiteSpace: 'nowrap'
                           }}>
-                            {hasScore ? `${sc.a} : ${sc.b}` : '\u00A0\u00A0\u00A0:\u00A0\u00A0\u00A0'}
+                            {!useScore ? 'VS' : (hasScore ? `${sc.a} : ${sc.b}` : '\u00A0\u00A0\u00A0:\u00A0\u00A0\u00A0')}
                           </div>
 
                           {/* B팀 선수 명단 */}

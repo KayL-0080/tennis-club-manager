@@ -49,6 +49,9 @@ export default function SettingsTab({
   const [localNtrpSplitMode, setLocalNtrpSplitMode] = useState(false);
   const [localNtrpSplitRounds, setLocalNtrpSplitRounds] = useState(() => calcDefaultSplitRounds(startTime, endTime, rounds));
   const [sortByNtrp, setSortByNtrp] = useState(false);
+  const [askScoreModalOpen, setAskScoreModalOpen] = useState(false);
+  const [pendingGenType, setPendingGenType] = useState('auto'); // 'auto' | 'manual'
+  const [enableScoreInput, setEnableScoreInput] = useState(true); // 기본값: 점수 입력 사용
 
   const effectiveSplitMode = propNtrpSplitMode !== undefined ? propNtrpSplitMode : localNtrpSplitMode;
   const setEffectiveSplitMode = propSetNtrpSplitMode || setLocalNtrpSplitMode;
@@ -427,8 +430,21 @@ export default function SettingsTab({
 
   const removeGroup = id => setGroups(prev => prev.filter(g => g.id !== id));
 
+  // 자동 생성 시작 (점수 입력 여부 확인 모달 오픈)
+  const handleStartAuto = () => {
+    if (!isBalanced || !isMatchSumOk || generating) return;
+    setPendingGenType('auto');
+    setAskScoreModalOpen(true);
+  };
+
+  // 빈 대진표 직접 만들기 시작 (점수 입력 여부 확인 모달 오픈)
+  const handleStartManual = () => {
+    setPendingGenType('manual');
+    setAskScoreModalOpen(true);
+  };
+
   // 자동 생성
-  const runGeneration = () => {
+  const runGeneration = (useScore = true) => {
     setGenerating(true);
     setStatus('생성 중... (최대 3초)');
     setWarnMsg('');
@@ -480,22 +496,22 @@ export default function SettingsTab({
         ntrpDiffSum: result.ntrpDiffSum,
         ntrpSplitMode: !!effectiveSplitMode,
         splitRounds: effectiveSplitMode ? effectiveSplitRounds : null,
-        maxGames: effectiveMaxGames
+        maxGames: effectiveMaxGames,
+        useScore: Boolean(useScore)
       });
       onGoto('bracket');
     }, 50);
   };
 
   // 빈 대진표 직접 만들기
-  const createManual = () => {
-    if (!confirm('빈 대진표를 만들겠습니까? 기존 대진표와 점수는 초기화됩니다.')) return;
+  const createManual = (useScore = true) => {
     const sched = [];
     for (let r = 0; r < rounds; r++) {
       const round = [];
       for (let c = 0; c < courts; c++) round.push(makeEmptyMatch());
       sched.push(round);
     }
-    onScheduleManual(sched);
+    onScheduleManual(sched, { useScore: Boolean(useScore) });
     onGoto('bracket');
   };
 
@@ -1423,12 +1439,54 @@ export default function SettingsTab({
       {/* 생성 버튼 */}
       <div className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>대진표 만들기</h2>
+
+        {/* 점수 입력 여부 기본 설정 */}
+        <div style={{
+          marginBottom: '14px',
+          padding: '12px 14px',
+          background: '#f8fafc',
+          border: '1.5px solid #cbd5e1',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '8px'
+        }}>
+          <div>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '13.5px', color: '#1e293b' }}>
+              <input
+                type="checkbox"
+                checked={enableScoreInput}
+                onChange={(e) => setEnableScoreInput(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#2563eb' }}
+              />
+              <span>🔢 경기 점수(스코어) 입력 사용</span>
+            </label>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', marginLeft: '26px' }}>
+              {enableScoreInput
+                ? '체크됨: 경기별 점수 입력란과 실시간 순위표 및 벌칙금 정산이 활성화됩니다.'
+                : '체크 해제됨: 점수 입력란 없이 대진표 편성표만 깔끔하게 생성됩니다.'}
+            </div>
+          </div>
+          <span style={{
+            fontSize: '11.5px',
+            fontWeight: 800,
+            padding: '3px 8px',
+            borderRadius: '6px',
+            background: enableScoreInput ? '#dbeafe' : '#f1f5f9',
+            color: enableScoreInput ? '#1d4ed8' : '#64748b'
+          }}>
+            {enableScoreInput ? '점수 입력 모드' : '대진표 전용'}
+          </span>
+        </div>
+
         <div className={styles.genRow}>
-          <button className="btn btn-primary btn-lg" onClick={runGeneration}
+          <button className="btn btn-primary btn-lg" onClick={handleStartAuto}
             disabled={!isBalanced || !isMatchSumOk || generating}>
             {generating ? <><span className="spinner" /> 생성 중...</> : '🎾 자동으로 대진표 생성'}
           </button>
-          <button className="btn btn-secondary" onClick={createManual}>빈 대진표 직접 만들기</button>
+          <button className="btn btn-secondary" onClick={handleStartManual}>빈 대진표 직접 만들기</button>
           <button className="btn btn-secondary" onClick={onSaveAndExit}>💾 저장 후 목록으로</button>
           {status && <span className="text-muted" style={{ fontSize: 13 }}>{status}</span>}
         </div>
@@ -1436,6 +1494,146 @@ export default function SettingsTab({
           <div className="alert alert-warn" style={{ marginTop: 12, whiteSpace: 'pre-line' }}>⚠️ {warnMsg}</div>
         )}
       </div>
+
+      {/* ── 대진표 생성 시 점수 입력 여부 확인 모달 ── */}
+      {askScoreModalOpen && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          backgroundColor: 'rgba(15, 23, 42, 0.7)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            maxWidth: '440px',
+            width: '100%',
+            overflow: 'hidden',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid #e2e8f0'
+          }}>
+            {/* 모달 헤더 */}
+            <div style={{
+              padding: '16px 20px',
+              background: '#f8fafc',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>🎾</span>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                  대진표 생성 옵션 확인
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAskScoreModalOpen(false)}
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  borderRadius: '8px',
+                  width: '30px',
+                  height: '30px',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  fontWeight: 800
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 모달 바디: 점수 입력 여부 확인 */}
+            <div style={{ padding: '20px' }}>
+              <p style={{ margin: '0 0 14px 0', fontSize: '13.5px', color: '#334155', lineHeight: 1.5 }}>
+                경기 진행 시 <strong>점수(스코어) 입력</strong>을 사용하시겠습니까?
+              </p>
+
+              <label style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                padding: '14px',
+                borderRadius: '12px',
+                background: enableScoreInput ? '#eff6ff' : '#f8fafc',
+                border: enableScoreInput ? '2px solid #3b82f6' : '2px solid #cbd5e1',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={enableScoreInput}
+                  onChange={(e) => setEnableScoreInput(e.target.checked)}
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    marginTop: '2px',
+                    accentColor: '#2563eb',
+                    cursor: 'pointer'
+                  }}
+                />
+                <div>
+                  <div style={{
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    color: enableScoreInput ? '#1d4ed8' : '#334155',
+                    marginBottom: '4px'
+                  }}>
+                    {enableScoreInput ? '☑️ 경기 점수(스코어) 입력 사용' : '⬜ 점수 입력 없이 대진표만 생성'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.4 }}>
+                    {enableScoreInput
+                      ? '• 경기별 점수를 입력할 수 있으며 실시간 순위표 및 벌칙금 정산이 활성화됩니다.'
+                      : '• 점수 입력란과 순위표 없이, 참가자 대진 편성표만 깔끔하게 생성됩니다.'}
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {/* 모달 푸터 버튼 */}
+            <div style={{
+              padding: '14px 20px',
+              background: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '8px'
+            }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setAskScoreModalOpen(false)}
+                style={{ padding: '8px 14px', fontSize: '13px' }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setAskScoreModalOpen(false);
+                  if (pendingGenType === 'auto') {
+                    runGeneration(enableScoreInput);
+                  } else {
+                    createManual(enableScoreInput);
+                  }
+                }}
+                style={{ padding: '8px 18px', fontSize: '13px', fontWeight: 800 }}
+              >
+                {pendingGenType === 'auto' ? '🎾 대진표 생성하기' : '📝 빈 대진표 생성'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

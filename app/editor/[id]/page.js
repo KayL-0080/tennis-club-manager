@@ -44,6 +44,7 @@ export default function EditorPage({ params }) {
   const [penaltyAmount, setPenaltyAmount] = useState(1000); // 1인당 패배 벌칙금 (기본 1,000원)
   const [penaltyPaidMap, setPenaltyPaidMap] = useState({}); // { [playerId]: boolean }
   const [usePenalty, setUsePenalty] = useState(true); // 경기 벌칙금 정산 활성화 여부
+  const [useScore, setUseScore] = useState(true); // 경기 점수(스코어) 입력 활성화 여부
   const [maxGames, setMaxGames] = useState(6); // 경기 방식(게임수, 기본 6게임 선승)
   const [clubSettings, setClubSettings] = useState(null);
 
@@ -92,6 +93,11 @@ export default function EditorPage({ params }) {
           setUsePenalty(Boolean(data.usePenalty));
         } else {
           setUsePenalty(data.penaltyAmount !== 0);
+        }
+        if (data.useScore !== undefined) {
+          setUseScore(Boolean(data.useScore));
+        } else {
+          setUseScore(true);
         }
         if (data.penaltyAmount !== undefined) {
           setPenaltyAmount(data.penaltyAmount);
@@ -162,6 +168,7 @@ export default function EditorPage({ params }) {
       scheduleCourts_: overrides.scheduleCourts_ !== undefined ? overrides.scheduleCourts_ : scheduleCourts,
       lastGenStats, history: nextHistory,
       usePenalty: overrides.usePenalty !== undefined ? overrides.usePenalty : usePenalty,
+      useScore: overrides.useScore !== undefined ? overrides.useScore : useScore,
       penaltyAmount: overrides.penaltyAmount !== undefined ? overrides.penaltyAmount : penaltyAmount,
       penaltyPaidMap: overrides.penaltyPaidMap !== undefined ? overrides.penaltyPaidMap : penaltyPaidMap,
       maxGames: overrides.maxGames !== undefined ? overrides.maxGames : maxGames,
@@ -176,7 +183,7 @@ export default function EditorPage({ params }) {
     } finally {
       setSaving(false);
     }
-  }, [id, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history, members, usePenalty, penaltyAmount, penaltyPaidMap, maxGames]);
+  }, [id, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history, members, usePenalty, useScore, penaltyAmount, penaltyPaidMap, maxGames]);
 
   if (loading || fetching) {
     return (
@@ -263,6 +270,10 @@ export default function EditorPage({ params }) {
             usePenalty={usePenalty} setUsePenalty={(val) => {
               setUsePenalty(val);
               save({ usePenalty: val });
+            }}
+            useScore={useScore} setUseScore={(val) => {
+              setUseScore(val);
+              save({ useScore: val });
             }}
             penaltyAmount={penaltyAmount} setPenaltyAmount={setPenaltyAmount}
             penaltyPaidMap={penaltyPaidMap} setPenaltyPaidMap={setPenaltyPaidMap}

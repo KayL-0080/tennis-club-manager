@@ -92,7 +92,7 @@ export default function Navbar() {
 
   const menuItems = [
     { name: '대진표 목록', path: '/dashboard', Icon: HomeIcon },
-    { name: '통계 대시보드', path: '/stats', Icon: StatsIcon },
+    // { name: '통계 대시보드', path: '/stats', Icon: StatsIcon }, // 숨김 처리
     { name: '참석 투표', path: '/votes', Icon: VoteIcon },
     { name: '정기 대회', path: '/tournaments', Icon: TrophyIcon },
     { name: '회원 관리', path: '/members', Icon: MembersIcon },
@@ -329,12 +329,14 @@ export default function Navbar() {
           </div>
           <span>홈</span>
         </button>
+        {/* 통계 메뉴 임시 숨김 처리
         <button className={`${styles.tabBtn} ${pathname.startsWith('/stats') ? styles.active : ''}`} onClick={() => router.push('/stats')}>
           <div className={styles.tabIcon}>
             <StatsIcon active={pathname.startsWith('/stats')} size={23} />
           </div>
           <span>통계</span>
         </button>
+        */}
         <button className={`${styles.tabBtn} ${pathname.startsWith('/votes') ? styles.active : ''}`} onClick={() => router.push('/votes')}>
           <div className={styles.tabIcon}>
             <VoteIcon active={pathname.startsWith('/votes')} size={23} />
