@@ -27,10 +27,10 @@
   line-height: 1.5;
 }
 
-/* 상단 4개 모드 전환 탭 (반응형 캡슐 탭) */
+/* 상단 5개 모드 전환 탭 (반응형 캡슐 탭) */
 .modeTabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
   margin-bottom: 24px;
   background: rgba(241, 245, 249, 0.85);
@@ -50,7 +50,7 @@
   border: none;
   background: transparent;
   color: var(--txt2);
-  font-size: clamp(0.74rem, 2.5vw, 0.9rem);
+  font-size: clamp(0.72rem, 2.2vw, 0.88rem);
   font-weight: 700;
   border-radius: var(--radius-full, 9999px);
   cursor: pointer;
@@ -74,18 +74,24 @@
   border: 1px solid rgba(0, 122, 255, 0.15);
 }
 
-@media (max-width: 680px) {
+@media (max-width: 860px) {
   .modeTabs {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     border-radius: 16px;
     gap: 6px;
     padding: 6px;
     margin-bottom: 20px;
   }
+}
+
+@media (max-width: 580px) {
+  .modeTabs {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .tabBtn {
     border-radius: 12px;
     padding: 10px 6px;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
   }
 }
 
@@ -610,6 +616,131 @@
   to {
     opacity: 1;
     transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* 🖨️ A4 상품권 인쇄 모달 & 실제 출력 스타일 */
+.printModalBox {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 95%;
+  max-width: 860px;
+  max-height: 92vh;
+  padding: 24px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.printSheetPreview {
+  flex: 1;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.printA4Page {
+  background: #ffffff;
+  width: 100%;
+  max-width: 680px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.voucherCutItem {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.voucherPrintImg {
+  width: 100%;
+  max-width: 592px; /* 148mm at screen preview scale */
+  aspect-ratio: 148 / 68;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  display: block;
+}
+
+.cutLine {
+  width: 100%;
+  max-width: 610px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  margin: 10px 0;
+  user-select: none;
+}
+
+.cutLine::before,
+.cutLine::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1.5px dashed #cbd5e1;
+}
+
+/* @media print: 브라우저 인쇄 시 A4 지폐 크기(148mm x 68mm)로 정확히 출력 */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .printA4TargetArea,
+  .printA4TargetArea * {
+    visibility: visible;
+  }
+
+  .printA4TargetArea {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 190mm;
+    margin: 0 auto;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .voucherPrintImg {
+    width: 148mm !important;
+    height: 68mm !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    margin: 0 auto !important;
+  }
+
+  .cutLine {
+    width: 156mm !important;
+    margin: 5mm auto !important;
+    color: #64748b !important;
+  }
+
+  .noPrint {
+    display: none !important;
   }
 }
 
