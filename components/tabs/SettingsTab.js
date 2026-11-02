@@ -976,22 +976,77 @@ export default function SettingsTab({
           <div style={{ 
             padding: '12px 16px', 
             borderRadius: '12px', 
-            backgroundColor: 'rgba(59, 130, 246, 0.07)', 
-            border: '1px solid rgba(59, 130, 246, 0.22)', 
+            backgroundColor: 'rgba(59, 130, 246, 0.06)', 
+            border: '1px solid rgba(59, 130, 246, 0.2)', 
             marginBottom: '16px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '4px'
+            gap: '8px'
           }}>
-            <div style={{ fontWeight: '800', color: '#1d4ed8', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                💡 <strong>경기시간({durationInfo.text})</strong> 및 <strong>참가자(남 {maleCount}명, 여 {femaleCount}명)</strong> 맞춤 추천 세팅
-              </span>
+            {/* 상단: 타이틀 및 완료 뱃지 */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 800, color: '#1d4ed8' }}>
+                <span>💡</span>
+                <span>경기 환경 맞춤 추천 세팅</span>
+              </div>
               <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#2563eb', color: '#fff', fontWeight: 800 }}>
                 자동 분석 완료
               </span>
             </div>
-            <div style={{ color: 'var(--txt)', fontSize: '12.5px', lineHeight: '1.45' }}>
+
+            {/* 메타데이터 정보 칩 (단어 단위로 끊기지 않는 독립 칩) */}
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '4px 9px',
+                borderRadius: '6px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #bfdbfe',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#1e40af',
+                whiteSpace: 'nowrap'
+              }}>
+                ⏱️ 경기시간: <strong>{durationInfo.text}</strong>
+              </span>
+
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '4px 9px',
+                borderRadius: '6px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #bfdbfe',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#1e40af',
+                whiteSpace: 'nowrap'
+              }}>
+                👥 참가자: <strong>총 {participants.length}명</strong> (남 {maleCount} · 여 {femaleCount})
+              </span>
+
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '4px 9px',
+                borderRadius: '6px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #bbf7d0',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#15803d',
+                whiteSpace: 'nowrap'
+              }}>
+                🎾 추천: <strong>{rounds}R · {effectiveMaxGames}게임제</strong>
+              </span>
+            </div>
+
+            {/* 하단 추천 상세 안내 */}
+            <div style={{ color: 'var(--txt2)', fontSize: '12px', lineHeight: '1.45', paddingTop: '6px', borderTop: '1px dashed rgba(59, 130, 246, 0.18)' }}>
               {recExplanation || `경기시간(${durationInfo.diff}분)에 맞춘 추천 라운드수(${rounds}R)와 성별 참가 인원에 적합한 게임 수가 세팅되었습니다.`}
             </div>
           </div>
