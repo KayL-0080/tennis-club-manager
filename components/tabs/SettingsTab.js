@@ -948,75 +948,175 @@ export default function SettingsTab({
 
       {/* 3단계: 경기 세부 설정 */}
       <div className={`card ${styles.section}`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-          <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>3단계: 경기 세부 설정</h2>
+        {/* 섹션 헤더 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
+              3단계: 경기 세부 설정
+            </h2>
+            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--txt2)' }}>
+              경기 규모, 방식, 종목별 배분 및 부가 옵션을 한눈에 설정합니다.
+            </p>
+          </div>
           {participants.length > 0 && (
             <button 
               type="button" 
               className="btn btn-secondary btn-sm"
               onClick={() => applyRecommendation()}
               title="경기 시간과 참가자 성별 분포에 맞춰 추천 설정을 다시 적용합니다"
-              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}
             >
               🔄 추천 설정 다시 적용
             </button>
           )}
         </div>
 
-        {/* 추천 안내 카드 */}
+        {/* 1. 추천 안내 요약 카드 */}
         {participants.length > 0 && (
           <div style={{ 
-            padding: '12px 14px', 
-            borderRadius: '8px', 
-            backgroundColor: 'rgba(59, 130, 246, 0.08)', 
-            border: '1px solid rgba(59, 130, 246, 0.25)', 
+            padding: '12px 16px', 
+            borderRadius: '12px', 
+            backgroundColor: 'rgba(59, 130, 246, 0.07)', 
+            border: '1px solid rgba(59, 130, 246, 0.22)', 
             marginBottom: '16px',
-            fontSize: '13px'
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px'
           }}>
-            <div style={{ fontWeight: '800', color: '#1d4ed8', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span>💡 경기시간({durationInfo.text}) & 참가자(남 {maleCount}명, 여 {femaleCount}명) 맞춤 추천 세팅</span>
-              <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#2563eb', color: '#fff', fontWeight: 800 }}>자동 세팅됨</span>
+            <div style={{ fontWeight: '800', color: '#1d4ed8', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                💡 <strong>경기시간({durationInfo.text})</strong> 및 <strong>참가자(남 {maleCount}명, 여 {femaleCount}명)</strong> 맞춤 추천 세팅
+              </span>
+              <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#2563eb', color: '#fff', fontWeight: 800 }}>
+                자동 분석 완료
+              </span>
             </div>
-            <div style={{ color: 'var(--txt)', lineHeight: '1.45' }}>
+            <div style={{ color: 'var(--txt)', fontSize: '12.5px', lineHeight: '1.45' }}>
               {recExplanation || `경기시간(${durationInfo.diff}분)에 맞춘 추천 라운드수(${rounds}R)와 성별 참가 인원에 적합한 게임 수가 세팅되었습니다.`}
             </div>
           </div>
         )}
 
-        {/* 🎾 경기 방식 (5게임제 / 6게임제) & 🛡️ 인당 최소 4게임 보장 선택 패널 */}
+        {/* 2. 경기 규모 & 방식 설정 (코트, 라운드, 5/6게임제) */}
         <div style={{
+          padding: '16px 18px',
+          borderRadius: '14px',
+          backgroundColor: effectiveMaxGames === 5 ? 'rgba(245, 158, 11, 0.05)' : 'var(--bg, #f8fafc)',
+          border: `1.5px solid ${effectiveMaxGames === 5 ? 'rgba(245, 158, 11, 0.35)' : 'var(--border)'}`,
           marginBottom: '16px',
-          padding: '14px 16px',
-          borderRadius: '10px',
-          backgroundColor: effectiveMaxGames === 5 ? 'rgba(245, 158, 11, 0.07)' : 'var(--bg)',
-          border: `1.5px solid ${effectiveMaxGames === 5 ? 'rgba(245, 158, 11, 0.45)' : 'var(--border)'}`,
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px'
+          gap: '14px'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--txt)' }}>
-                🎾 경기 방식 선택:
-              </span>
-              <div style={{ display: 'inline-flex', borderRadius: '8px', padding: '3px', backgroundColor: '#e2e8f0', gap: '4px' }}>
+          {/* 상단 3열 그리드: 코트수 / 라운드수 / 경기 방식 */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '12px',
+            alignItems: 'stretch'
+          }}>
+            {/* 코트 수 */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              backgroundColor: '#fff',
+              borderRadius: '10px',
+              border: '1px solid var(--border)'
+            }}>
+              <div>
+                <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--txt)' }}>🏟️ 코트 수</div>
+                <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>사용 가능한 코트</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <select 
+                  className="input input-sm" 
+                  value={courts} 
+                  onChange={e => {
+                    const newC = parseInt(e.target.value) || 1;
+                    setCourts(newC);
+                    if (participants.length > 0) {
+                      applyRecommendation(participants, startTime, endTime, newC);
+                    }
+                  }} 
+                  style={{ width: '64px', fontWeight: 800, textAlign: 'center' }}
+                >
+                  {numOptions(1, 10)}
+                </select>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--txt)' }}>코트</span>
+              </div>
+            </div>
+
+            {/* 라운드 수 */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              backgroundColor: '#fff',
+              borderRadius: '10px',
+              border: '1px solid var(--border)'
+            }}>
+              <div>
+                <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--txt)' }}>🔄 총 라운드 수</div>
+                <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>진행 회차</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <select 
+                  className="input input-sm" 
+                  value={rounds} 
+                  onChange={e => {
+                    const newR = parseInt(e.target.value) || 1;
+                    setRounds(newR);
+                    if (participants.length > 0) {
+                      setParticipants(computeBalancedParticipants(participants, newR, courts, allowSingles));
+                    }
+                  }} 
+                  style={{ width: '64px', fontWeight: 800, textAlign: 'center' }}
+                >
+                  {numOptions(1, 20)}
+                </select>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--txt)' }}>R</span>
+              </div>
+            </div>
+
+            {/* 경기 방식 선택 (6게임제 vs 5게임제) */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              padding: '10px 14px',
+              backgroundColor: '#fff',
+              borderRadius: '10px',
+              border: '1px solid var(--border)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--txt)' }}>🎾 경기 방식</span>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: effectiveMaxGames === 6 ? '#2563eb' : '#d97706' }}>
+                  {effectiveMaxGames === 6 ? '기본 모드' : '다인원 배정 모드'}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderRadius: '8px', padding: '3px', backgroundColor: '#f1f5f9', gap: '4px' }}>
                 <button
                   type="button"
                   onClick={() => handleSelectMaxGames(6)}
                   style={{
                     border: 'none',
                     borderRadius: '6px',
-                    padding: '6px 12px',
-                    fontSize: '12.5px',
+                    padding: '6px 8px',
+                    fontSize: '12px',
                     fontWeight: 800,
                     cursor: 'pointer',
                     backgroundColor: effectiveMaxGames === 6 ? '#2563eb' : 'transparent',
                     color: effectiveMaxGames === 6 ? '#ffffff' : '#475569',
-                    boxShadow: effectiveMaxGames === 6 ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
-                    transition: 'all 0.15s ease'
+                    boxShadow: effectiveMaxGames === 6 ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                    transition: 'all 0.15s ease',
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  🎾 6게임제 (기본 · {std6GameRounds}R 기준)
+                  6게임제 ({std6GameRounds}R)
                 </button>
                 <button
                   type="button"
@@ -1024,254 +1124,428 @@ export default function SettingsTab({
                   style={{
                     border: 'none',
                     borderRadius: '6px',
-                    padding: '6px 12px',
-                    fontSize: '12.5px',
+                    padding: '6px 8px',
+                    fontSize: '12px',
                     fontWeight: 800,
                     cursor: 'pointer',
                     backgroundColor: effectiveMaxGames === 5 ? '#d97706' : 'transparent',
                     color: effectiveMaxGames === 5 ? '#ffffff' : '#475569',
-                    boxShadow: effectiveMaxGames === 5 ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
-                    transition: 'all 0.15s ease'
+                    boxShadow: effectiveMaxGames === 5 ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                    transition: 'all 0.15s ease',
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  ⚡ 5게임제 (다인원 · {recommended5GameRounds}R 기준)
+                  5게임제 ({recommended5GameRounds}R)
                 </button>
               </div>
             </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 800, color: ensureMin4Games ? '#15803d' : 'var(--txt2)', margin: 0 }}>
-              <input
-                type="checkbox"
-                checked={!!ensureMin4Games}
-                onChange={e => handleToggleEnsureMin4(e.target.checked)}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              🛡️ 참여 인원 많을 시 인당 최소 4게임 자동 보장
-            </label>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px', color: 'var(--txt2)', paddingTop: '8px', borderTop: '1px dashed var(--border)' }}>
-            <div>
-              <span>⏱️ 현재 설정: <strong>{effectiveMaxGames}게임 선승</strong> · <strong>{rounds}라운드</strong> (경기당 약 <strong>{minsPerRoundCurrent}분</strong> 소요)</span>
+          {/* 하단 요약 정보 및 4게임 보장 옵션 */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '10px',
+            paddingTop: '10px',
+            borderTop: '1px dashed var(--border)',
+            fontSize: '12.5px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ color: 'var(--txt2)' }}>
+                ⏱️ <strong>{effectiveMaxGames}게임 선승</strong> · <strong>{rounds}라운드</strong> (R당 약 {minsPerRoundCurrent}분)
+              </span>
               {entries.length >= 4 && (
-                <span style={{ marginLeft: '8px', fontWeight: 700, color: isAllAtLeast4Games ? '#15803d' : '#dc2626' }}>
-                  | 👥 인당 배정: {minAssignedTarget === maxAssignedTarget ? `${minAssignedTarget}게임` : `${minAssignedTarget}~${maxAssignedTarget}게임`}
-                  {isAllAtLeast4Games ? ' (✓ 전원 4게임 이상 보장)' : ` (⚠️ 4게임 미만 ${under4Players.length}명)`}
+                <span style={{
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  backgroundColor: isAllAtLeast4Games ? 'rgba(22, 163, 74, 0.1)' : 'rgba(220, 38, 38, 0.1)',
+                  color: isAllAtLeast4Games ? '#15803d' : '#dc2626'
+                }}>
+                  👥 인당 배정: {minAssignedTarget === maxAssignedTarget ? `${minAssignedTarget}G` : `${minAssignedTarget}~${maxAssignedTarget}G`}
+                  {isAllAtLeast4Games ? ' (✓ 4게임 이상 보장)' : ` (⚠️ 4게임 미만 ${under4Players.length}명)`}
                 </span>
               )}
             </div>
 
-            {entries.length >= 4 && !isAllAtLeast4Games && (
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={enforceMin4GamesNow}
-                style={{ backgroundColor: '#d97706', borderColor: '#d97706', fontSize: '11.5px', padding: '4px 10px', fontWeight: 800 }}
-              >
-                ⚡ 5게임제({minRoundsFor4Games}R)로 전환해 전원 4게임 맞추기
-              </button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 800, color: ensureMin4Games ? '#15803d' : 'var(--txt2)', margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={!!ensureMin4Games}
+                  onChange={e => handleToggleEnsureMin4(e.target.checked)}
+                  style={{ width: '15px', height: '15px', cursor: 'pointer' }}
+                />
+                🛡️ 인당 최소 4게임 자동 보장
+              </label>
+
+              {entries.length >= 4 && !isAllAtLeast4Games && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={enforceMin4GamesNow}
+                  style={{ backgroundColor: '#d97706', borderColor: '#d97706', fontSize: '11.5px', padding: '3px 10px', fontWeight: 800 }}
+                >
+                  ⚡ 5게임제({minRoundsFor4Games}R)로 전환해 전원 4게임 맞추기
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className={styles.settingsRow}>
-          <div className="form-group">
-            <label className="form-label">라운드 수</label>
-            <select className="input input-sm" value={rounds} onChange={e => {
-              const newR = parseInt(e.target.value) || 1;
-              setRounds(newR);
-              if (participants.length > 0) {
-                setParticipants(computeBalancedParticipants(participants, newR, courts, allowSingles));
-              }
-            }} style={{ width: 90 }}>
-              {numOptions(1, 20)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">코트 수</label>
-            <select className="input input-sm" value={courts} onChange={e => {
-              const newC = parseInt(e.target.value) || 1;
-              setCourts(newC);
-              if (participants.length > 0) {
-                applyRecommendation(participants, startTime, endTime, newC);
-              }
-            }} style={{ width: 90 }}>
-              {numOptions(1, 10)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">남복 게임 수</label>
-            <select className="input input-sm" value={mensDoublesCount} onChange={e => setMensDoublesCount(parseInt(e.target.value) || 0)} style={{ width: 90 }}>
-              {numOptions(0, 20)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">여복 게임 수</label>
-            <select className="input input-sm" value={womensDoublesCount} onChange={e => setWomensDoublesCount(parseInt(e.target.value) || 0)} style={{ width: 90 }}>
-              {numOptions(0, 20)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">혼복 게임 수</label>
-            <select className="input input-sm" value={mixedCount} onChange={e => setMixedCount(parseInt(e.target.value) || 0)} style={{ width: 90 }}>
-              {numOptions(0, 20)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">잡복 게임 수</label>
-            <select className="input input-sm" value={jointCount} onChange={e => setJointCount(parseInt(e.target.value) || 0)} style={{ width: 90 }}>
-              {numOptions(0, 20)}
-            </select>
-          </div>
-          {participants.length > 0 && participants.length < courts * 4 && (
-            <div className="form-group" style={{ display: 'flex', alignItems: 'center', height: '32px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+        {/* 3. 종목별 게임 수 배분 (남복, 여복, 혼복, 잡복) */}
+        <div style={{
+          padding: '16px 18px',
+          borderRadius: '14px',
+          backgroundColor: '#fff',
+          border: '1px solid var(--border)',
+          marginBottom: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}>
+          {/* 종목별 배분 타이틀 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--txt)' }}>
+                🎾 종목별 복식 게임 수 배분
+              </span>
+              <span style={{ fontSize: '11.5px', padding: '2px 8px', borderRadius: '6px', backgroundColor: 'var(--bg2, #f1f5f9)', color: 'var(--txt2)', fontWeight: 700 }}>
+                총 복식 경기: {requiredMatches}경기 ({rounds}R × {courts}코트)
+              </span>
+            </div>
+
+            {participants.length > 0 && participants.length < courts * 4 && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: 'var(--primary)', margin: 0 }}>
                 <input type="checkbox" checked={allowSingles} onChange={e => setAllowSingles(e.target.checked)} />
                 단식 혼합 허용
               </label>
-            </div>
-          )}
-        </div>
-
-        <div style={{ marginTop: 12, fontSize: 13, color: isMatchSumOk ? 'var(--primary)' : 'var(--danger)', fontWeight: 'bold' }}>
-          {isMatchSumOk 
-            ? (sumMatches < requiredMatches ? `✓ 세부 게임(${sumMatches}) 외 남은 복식 경기(${requiredMatches - sumMatches})는 성별 무관(잡복)으로 자동 배정됩니다.` : '✓ 세부 게임 수 합계가 총 복식 경기 수와 일치합니다.')
-            : `✗ 남복(${mensDoublesCount || 0}) + 여복(${womensDoublesCount || 0}) + 혼복(${mixedCount || 0}) + 잡복(${jointCount || 0}) 합계(${sumMatches})가 총 복식 경기 수(${requiredMatches} = 라운드×복식코트)보다 클 수 없습니다.`}
-        </div>
-        {isSinglesActive && (
-          <div style={{ marginTop: 6, fontSize: 13, color: 'var(--primary)', fontWeight: 'bold' }}>
-            🎾 참가자 부족으로 라운드 당 단식 {singlesPerRound}경기, 복식 {doublesPerRound}경기가 진행됩니다.
+            )}
           </div>
-        )}
 
-        {/* 벌칙금 여부 설정 */}
-        <div style={{
-          marginTop: '16px',
-          padding: '12px 16px',
-          borderRadius: '8px',
-          backgroundColor: usePenalty ? 'rgba(225, 29, 72, 0.05)' : 'var(--bg)',
-          border: `1px solid ${usePenalty ? 'rgba(225, 29, 72, 0.3)' : 'var(--border)'}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '10px'
-        }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, fontWeight: 700, fontSize: '13.5px', color: 'var(--txt)' }}>
-            <input 
-              type="checkbox" 
-              checked={!!usePenalty} 
-              onChange={e => setUsePenalty && setUsePenalty(e.target.checked)} 
-              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-            />
-            💸 경기 패배 벌칙금(진팀 벌금) 정산 적용
-          </label>
-          <span style={{ fontSize: '12px', color: usePenalty ? '#e11d48' : 'var(--txt3)', fontWeight: 600 }}>
-            {usePenalty 
-              ? '✓ 체크됨: 대진표 화면에 패배 벌칙금 정산소가 활성화됩니다.' 
-              : '✓ 체크 해제됨: 벌칙금 정산소 대신 선수별 경기 진행/완료 현황이 표시됩니다.'}
-          </span>
-        </div>
+          {/* 4분할 종목 카드 그리드 */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+            gap: '10px'
+          }}>
+            {/* 남복 */}
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: '10px',
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af' }}>
+                🎾 남성 복식 (남복)
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <select 
+                  className="input input-sm" 
+                  value={mensDoublesCount} 
+                  onChange={e => setMensDoublesCount(parseInt(e.target.value) || 0)} 
+                  style={{ width: '100%', fontWeight: 800, textAlign: 'center', backgroundColor: '#fff' }}
+                >
+                  {numOptions(0, 20)}
+                </select>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af', flexShrink: 0 }}>게임</span>
+              </div>
+            </div>
 
-        {/* 🏆 NTRP 상위/하위 그룹 분리 후 혼합 대진 옵션 설정 */}
-        <div style={{
-          marginTop: '12px',
-          padding: '14px 16px',
-          borderRadius: '10px',
-          backgroundColor: effectiveSplitMode ? 'rgba(37, 99, 235, 0.06)' : 'var(--bg)',
-          border: `1.5px solid ${effectiveSplitMode ? 'rgba(37, 99, 235, 0.38)' : 'var(--border)'}`,
-          transition: 'all 0.2s ease'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, fontWeight: 800, fontSize: '13.8px', color: 'var(--txt)' }}>
-              <input
-                type="checkbox"
-                checked={!!effectiveSplitMode}
-                onChange={e => {
-                  const checked = e.target.checked;
-                  setEffectiveSplitMode(checked);
-                  if (checked) {
-                    setSortByNtrp(true);
-                    setEffectiveSplitRounds(calcDefaultSplitRounds(startTime, endTime, rounds));
-                  }
-                }}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              🏆 NTRP 상위/하위 그룹 분리 후 혼합 대진 적용 <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#2563eb' }}>(앞 2시간 수준별 대진 + 이후 시간 혼합 대진)</span>
-            </label>
-            <span style={{ fontSize: '12px', color: effectiveSplitMode ? '#1d4ed8' : 'var(--txt3)', fontWeight: 700 }}>
-              {effectiveSplitMode
-                ? `✓ 적용됨: 1R~${effectiveSplitRounds}R 상·하위 그룹별 대진 → ${effectiveSplitRounds + 1}R~${rounds}R 그룹 혼합 대진`
-                : '✓ 미적용 (일반 전체 혼합 대진)'}
+            {/* 여복 */}
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: '10px',
+              backgroundColor: '#fdf2f8',
+              border: '1px solid #fbcfe8',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#9d174d' }}>
+                🎾 여성 복식 (여복)
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <select 
+                  className="input input-sm" 
+                  value={womensDoublesCount} 
+                  onChange={e => setWomensDoublesCount(parseInt(e.target.value) || 0)} 
+                  style={{ width: '100%', fontWeight: 800, textAlign: 'center', backgroundColor: '#fff' }}
+                >
+                  {numOptions(0, 20)}
+                </select>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#9d174d', flexShrink: 0 }}>게임</span>
+              </div>
+            </div>
+
+            {/* 혼복 */}
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: '10px',
+              backgroundColor: '#faf5ff',
+              border: '1px solid #e9d5ff',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#6b21a8' }}>
+                🎾 혼합 복식 (혼복)
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <select 
+                  className="input input-sm" 
+                  value={mixedCount} 
+                  onChange={e => setMixedCount(parseInt(e.target.value) || 0)} 
+                  style={{ width: '100%', fontWeight: 800, textAlign: 'center', backgroundColor: '#fff' }}
+                >
+                  {numOptions(0, 20)}
+                </select>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b21a8', flexShrink: 0 }}>게임</span>
+              </div>
+            </div>
+
+            {/* 잡복 */}
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: '10px',
+              backgroundColor: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>
+                🎾 자유 복식 (잡복)
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <select 
+                  className="input input-sm" 
+                  value={jointCount} 
+                  onChange={e => setJointCount(parseInt(e.target.value) || 0)} 
+                  style={{ width: '100%', fontWeight: 800, textAlign: 'center', backgroundColor: '#fff' }}
+                >
+                  {numOptions(0, 20)}
+                </select>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155', flexShrink: 0 }}>게임</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 배분 상태 알림 바 */}
+          <div style={{
+            padding: '9px 12px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: 700,
+            backgroundColor: isMatchSumOk ? 'rgba(22, 163, 74, 0.08)' : 'rgba(220, 38, 38, 0.08)',
+            border: `1px solid ${isMatchSumOk ? 'rgba(22, 163, 74, 0.2)' : 'rgba(220, 38, 38, 0.25)'}`,
+            color: isMatchSumOk ? '#15803d' : '#b91c1c',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            lineHeight: 1.4
+          }}>
+            <span>{isMatchSumOk ? '✓' : '⚠️'}</span>
+            <span>
+              {isMatchSumOk 
+                ? (sumMatches < requiredMatches 
+                    ? `지정된 복식 게임(${sumMatches}) 외 남은 경기(${requiredMatches - sumMatches}경기)는 성별 무관(잡복)으로 자동 균등 배정됩니다.` 
+                    : `지정된 게임 수 합계(${sumMatches})가 총 복식 경기 수와 정확히 일치합니다.`)
+                : `남복(${mensDoublesCount || 0}) + 여복(${womensDoublesCount || 0}) + 혼복(${mixedCount || 0}) + 잡복(${jointCount || 0}) 합계(${sumMatches})가 총 복식 경기 수(${requiredMatches} = 라운드×복식코트)를 초과할 수 없습니다.`}
             </span>
           </div>
 
-          {effectiveSplitMode && (
-            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed rgba(37, 99, 235, 0.25)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', fontSize: '12.5px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: 700, color: '#1e40af' }}>⏱️ 구간별 라운드 배정:</span>
-                  <span style={{ padding: '3px 8px', borderRadius: '6px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontWeight: 700 }}>
-                    앞 2시간 (그룹별 대진): 1R ~
-                    <select
-                      className="input input-sm"
-                      value={effectiveSplitRounds}
-                      onChange={e => setEffectiveSplitRounds(parseInt(e.target.value) || 1)}
-                      style={{ width: '54px', margin: '0 4px', padding: '1px 4px', height: '24px', fontWeight: 800, display: 'inline-block' }}
-                    >
-                      {numOptions(1, Math.max(1, rounds - 1))}
-                    </select>
-                    R
-                  </span>
-                  <span style={{ color: '#64748b', fontWeight: 800 }}>➔</span>
-                  <span style={{ padding: '3px 8px', borderRadius: '6px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', fontWeight: 700 }}>
-                    이후 ~ 종료시간 ({endTime || '12:00'}): {Math.min(rounds, effectiveSplitRounds + 1)}R ~ {rounds}R (상·하위 혼합 대진)
-                  </span>
-                </div>
-                <span style={{ fontSize: '11.5px', color: '#475569' }}>
-                  * 참가자를 NTRP 순으로 나열해 절반씩 상위/하위 그룹으로 자동 분류합니다.
-                </span>
-              </div>
-
-              {entries.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
-                  {/* 상위그룹 미리보기 */}
-                  <div style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#c2410c', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>🔥 상위그룹 ({ntrpSplitInfo.upperGroup.length}명)</span>
-                      <span style={{ fontSize: '11px', color: '#ea580c' }}>
-                        NTRP {ntrpSplitInfo.upperGroup[ntrpSplitInfo.upperGroup.length - 1]?.ntrp?.toFixed(1) || '-'} ~ {ntrpSplitInfo.upperGroup[0]?.ntrp?.toFixed(1) || '-'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {ntrpSplitInfo.upperGroup.map((p, idx) => (
-                        <span key={p.id} style={{ fontSize: '11.5px', padding: '2px 7px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #fdba74', color: '#9a3412', fontWeight: 700 }}>
-                          {idx + 1}. {p.name} <span style={{ opacity: 0.75 }}>({p.ntrp.toFixed(1)})</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 하위그룹 미리보기 */}
-                  <div style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>🌱 하위그룹 ({ntrpSplitInfo.lowerGroup.length}명)</span>
-                      <span style={{ fontSize: '11px', color: '#16a34a' }}>
-                        NTRP {ntrpSplitInfo.lowerGroup[ntrpSplitInfo.lowerGroup.length - 1]?.ntrp?.toFixed(1) || '-'} ~ {ntrpSplitInfo.lowerGroup[0]?.ntrp?.toFixed(1) || '-'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {ntrpSplitInfo.lowerGroup.map((p, idx) => (
-                        <span key={p.id} style={{ fontSize: '11.5px', padding: '2px 7px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #86efac', color: '#166534', fontWeight: 700 }}>
-                          {ntrpSplitInfo.upperGroup.length + idx + 1}. {p.name} <span style={{ opacity: 0.75 }}>({p.ntrp.toFixed(1)})</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
+          {isSinglesActive && (
+            <div style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 700,
+              backgroundColor: 'rgba(37, 99, 235, 0.08)',
+              border: '1px solid rgba(37, 99, 235, 0.2)',
+              color: '#1d4ed8'
+            }}>
+              🎾 참가자 인원 구성상 라운드당 단식 {singlesPerRound}경기, 복식 {doublesPerRound}경기로 자동 편성됩니다.
             </div>
           )}
+        </div>
+
+        {/* 4. 부가 경기 옵션 (벌칙금 / NTRP 수준별 분리) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {/* 벌칙금 여부 설정 */}
+          <div style={{
+            padding: '13px 16px',
+            borderRadius: '12px',
+            backgroundColor: usePenalty ? 'rgba(225, 29, 72, 0.05)' : '#fff',
+            border: `1.5px solid ${usePenalty ? 'rgba(225, 29, 72, 0.35)' : 'var(--border)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px',
+            transition: 'all 0.15s ease'
+          }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
+              <input 
+                type="checkbox" 
+                checked={!!usePenalty} 
+                onChange={e => setUsePenalty && setUsePenalty(e.target.checked)} 
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              💸 경기 패배 벌칙금(진팀 벌금) 정산 적용
+            </label>
+            <span style={{ fontSize: '12px', color: usePenalty ? '#e11d48' : 'var(--txt3)', fontWeight: 700 }}>
+              {usePenalty 
+                ? '✓ 대진표 화면에 패배 벌칙금 정산소가 활성화됩니다' 
+                : '✓ 벌칙금 없이 선수별 경기 진행 현황만 표시됩니다'}
+            </span>
+          </div>
+
+          {/* 🏆 NTRP 상위/하위 그룹 분리 후 혼합 대진 옵션 설정 */}
+          <div style={{
+            padding: '14px 16px',
+            borderRadius: '12px',
+            backgroundColor: effectiveSplitMode ? 'rgba(37, 99, 235, 0.05)' : '#fff',
+            border: `1.5px solid ${effectiveSplitMode ? 'rgba(37, 99, 235, 0.35)' : 'var(--border)'}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            transition: 'all 0.15s ease'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
+                <input
+                  type="checkbox"
+                  checked={!!effectiveSplitMode}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setEffectiveSplitMode(checked);
+                    if (checked) {
+                      setSortByNtrp(true);
+                      setEffectiveSplitRounds(calcDefaultSplitRounds(startTime, endTime, rounds));
+                    }
+                  }}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                🏆 NTRP 상위/하위 그룹 분리 후 혼합 대진 적용
+              </label>
+              <span style={{ fontSize: '12px', color: effectiveSplitMode ? '#1d4ed8' : 'var(--txt3)', fontWeight: 700 }}>
+                {effectiveSplitMode
+                  ? `✓ 1R~${effectiveSplitRounds}R 수준별 ➔ ${effectiveSplitRounds + 1}R~${rounds}R 혼합 대진`
+                  : '✓ 전체 일반 혼합 대진'}
+              </span>
+            </div>
+
+            {effectiveSplitMode && (
+              <div style={{ paddingTop: '12px', borderTop: '1px dashed rgba(37, 99, 235, 0.25)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* 2단계 진행 타임라인 */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '10px',
+                  alignItems: 'center'
+                }}>
+                  {/* 1구간 */}
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af' }}>1구간: 앞 2시간 (수준별 대진)</div>
+                      <div style={{ fontSize: '11px', color: '#3b82f6' }}>상위그룹 / 하위그룹 분리 경기</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af' }}>1R ~</span>
+                      <select
+                        className="input input-sm"
+                        value={effectiveSplitRounds}
+                        onChange={e => setEffectiveSplitRounds(parseInt(e.target.value) || 1)}
+                        style={{ width: '56px', fontWeight: 800, textAlign: 'center', backgroundColor: '#fff', padding: '2px 4px' }}
+                      >
+                        {numOptions(1, Math.max(1, rounds - 1))}
+                      </select>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af' }}>R</span>
+                    </div>
+                  </div>
+
+                  {/* 2구간 */}
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    backgroundColor: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d' }}>2구간: 이후 시간 (혼합 대진)</div>
+                      <div style={{ fontSize: '11px', color: '#16a34a' }}>종료({endTime || '12:00'})까지 전체 혼합 경기</div>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', padding: '4px 8px', borderRadius: '6px', backgroundColor: '#fff', border: '1px solid #86efac' }}>
+                      {Math.min(rounds, effectiveSplitRounds + 1)}R ~ {rounds}R
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                  * 참가자를 NTRP 순으로 정렬하여 상위 50%와 하위 50% 그룹으로 자동 배정합니다.
+                </div>
+
+                {entries.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
+                    {/* 상위그룹 미리보기 */}
+                    <div style={{ padding: '10px 12px', borderRadius: '10px', backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#c2410c', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>🔥 상위그룹 ({ntrpSplitInfo.upperGroup.length}명)</span>
+                        <span style={{ fontSize: '11px', color: '#ea580c' }}>
+                          NTRP {ntrpSplitInfo.upperGroup[ntrpSplitInfo.upperGroup.length - 1]?.ntrp?.toFixed(1) || '-'} ~ {ntrpSplitInfo.upperGroup[0]?.ntrp?.toFixed(1) || '-'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {ntrpSplitInfo.upperGroup.map((p, idx) => (
+                          <span key={p.id} style={{ fontSize: '11.5px', padding: '2px 7px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #fdba74', color: '#9a3412', fontWeight: 700 }}>
+                            {idx + 1}. {p.name} <span style={{ opacity: 0.75 }}>({p.ntrp.toFixed(1)})</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 하위그룹 미리보기 */}
+                    <div style={{ padding: '10px 12px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>🌱 하위그룹 ({ntrpSplitInfo.lowerGroup.length}명)</span>
+                        <span style={{ fontSize: '11px', color: '#16a34a' }}>
+                          NTRP {ntrpSplitInfo.lowerGroup[ntrpSplitInfo.lowerGroup.length - 1]?.ntrp?.toFixed(1) || '-'} ~ {ntrpSplitInfo.lowerGroup[0]?.ntrp?.toFixed(1) || '-'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {ntrpSplitInfo.lowerGroup.map((p, idx) => (
+                          <span key={p.id} style={{ fontSize: '11.5px', padding: '2px 7px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #86efac', color: '#166534', fontWeight: 700 }}>
+                            {ntrpSplitInfo.upperGroup.length + idx + 1}. {p.name} <span style={{ opacity: 0.75 }}>({p.ntrp.toFixed(1)})</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
