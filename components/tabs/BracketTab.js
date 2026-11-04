@@ -88,9 +88,74 @@ export default function BracketTab({
   matchDate,
   title,
   onSave, onPrint, isAdmin, canEditPlayer = false, canEditScore = false, isReadOnly, isPastMatch,
+  scheduleStatus = 'playing', setScheduleStatus, onEndBracket, onReopenBracket,
 }) {
   const hasPlayerEditPerm = isAdmin || Boolean(canEditPlayer);
   const hasScoreEditPerm = isAdmin || Boolean(canEditScore);
+
+  /* ── 🏁 대진 종료 & 대진 재개 핸들러 ── */
+  const handleEndBracket = async (extra = {}) => {
+    if (onEndBracket) {
+      await onEndBracket(extra);
+      return;
+    }
+    if (!isAdmin && !hasScoreEditPerm) {
+      alert('대진 종료 권한이 없습니다.');
+      return;
+    }
+    const payload = {
+      status: 'completed',
+      isFinished: true,
+      endedAt: new Date().toISOString(),
+      ...extra
+    };
+    if (setScheduleStatus) setScheduleStatus('completed');
+    if (onSave) await onSave(payload);
+    alert('대진이 정상적으로 종료되었습니다.');
+  };
+
+  const handleReopenBracket = async () => {
+    if (onReopenBracket) {
+      await onReopenBracket();
+      return;
+    }
+    if (!isAdmin && !hasScoreEditPerm) {
+      alert('대진 상태를 변경할 권한이 없습니다.');
+      return;
+    }
+    if (!confirm('대진 종료를 취소하고 다시 경기 진행 중 상태로 변경하시겠습니까?')) return;
+    const payload = {
+      status: 'playing',
+      isFinished: false,
+      endedAt: null
+    };
+    if (setScheduleStatus) setScheduleStatus('playing');
+    if (onSave) await onSave(payload);
+    alert('대진이 다시 진행 상태로 재개되었습니다.');
+  };
+
+  /* ── 🎾 전체 스코어 완료 여부 검사 함수 ── */
+  const checkAllScoresCompleted = (sched, scs) => {
+    if (!sched || sched.length === 0) return false;
+    let total = 0;
+    let completed = 0;
+    sched.forEach((round, ri) => {
+      if (!Array.isArray(round)) return;
+      round.forEach((m, ci) => {
+        const hasPlayers = m && Boolean(m.teamA?.[0] || m.teamA?.[1] || m.teamB?.[0] || m.teamB?.[1]);
+        if (hasPlayers) {
+          total++;
+          const key = `${ri}-${ci}`;
+          const sc = scs?.[key];
+          if (sc && sc.a !== null && sc.a !== undefined && sc.a !== '' &&
+              sc.b !== null && sc.b !== undefined && sc.b !== '') {
+            completed++;
+          }
+        }
+      });
+    });
+    return total > 0 && completed === total;
+  };
 
   const [playerFilter, setPlayerFilter] = useState('ALL'); // 'ALL' | 'IN_PROGRESS' | 'DONE' | 'WAITING'
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
@@ -770,6 +835,19 @@ export default function BracketTab({
     };
     setScores(newScores);
     if (onSave) onSave({ scores: newScores });
+
+    // 모든 경기의 점수가 다 입력되었는지 검사하여 대진 종료 여부 확인
+    if (useScore && scheduleStatus !== 'completed') {
+      const wasAllDone = checkAllScoresCompleted(schedule, scores);
+      const isNowAllDone = checkAllScoresCompleted(schedule, newScores);
+      if (!wasAllDone && isNowAllDone) {
+        setTimeout(() => {
+          if (window.confirm('대진을 종료하시겠습니까?')) {
+            handleEndBracket({ scores: newScores });
+          }
+        }, 150);
+      }
+    }
   };
 
   /* ── 라운드/코트 편집 ── */
@@ -875,13 +953,17 @@ export default function BracketTab({
     let total = 0;
     let completed = 0;
     schedule.forEach((round, ri) => {
+      if (!Array.isArray(round)) return;
       round.forEach((m, ci) => {
-        total++;
-        const key = `${ri}-${ci}`;
-        const sc = scores[key];
-        if (sc && sc.a !== null && sc.a !== undefined && sc.a !== '' &&
-            sc.b !== null && sc.b !== undefined && sc.b !== '') {
-          completed++;
+        const hasPlayers = m && Boolean(m.teamA?.[0] || m.teamA?.[1] || m.teamB?.[0] || m.teamB?.[1]);
+        if (hasPlayers) {
+          total++;
+          const key = `${ri}-${ci}`;
+          const sc = scores[key];
+          if (sc && sc.a !== null && sc.a !== undefined && sc.a !== '' &&
+              sc.b !== null && sc.b !== undefined && sc.b !== '') {
+            completed++;
+          }
         }
       });
     });
@@ -1201,6 +1283,67 @@ export default function BracketTab({
             </div>
           </div>
 
+          {/* 대진 진행 및 종료 관리 그룹 */}
+          <div className={styles.toolbarGroup} style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className={styles.toolbarLabel}>대진 진행 / 종료</span>
+              {scheduleStatus === 'completed' ? (
+                <span className="badge badge-green" style={{ fontSize: '10.5px', padding: '1px 6px', fontWeight: 700 }}>
+                  🏁 종료됨
+                </span>
+              ) : matchStats.isAllCompleted ? (
+                <span className="badge badge-green" style={{ fontSize: '10.5px', padding: '1px 6px', fontWeight: 700 }}>
+                  🎉 전경기 완료
+                </span>
+              ) : (
+                <span className="badge badge-blue" style={{ fontSize: '10.5px', padding: '1px 6px', fontWeight: 700 }}>
+                  🎾 진행 중 ({matchStats.completedMatches}/{matchStats.totalMatches})
+                </span>
+              )}
+            </div>
+            <div>
+              {scheduleStatus === 'completed' ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleReopenBracket}
+                  disabled={!isAdmin && !hasScoreEditPerm}
+                  style={{ width: '100%', fontWeight: 800, color: '#16a34a', borderColor: '#86efac', backgroundColor: '#f0fdf4', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                  title="대진 종료를 취소하고 다시 경기 진행 상태로 되돌립니다"
+                >
+                  🔄 대진 재개 (종료 취소)
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => {
+                    const msg = matchStats.isAllCompleted
+                      ? '대진을 종료하시겠습니까?'
+                      : `아직 완료되지 않은 경기가 있습니다 (${matchStats.completedMatches}/${matchStats.totalMatches}경기 완료).\n그래도 대진을 종료하시겠습니까?`;
+                    if (confirm(msg)) handleEndBracket();
+                  }}
+                  disabled={!isAdmin && !hasScoreEditPerm}
+                  style={{
+                    width: '100%',
+                    fontWeight: 800,
+                    color: '#fff',
+                    backgroundColor: matchStats.isAllCompleted ? '#16a34a' : '#2563eb',
+                    borderColor: matchStats.isAllCompleted ? '#15803d' : '#1d4ed8',
+                    boxShadow: matchStats.isAllCompleted ? '0 2px 8px rgba(22, 163, 74, 0.35)' : undefined,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px'
+                  }}
+                  title="대진을 종료하고 완료 상태로 변경합니다"
+                >
+                  🏁 대진 종료
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* 참가 선수 관리 그룹 */}
           {isAdmin && !isReadOnly && (
             <div className={styles.toolbarGroup} style={{ justifyContent: 'space-between' }}>
@@ -1394,6 +1537,104 @@ export default function BracketTab({
             </span>
           </div>
         </div>
+
+        {/* 🏁 대진 완료 안내 / 대진 종료 배너 */}
+        {matchStats.isAllCompleted && scheduleStatus !== 'completed' && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px 18px',
+            background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+            border: '1.5px solid #86efac',
+            borderRadius: '12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: '0 4px 12px rgba(22, 163, 74, 0.12)'
+          }} className="no-print">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '24px' }}>🎉</span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '14px', color: '#166534' }}>
+                  모든 경기의 점수 입력이 완료되었습니다!
+                </div>
+                <div style={{ fontSize: '12px', color: '#15803d', marginTop: '2px' }}>
+                  대진을 종료하여 최종 결과를 확정하고 지난 대진표로 보관할 수 있습니다.
+                </div>
+              </div>
+            </div>
+            {(isAdmin || hasScoreEditPerm) && (
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => {
+                  if (confirm('대진을 종료하시겠습니까?')) {
+                    handleEndBracket();
+                  }
+                }}
+                style={{
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  padding: '6px 16px',
+                  backgroundColor: '#16a34a',
+                  borderColor: '#15803d',
+                  color: '#fff',
+                  boxShadow: '0 2px 8px rgba(22, 163, 74, 0.4)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                🏁 지금 대진 종료하기
+              </button>
+            )}
+          </div>
+        )}
+
+        {scheduleStatus === 'completed' && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px 18px',
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+            border: '1.5px solid #cbd5e1',
+            borderRadius: '12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }} className="no-print">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '22px' }}>🏁</span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '13.5px', color: '#334155' }}>
+                  대진이 공식 종료되었습니다 (결과 확정)
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                  경기 결과와 벌칙금 정산이 완료되었습니다. 수정이 필요한 경우 운영진이 대진을 재개할 수 있습니다.
+                </div>
+              </div>
+            </div>
+            {(isAdmin || hasScoreEditPerm) && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleReopenBracket}
+                style={{
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  padding: '5px 14px',
+                  color: '#16a34a',
+                  borderColor: '#86efac',
+                  backgroundColor: '#fff'
+                }}
+              >
+                🔄 대진 재개 (종료 취소)
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ── 1. 코트별 선수 배치 뷰 ── */}
         {viewMode === 'court' && (
@@ -2102,7 +2343,11 @@ export default function BracketTab({
                 <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--txt)' }}>
                   💸 최종 경기 벌칙금(진팀 벌금) 정산소
                 </h2>
-                {matchStats.isAllCompleted ? (
+                {scheduleStatus === 'completed' ? (
+                  <span className="badge badge-green" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
+                    🏁 대진 종료 완료 (최종 결과 확정)
+                  </span>
+                ) : matchStats.isAllCompleted ? (
                   <span className="badge badge-green" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
                     🎉 전체 경기 완료 (최종 정산 완료)
                   </span>
@@ -2118,6 +2363,44 @@ export default function BracketTab({
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* 🏁 대진 종료 / 대진 재개 버튼 */}
+              {(isAdmin || hasScoreEditPerm) && (
+                scheduleStatus === 'completed' ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleReopenBracket}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 800, color: '#16a34a', borderColor: '#86efac', backgroundColor: '#fff' }}
+                    title="대진 종료를 취소하고 경기 진행 상태로 되돌립니다"
+                  >
+                    🔄 대진 재개
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      const msg = matchStats.isAllCompleted
+                        ? '대진을 종료하시겠습니까?'
+                        : `아직 완료되지 않은 경기가 있습니다 (${matchStats.completedMatches}/${matchStats.totalMatches}경기 완료).\n그래도 대진을 종료하시겠습니까?`;
+                      if (confirm(msg)) handleEndBracket();
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontWeight: 800,
+                      color: '#fff',
+                      backgroundColor: matchStats.isAllCompleted ? '#16a34a' : '#2563eb',
+                      borderColor: matchStats.isAllCompleted ? '#15803d' : '#1d4ed8',
+                      boxShadow: matchStats.isAllCompleted ? '0 2px 8px rgba(22, 163, 74, 0.35)' : undefined
+                    }}
+                    title="대진을 종료하고 완료 상태로 변경합니다"
+                  >
+                    🏁 대진 종료
+                  </button>
+                )
+              )}
               {isAdmin && !isReadOnly && (
                 <button
                   type="button"
@@ -2380,7 +2663,11 @@ export default function BracketTab({
                 <span className="badge badge-blue" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
                   🛡️ 벌칙금 미적용 모드
                 </span>
-                {totalCompletedPlayerGames >= totalAssignedPlayerGames && totalAssignedPlayerGames > 0 ? (
+                {scheduleStatus === 'completed' ? (
+                  <span className="badge badge-green" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
+                    🏁 대진 종료 완료
+                  </span>
+                ) : totalCompletedPlayerGames >= totalAssignedPlayerGames && totalAssignedPlayerGames > 0 ? (
                   <span className="badge badge-green" style={{ fontSize: '11.5px', padding: '3px 8px', fontWeight: 700 }}>
                     🎉 전원 배정 경기 완료
                   </span>
@@ -2396,6 +2683,45 @@ export default function BracketTab({
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* 🏁 대진 종료 / 대진 재개 버튼 */}
+              {(isAdmin || hasScoreEditPerm) && (
+                scheduleStatus === 'completed' ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleReopenBracket}
+                    style={{ fontSize: '11.5px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#16a34a', borderColor: '#86efac', backgroundColor: '#fff' }}
+                    title="대진 종료를 취소하고 경기 진행 상태로 되돌립니다"
+                  >
+                    🔄 대진 재개
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      const msg = matchStats.isAllCompleted
+                        ? '대진을 종료하시겠습니까?'
+                        : `아직 완료되지 않은 경기가 있습니다 (${matchStats.completedMatches}/${matchStats.totalMatches}경기 완료).\n그래도 대진을 종료하시겠습니까?`;
+                      if (confirm(msg)) handleEndBracket();
+                    }}
+                    style={{
+                      fontSize: '11.5px',
+                      fontWeight: 800,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      color: '#fff',
+                      backgroundColor: matchStats.isAllCompleted ? '#16a34a' : '#2563eb',
+                      borderColor: matchStats.isAllCompleted ? '#15803d' : '#1d4ed8',
+                      boxShadow: matchStats.isAllCompleted ? '0 2px 8px rgba(22, 163, 74, 0.35)' : undefined
+                    }}
+                    title="대진을 종료하고 완료 상태로 변경합니다"
+                  >
+                    🏁 대진 종료
+                  </button>
+                )
+              )}
               {isAdmin && !isReadOnly && (
                 <button
                   type="button"

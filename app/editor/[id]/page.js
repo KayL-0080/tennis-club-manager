@@ -50,6 +50,7 @@ export default function EditorPage({ params }) {
   const [clubSettings, setClubSettings] = useState(null);
   const [allSchedules, setAllSchedules] = useState([]);
   const [allEvents, setAllEvents] = useState([]);
+  const [status, setStatus] = useState('playing');
 
   /* ── 초기 데이터 로드 및 실시간 동기화 구독 (onSnapshot) ── */
   useEffect(() => {
@@ -115,6 +116,7 @@ export default function EditorPage({ params }) {
         if (data.maxGames !== undefined) {
           setMaxGames(data.maxGames);
         }
+        setStatus(data.status || (data.isFinished ? 'completed' : 'playing'));
         setFetching(false);
       });
     })();
@@ -179,6 +181,9 @@ export default function EditorPage({ params }) {
       penaltyAmount: overrides.penaltyAmount !== undefined ? overrides.penaltyAmount : penaltyAmount,
       penaltyPaidMap: overrides.penaltyPaidMap !== undefined ? overrides.penaltyPaidMap : penaltyPaidMap,
       maxGames: overrides.maxGames !== undefined ? overrides.maxGames : maxGames,
+      status: overrides.status !== undefined ? overrides.status : status,
+      isFinished: overrides.isFinished !== undefined ? overrides.isFinished : (status === 'completed'),
+      endedAt: overrides.endedAt !== undefined ? overrides.endedAt : (status === 'completed' ? new Date().toISOString() : null),
       ...overrides,
     };
     try {
@@ -190,7 +195,37 @@ export default function EditorPage({ params }) {
     } finally {
       setSaving(false);
     }
-  }, [id, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history, members, usePenalty, useScore, penaltyAmount, penaltyPaidMap, maxGames]);
+  }, [id, title, matchDate, participants, groups, rounds, courts, mensDoublesCount, womensDoublesCount, mixedCount, jointCount, allowSingles, startTime, endTime, schedule, scores, scheduleRounds, scheduleCourts, lastGenStats, history, members, usePenalty, useScore, penaltyAmount, penaltyPaidMap, maxGames, status]);
+
+  const handleEndBracket = useCallback(async (extra = {}) => {
+    if (!isAdmin && !canEditScore) {
+      alert('대진 종료 권한이 없습니다.');
+      return;
+    }
+    setStatus('completed');
+    await save({
+      status: 'completed',
+      isFinished: true,
+      endedAt: new Date().toISOString(),
+      ...extra,
+    });
+    alert('대진이 정상적으로 종료되었습니다.\n대시보드의 지난 대진표(종료된 경기)로 분류됩니다.');
+  }, [isAdmin, canEditScore, save]);
+
+  const handleReopenBracket = useCallback(async () => {
+    if (!isAdmin && !canEditScore) {
+      alert('대진 상태를 변경할 권한이 없습니다.');
+      return;
+    }
+    if (!confirm('대진 종료를 취소하고 다시 경기 진행 중 상태로 변경하시겠습니까?')) return;
+    setStatus('playing');
+    await save({
+      status: 'playing',
+      isFinished: false,
+      endedAt: null,
+    });
+    alert('대진이 다시 진행 상태로 재개되었습니다.');
+  }, [isAdmin, canEditScore, save]);
 
   if (loading || fetching) {
     return (
@@ -202,9 +237,10 @@ export default function EditorPage({ params }) {
 
   const todayStr = new Date().toLocaleDateString('en-CA');
   const isPastMatch = Boolean(matchDate && matchDate < todayStr);
+  const isCompletedMatch = status === 'completed' || isPastMatch;
   const canEditScore = can ? can('editMatchScore') : false;
   const canEditPlayer = can ? can('editMatchPlayer') : false;
-  const isReadOnly = (isPastMatch && !isAdmin) || (!isAdmin && !canEditScore);
+  const isReadOnly = (isCompletedMatch && !isAdmin) || (!isAdmin && !canEditScore);
 
   return (
     <div className={styles.page}>
@@ -227,8 +263,23 @@ export default function EditorPage({ params }) {
               />
             </div>
             
-            <div className={styles.titleStatus}>
-              {isPastMatch ? (
+            <div className={styles.titleStatus} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {status === 'completed' ? (
+                <span 
+                  className={styles.pastMatchBadge}
+                  style={{ 
+                    backgroundColor: '#f0fdf4',
+                    color: '#16a34a',
+                    border: '1px solid #86efac',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  🏁 대진 종료됨 (결과 확정)
+                </span>
+              ) : isPastMatch ? (
                 <span 
                   className={styles.pastMatchBadge}
                   style={{ 
@@ -257,6 +308,36 @@ export default function EditorPage({ params }) {
                     : '🔒 읽기 전용 모드 (운영진 전용)'}
                 </span>
               ) : null}
+
+              {/* 🏁 상단 대진 종료 / 대진 재개 버튼 */}
+              {(isAdmin || canEditScore) && (
+                status === 'completed' ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleReopenBracket}
+                    style={{ fontSize: '11.5px', fontWeight: 800, padding: '3px 10px', color: '#16a34a', borderColor: '#86efac', backgroundColor: '#f0fdf4' }}
+                    title="대진 종료를 취소하고 다시 경기 진행 중 상태로 되돌립니다"
+                  >
+                    🔄 대진 재개
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      if (confirm('대진을 종료하시겠습니까?')) {
+                        handleEndBracket();
+                      }
+                    }}
+                    style={{ fontSize: '11.5px', fontWeight: 800, padding: '3px 10px', backgroundColor: '#16a34a', borderColor: '#15803d', color: '#fff' }}
+                    title="대진을 종료하고 완료 상태로 변경합니다"
+                  >
+                    🏁 대진 종료
+                  </button>
+                )
+              )}
+
               <span className={styles.saveLabel}>
                 {saving ? <span className="spinner" style={{ width: 14, height: 14 }} /> : saveLabel}
               </span>
@@ -297,6 +378,10 @@ export default function EditorPage({ params }) {
             canEditScore={canEditScore}
             isReadOnly={isReadOnly}
             isPastMatch={isPastMatch}
+            scheduleStatus={status}
+            setScheduleStatus={setStatus}
+            onEndBracket={handleEndBracket}
+            onReopenBracket={handleReopenBracket}
           />
         </div>
       </main>

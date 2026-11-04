@@ -255,7 +255,7 @@ export default function Dashboard() {
   }
 
   const todayStr = new Date().toLocaleDateString('en-CA');
-  const isCompleted = (s) => s.matchDate && s.matchDate < todayStr;
+  const isCompleted = (s) => s.status === 'completed' || s.isFinished || (s.matchDate && s.matchDate < todayStr);
   
   const upcomingSchedules = schedules.filter(s => !isCompleted(s)).sort((a, b) => {
     const da = a.matchDate || '9999-12-31';
