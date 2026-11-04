@@ -73,7 +73,7 @@ const scoreOptions = (max = 6) => {
 };
 
 export default function BracketTab({
-  schedule, setSchedule, scores, setScores,
+  schedule = [], setSchedule, scores = {}, setScores,
   members, participants, setParticipants,
   lastGenStats,
   scheduleRounds, scheduleCourts, setScheduleRounds, setScheduleCourts,
@@ -959,7 +959,7 @@ export default function BracketTab({
         if (hasPlayers) {
           total++;
           const key = `${ri}-${ci}`;
-          const sc = scores[key];
+          const sc = scores?.[key];
           if (sc && sc.a !== null && sc.a !== undefined && sc.a !== '' &&
               sc.b !== null && sc.b !== undefined && sc.b !== '') {
             completed++;

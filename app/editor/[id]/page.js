@@ -17,6 +17,9 @@ export default function EditorPage({ params }) {
   const { isAdmin, can, loading } = useAuth();
   const router = useRouter();
 
+  const canEditScore = can ? can('editMatchScore') : false;
+  const canEditPlayer = can ? can('editMatchPlayer') : false;
+
   const [fetching, setFetching] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveLabel, setSaveLabel] = useState('');
@@ -238,8 +241,6 @@ export default function EditorPage({ params }) {
   const todayStr = new Date().toLocaleDateString('en-CA');
   const isPastMatch = Boolean(matchDate && matchDate < todayStr);
   const isCompletedMatch = status === 'completed' || isPastMatch;
-  const canEditScore = can ? can('editMatchScore') : false;
-  const canEditPlayer = can ? can('editMatchPlayer') : false;
   const isReadOnly = (isCompletedMatch && !isAdmin) || (!isAdmin && !canEditScore);
 
   return (
