@@ -196,7 +196,7 @@ export default function BracketTab({
   }, [penaltyAmount]);
 
   /* ── 👁️ 대진표 보기 모드 & 진행중 필터 상태 ── */
-  const [viewMode, setViewMode] = useState('court'); // 'court' (코트별 선수 배치) | 'table' (라운드별 테이블)
+  const [viewMode, setViewMode] = useState('table'); // 기본값: 'table' (라운드별 테이블) | 'court' (코트별 선수 배치)
   const [activeOnlyMode, setActiveOnlyMode] = useState(false); // true: 현재 진행중인 경기만, false: 전체 펼쳐보기
 
   /* ── 🔄 잔여 대진 재구성 상태 관리 ── */
@@ -1449,17 +1449,17 @@ export default function BracketTab({
             <div className={styles.segmentedControl}>
               <button
                 type="button"
-                className={`${styles.segBtn} ${viewMode === 'court' ? styles.segBtnActive : ''}`}
-                onClick={() => setViewMode('court')}
-              >
-                🎾 코트별 선수 배치
-              </button>
-              <button
-                type="button"
                 className={`${styles.segBtn} ${viewMode === 'table' ? styles.segBtnActive : ''}`}
                 onClick={() => setViewMode('table')}
               >
                 📋 라운드별 전체 테이블
+              </button>
+              <button
+                type="button"
+                className={`${styles.segBtn} ${viewMode === 'court' ? styles.segBtnActive : ''}`}
+                onClick={() => setViewMode('court')}
+              >
+                🎾 코트별 선수 배치
               </button>
             </div>
             <button

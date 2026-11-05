@@ -2150,7 +2150,7 @@ export default function SettingsTab({
                     color: enableScoreInput ? '#1d4ed8' : '#334155',
                     marginBottom: '4px'
                   }}>
-                    {enableScoreInput ? '☑️ 경기 점수(스코어) 입력 사용' : '⬜ 점수 입력 없이 대진표만 생성'}
+                    {enableScoreInput ? '경기 점수(스코어) 입력 사용' : '점수 입력 없이 대진표만 생성'}
                   </div>
                   <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.4 }}>
                     {enableScoreInput
