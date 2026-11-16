@@ -729,29 +729,10 @@ export default function SettingsTab({
           <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>1단계: 경기 일시 및 시간 설정</h2>
           {matchedEvent && (
             <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', background: 'rgba(22, 163, 74, 0.12)', color: '#15803d', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              🗓️ 정기모임 투표 시간 연동됨 ({matchedEvent.startTime || startTime} ~ {matchedEvent.endTime || endTime})
+              🗓️ 투표 시간 연동됨 ({matchedEvent.startTime || startTime} ~ {matchedEvent.endTime || endTime})
             </span>
           )}
         </div>
-
-        {recNotice && (
-          <div style={{
-            margin: '0 0 14px 0',
-            padding: '10px 14px',
-            borderRadius: '8px',
-            background: '#f0fdf4',
-            border: '1px solid #86efac',
-            color: '#166534',
-            fontSize: '13px',
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <span>✨</span>
-            <span>{recNotice}</span>
-          </div>
-        )}
         
         <div className={styles.step1DateTimeContainer} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
           {/* 1. 경기 날짜 (카드 전체 폭 100%) */}
@@ -849,12 +830,6 @@ export default function SettingsTab({
             🗓️ 참석 투표 불러오기 {matchedEvent ? `(참석 ${Object.values(matchedEvent.attendees || {}).filter(v => v === 'Y').length}명)` : '(투표 없음)'}
           </button>
         </div>
-
-        {recNotice && (
-          <div style={{ marginBottom: '12px', padding: '8px 12px', borderRadius: '6px', backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#16a34a', fontSize: '13px', fontWeight: '700' }}>
-            {recNotice}
-          </div>
-        )}
 
         {/* 정회원 선택 영역 (게스트 제외) */}
         <div style={{ marginBottom: 14 }}>
@@ -1066,10 +1041,7 @@ export default function SettingsTab({
                           );
                         })}
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                        <span style={{ fontSize: '11.5px', color: '#6d28d9', fontWeight: 600 }}>
-                          💡 명단에 없는 게스트는 상단 [➕ 신규 게스트 직접 입력] 탭에서 추가하세요.
-                        </span>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap', gap: '8px' }}>
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
@@ -1137,108 +1109,22 @@ export default function SettingsTab({
       {/* 3단계: 경기 세부 설정 */}
       <div className={`card ${styles.section}`}>
         {/* 섹션 헤더 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
-              3단계: 경기 세부 설정
-            </h2>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--txt2)' }}>
-              경기 규모, 방식, 종목별 배분 및 부가 옵션을 한눈에 설정합니다.
-            </p>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+          <h2 className={styles.sectionTitle} style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
+            3단계: 경기 세부 설정
+          </h2>
           {participants.length > 0 && (
             <button 
               type="button" 
               className="btn btn-secondary btn-sm"
               onClick={() => applyRecommendation()}
-              title="경기 시간과 참가자 성별 분포에 맞춰 추천 설정을 다시 적용합니다"
+              title="경기 시간과 참가자 분포에 맞춰 추천 설정을 적용합니다"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}
             >
               🔄 추천 설정 다시 적용
             </button>
           )}
         </div>
-
-        {/* 1. 추천 안내 요약 카드 */}
-        {participants.length > 0 && (
-          <div style={{ 
-            padding: '12px 16px', 
-            borderRadius: '12px', 
-            backgroundColor: 'rgba(59, 130, 246, 0.06)', 
-            border: '1px solid rgba(59, 130, 246, 0.2)', 
-            marginBottom: '16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px'
-          }}>
-            {/* 상단: 타이틀 및 완료 뱃지 */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 800, color: '#1d4ed8' }}>
-                <span>💡</span>
-                <span>경기 환경 맞춤 추천 세팅</span>
-              </div>
-              <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#2563eb', color: '#fff', fontWeight: 800 }}>
-                자동 분석 완료
-              </span>
-            </div>
-
-            {/* 메타데이터 정보 칩 (단어 단위로 끊기지 않는 독립 칩) */}
-            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '4px 9px',
-                borderRadius: '6px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #bfdbfe',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: '#1e40af',
-                whiteSpace: 'nowrap'
-              }}>
-                ⏱️ 경기시간: <strong>{durationInfo.text}</strong>
-              </span>
-
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '4px 9px',
-                borderRadius: '6px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #bfdbfe',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: '#1e40af',
-                whiteSpace: 'nowrap'
-              }}>
-                👥 참가자: <strong>총 {participants.length}명</strong> (남 {maleCount} · 여 {femaleCount})
-              </span>
-
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '4px 9px',
-                borderRadius: '6px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #bbf7d0',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: '#15803d',
-                whiteSpace: 'nowrap'
-              }}>
-                🎾 추천: <strong>{rounds}R · {effectiveMaxGames}게임제</strong>
-              </span>
-            </div>
-
-            {/* 하단 추천 상세 안내 */}
-            <div style={{ color: 'var(--txt2)', fontSize: '12px', lineHeight: '1.45', paddingTop: '6px', borderTop: '1px dashed rgba(59, 130, 246, 0.18)' }}>
-              {recExplanation || `경기시간(${durationInfo.diff}분)에 맞춘 추천 라운드수(${rounds}R)와 성별 참가 인원에 적합한 게임 수가 세팅되었습니다.`}
-            </div>
-          </div>
-        )}
 
         {/* 2. 경기 규모 & 방식 설정 (코트, 라운드, 5/6게임제) */}
         <div style={{
@@ -1268,10 +1154,7 @@ export default function SettingsTab({
               borderRadius: '10px',
               border: '1px solid var(--border)'
             }}>
-              <div>
-                <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--txt)' }}>🏟️ 코트 수</div>
-                <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>사용 가능한 코트</div>
-              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)' }}>🏟️ 코트 수</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <select 
                   className="input input-sm" 
@@ -1301,10 +1184,7 @@ export default function SettingsTab({
               borderRadius: '10px',
               border: '1px solid var(--border)'
             }}>
-              <div>
-                <div style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--txt)' }}>🔄 총 라운드 수</div>
-                <div style={{ fontSize: '11px', color: 'var(--txt3)' }}>진행 회차</div>
-              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)' }}>🔄 라운드 수</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <select 
                   className="input input-sm" 
@@ -1334,12 +1214,7 @@ export default function SettingsTab({
               borderRadius: '10px',
               border: '1px solid var(--border)'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--txt)' }}>🎾 경기 방식</span>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: effectiveMaxGames === 6 ? '#2563eb' : '#d97706' }}>
-                  {effectiveMaxGames === 6 ? '기본 모드' : '다인원 배정 모드'}
-                </span>
-              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--txt)' }}>🎾 경기 방식</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderRadius: '8px', padding: '3px', backgroundColor: '#f1f5f9', gap: '4px' }}>
                 <button
                   type="button"
@@ -1469,13 +1344,8 @@ export default function SettingsTab({
                 onChange={e => setUsePenalty && setUsePenalty(e.target.checked)} 
                 style={{ width: '16px', height: '16px', cursor: 'pointer' }}
               />
-              💸 경기 패배 벌칙금(진팀 벌금) 정산 적용
+              💸 경기 패배 벌칙금 정산 적용
             </label>
-            <span style={{ fontSize: '12px', color: usePenalty ? '#e11d48' : 'var(--txt3)', fontWeight: 700 }}>
-              {usePenalty 
-                ? '✓ 대진표 화면에 패배 벌칙금 정산소가 활성화됩니다' 
-                : '✓ 벌칙금 없이 선수별 경기 진행 현황만 표시됩니다'}
-            </span>
           </div>
 
           {/* 🏆 NTRP 상위/하위 그룹 분리 후 혼합 대진 옵션 설정 */}
@@ -1504,13 +1374,13 @@ export default function SettingsTab({
                   }}
                   style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                 />
-                🏆 NTRP 상위/하위 그룹 분리 후 혼합 대진 적용
+                🏆 NTRP 상위/하위 그룹 분리 후 혼합 대진
               </label>
-              <span style={{ fontSize: '12px', color: effectiveSplitMode ? '#1d4ed8' : 'var(--txt3)', fontWeight: 700 }}>
-                {effectiveSplitMode
-                  ? `✓ 1R~${effectiveSplitRounds}R 수준별 ➔ ${effectiveSplitRounds + 1}R~${rounds}R 혼합 대진`
-                  : '✓ 전체 일반 혼합 대진'}
-              </span>
+              {effectiveSplitMode && (
+                <span style={{ fontSize: '12px', color: '#1d4ed8', fontWeight: 700 }}>
+                  1R~{effectiveSplitRounds}R 수준별 ➔ {effectiveSplitRounds + 1}R~{rounds}R 혼합
+                </span>
+              )}
             </div>
 
             {effectiveSplitMode && (
@@ -1533,10 +1403,7 @@ export default function SettingsTab({
                     justifyContent: 'space-between',
                     gap: '8px'
                   }}>
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af' }}>1구간: 앞 2시간 (수준별 대진)</div>
-                      <div style={{ fontSize: '11px', color: '#3b82f6' }}>상위그룹 / 하위그룹 분리 경기</div>
-                    </div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#1e40af' }}>1구간 (수준별)</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af' }}>1R ~</span>
                       <select
@@ -1562,21 +1429,15 @@ export default function SettingsTab({
                     justifyContent: 'space-between',
                     gap: '8px'
                   }}>
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d' }}>2구간: 이후 시간 (혼합 대진)</div>
-                      <div style={{ fontSize: '11px', color: '#16a34a' }}>종료({endTime || '12:00'})까지 전체 혼합 경기</div>
-                    </div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#15803d' }}>2구간 (혼합)</div>
                     <span style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', padding: '4px 8px', borderRadius: '6px', backgroundColor: '#fff', border: '1px solid #86efac' }}>
                       {Math.min(rounds, effectiveSplitRounds + 1)}R ~ {rounds}R
                     </span>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                    * <strong>NTRP 3.0 이상</strong>인 참가자는 기본적으로 상위그룹으로 자동 배정됩니다. 아래 버튼(⬇ / ⬆)을 클릭하여 상위·하위 그룹을 임의로 수정할 수 있습니다.
-                  </div>
-                  {customUpperIds !== null && (
+                {customUpperIds !== null && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button
                       type="button"
                       onClick={handleResetNtrpGroups}
@@ -1594,8 +1455,8 @@ export default function SettingsTab({
                     >
                       🔄 3.0 기준 초기화
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {entries.length > 0 && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
@@ -1724,15 +1585,10 @@ export default function SettingsTab({
 
       {/* 4단계: 참가자 목표 게임수 설정 및 균등 배분 */}
       <div className={`card ${styles.section}`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <div>
-            <h2 className={styles.sectionTitle} style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>
-              4단계: 참가자 목표 게임수 설정 및 균등 배분
-            </h2>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--txt2)' }}>
-              참가자별 목표 게임수를 확인하고 필요 시 직접 조정하거나 우선순위대로 자동 균등 배분합니다.
-            </p>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+          <h2 className={styles.sectionTitle} style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>
+            4단계: 참가자 목표 게임수 설정 및 균등 배분
+          </h2>
           {entries.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <button
@@ -1740,7 +1596,6 @@ export default function SettingsTab({
                 className={`btn btn-sm ${sortOrder === 'NAME' && !effectiveSplitMode ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => { setSortOrder('NAME'); setSortByNtrp(false); }}
                 disabled={!!effectiveSplitMode}
-                title={effectiveSplitMode ? 'NTRP 그룹 분리 옵션 활성화 중에는 NTRP 순서로 고정됩니다' : '가나다 이름순 정렬'}
                 style={{ fontSize: '11.5px', padding: '3px 9px' }}
               >
                 가나다순
@@ -1749,58 +1604,12 @@ export default function SettingsTab({
                 type="button"
                 className={`btn btn-sm ${(sortOrder === 'NTRP' || effectiveSplitMode) ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => { setSortOrder('NTRP'); setSortByNtrp(true); }}
-                title="🏆 NTRP 순 (상·하위 그룹)"
                 style={{ fontSize: '11.5px', padding: '3px 9px' }}
               >
                 🏆 NTRP 순
               </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${sortOrder === 'PRIORITY' && !effectiveSplitMode ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => { setSortOrder('PRIORITY'); setSortByNtrp(false); }}
-                disabled={!!effectiveSplitMode}
-                title="1순위 게스트 ➔ 2순위 4주 0회 ➔ 3순위 NTRP 낮은 순"
-                style={{ fontSize: '11.5px', padding: '3px 9px', fontWeight: 800 }}
-              >
-                ⚖️ 배분 우선순위순
-              </button>
             </div>
           )}
-        </div>
-
-        {/* 잔여 게임 배분 우선순위 안내 배너 */}
-        <div style={{
-          padding: '10px 14px',
-          borderRadius: '10px',
-          backgroundColor: 'rgba(59, 130, 246, 0.06)',
-          border: '1px solid rgba(59, 130, 246, 0.2)',
-          fontSize: '12.5px',
-          color: 'var(--txt)',
-          marginTop: '12px',
-          marginBottom: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '8px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 800, color: '#1d4ed8' }}>⚖️ 목표 게임수 균등 배분 우선순위:</span>
-            <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#7e22ce', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#f3e8ff', border: '1px solid #d8b4fe' }}>
-              ⭐ 1순위: 게스트
-            </span>
-            <span style={{ color: 'var(--txt3)', fontSize: '11px' }}>➔</span>
-            <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#b45309', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#fef3c7', border: '1px solid #fde68a' }}>
-              ⚡ 2순위: 4주간 1회 미만(0회) 참석자
-            </span>
-            <span style={{ color: 'var(--txt3)', fontSize: '11px' }}>➔</span>
-            <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#1e40af', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
-              🎾 3순위: NTRP 낮은 순
-            </span>
-          </div>
-          <span style={{ fontSize: '11.5px', color: 'var(--txt2)' }}>
-            * 잔여 게임(+1) 발생 시 위 우선순위대로 먼저 배분됩니다.
-          </span>
         </div>
 
         <div className="table-wrap" style={{ marginTop: 10 }}>
@@ -1811,7 +1620,6 @@ export default function SettingsTab({
                 <th style={{ minWidth: '110px', whiteSpace: 'nowrap', padding: '8px 10px' }}>이름</th>
                 <th style={{ width: '48px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>성별</th>
                 <th style={{ width: '54px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>NTRP</th>
-                <th style={{ width: '135px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>배분 우선순위</th>
                 <th style={{ width: '82px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>목표 게임수</th>
                 <th style={{ width: '56px', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}></th>
               </tr>
@@ -1819,7 +1627,6 @@ export default function SettingsTab({
             <tbody>
               {displayEntries.map((p, idx) => {
                 const isUpper = ntrpSplitInfo.upperIds.has(p.id);
-                const prio = getPlayerBalancePriority(p.id);
                 return (
                   <tr
                     key={p.id}
@@ -1883,23 +1690,6 @@ export default function SettingsTab({
                     </td>
                     <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 4px' }}>{p.ntrp.toFixed(1)}</td>
                     <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>
-                      <span style={{
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        backgroundColor: prio.bg,
-                        color: prio.badgeColor,
-                        border: `1px solid ${prio.border}`,
-                        fontWeight: 800,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {prio.badgeText}
-                      </span>
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 6px' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <select className="input input-sm" value={p.target} style={{ width: 56 }}
                           onChange={e => updateTarget(p.id, e.target.value)}>
@@ -1935,15 +1725,10 @@ export default function SettingsTab({
               ⚡ 5게임제({minRoundsFor4Games}R) 전환하여 전원 최소 4게임 맞추기
             </button>
           )}
-          {entries.length >= 4 && isAllAtLeast4Games && (
-            <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-              🛡️ 전 참가자 최소 4게임 이상 보장 완료 ({minAssignedTarget === maxAssignedTarget ? `전원 ${minAssignedTarget}게임` : `${minAssignedTarget}~${maxAssignedTarget}게임`})
-            </span>
-          )}
         </div>
         <div className={`${styles.balanceRow} ${isBalanced ? styles.ok : styles.bad}`} style={{ marginTop: 12 }}>
           참가자 <strong>{participants.length}명</strong> · 목표 합계: <strong>{targetSum}</strong> / 필요 슬롯: <strong>{totalSlots}</strong>
-          {isBalanced ? ' ✓ 일치' : ' ✗ 불일치 (균등배분을 실행하거나 숫자를 직접 맞추어 주세요)'}
+          {isBalanced ? ' ✓ 일치' : ' ✗ 불일치 (목표 합계와 필요 슬롯을 맞춰주세요)'}
         </div>
       </div>
 
@@ -1952,11 +1737,9 @@ export default function SettingsTab({
         <h2 className={styles.sectionTitle}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
             <input type="checkbox" checked={enableConditions} onChange={e => setEnableConditions(e.target.checked)} />
-            특별 조건 적용
+            특별 조건 적용 (4인 지정 게임)
           </label>
-          <span className={styles.sectionNote}>(체크 시 자동 생성에 반영)</span>
         </h2>
-        <p className="text-muted" style={{ fontSize: 13, marginBottom: 12 }}>특정 4명이 함께 뛰는 게임 (같은 4명, 페어만 다르게 구성)</p>
         {entries.length >= 4 && (
           <form className={styles.addRow} onSubmit={addGroup}>
             {['g1', 'g2', 'g3', 'g4'].map(n => (
@@ -1993,42 +1776,22 @@ export default function SettingsTab({
         {/* 점수 입력 여부 기본 설정 */}
         <div style={{
           marginBottom: '14px',
-          padding: '12px 14px',
+          padding: '10px 14px',
           background: '#f8fafc',
           border: '1.5px solid #cbd5e1',
           borderRadius: '10px',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '8px'
+          alignItems: 'center'
         }}>
-          <div>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '13.5px', color: '#1e293b' }}>
-              <input
-                type="checkbox"
-                checked={enableScoreInput}
-                onChange={(e) => setEnableScoreInput(e.target.checked)}
-                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#2563eb' }}
-              />
-              <span>🔢 경기 점수(스코어) 입력 사용</span>
-            </label>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', marginLeft: '26px' }}>
-              {enableScoreInput
-                ? '체크됨: 경기별 점수 입력란과 실시간 순위표 및 벌칙금 정산이 활성화됩니다.'
-                : '체크 해제됨: 점수 입력란 없이 대진표 편성표만 깔끔하게 생성됩니다.'}
-            </div>
-          </div>
-          <span style={{
-            fontSize: '11.5px',
-            fontWeight: 800,
-            padding: '3px 8px',
-            borderRadius: '6px',
-            background: enableScoreInput ? '#dbeafe' : '#f1f5f9',
-            color: enableScoreInput ? '#1d4ed8' : '#64748b'
-          }}>
-            {enableScoreInput ? '점수 입력 모드' : '대진표 전용'}
-          </span>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '13.5px', color: '#1e293b', margin: 0 }}>
+            <input
+              type="checkbox"
+              checked={enableScoreInput}
+              onChange={(e) => setEnableScoreInput(e.target.checked)}
+              style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#2563eb' }}
+            />
+            <span>🔢 경기 점수(스코어) 입력 사용</span>
+          </label>
         </div>
 
         <div className={styles.genRow}>
