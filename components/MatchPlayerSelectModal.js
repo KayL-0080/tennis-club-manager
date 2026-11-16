@@ -743,21 +743,22 @@ export default function MatchPlayerSelectModal({
           </div>
         </div>
 
-        {/* 3. 선수 리스트 (현재 완료 경기 수 표기 + 즉시 배정) */}
+        {/* 3. 선수 명단: 간략한 이름카드 형태 (클릭 시 즉시 배정) */}
         <div 
           style={{
             flex: 1,
             overflowY: 'auto',
             maxHeight: '48vh',
-            padding: '8px 14px',
+            padding: '12px 14px',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
+            flexWrap: 'wrap',
+            gap: '8px',
+            alignContent: 'flex-start',
             backgroundColor: '#f8fafc'
           }}
         >
           {filteredCandidates.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '36px 12px', color: 'var(--txt3)' }}>
+            <div style={{ textAlign: 'center', padding: '36px 12px', color: 'var(--txt3)', width: '100%' }}>
               <span style={{ fontSize: '28px', display: 'block', marginBottom: '8px' }}>🎾</span>
               <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>
                 {searchTerm ? '검색된 선수가 없습니다.' : '선택 가능한 선수가 없습니다.'}
@@ -768,6 +769,9 @@ export default function MatchPlayerSelectModal({
             </div>
           ) : (
             filteredCandidates.map(c => {
+              const isGuest = checkIsGuest(c);
+              const roleShort = isGuest ? '게' : (c.role === '준회원' ? '준' : '정');
+              const cleanName = (c.name || '').replace(/\s*\((게|정|준|게스트)\)\s*$/, '').trim();
               const isFemale = c.gender === 'F';
               const countStyle = getGameCountBadgeStyle(c.assigned);
 
@@ -778,162 +782,120 @@ export default function MatchPlayerSelectModal({
               const isDisabled = isConflict || isOtherInMatch;
 
               return (
-                <div
+                <button
                   key={c.id}
+                  type="button"
+                  disabled={isDisabled || isCurrent}
                   onClick={() => {
                     if (isDisabled || isCurrent) return;
                     handleSelectPlayer(c);
                   }}
                   title={
                     isCurrent
-                      ? '현재 슬롯에 이미 배정되어 있습니다.'
+                      ? `[${cleanName}] 현재 슬롯에 배정되어 있습니다.`
                       : isConflict
-                      ? `[${c.name}] 선수는 ${roundLabel} ${c.conflictCourt} 경기 중이어서 배정할 수 없습니다.`
+                      ? `[${cleanName}] ${roundLabel} ${c.conflictCourt} 경기 중 (동일 라운드 중복 출전 불가)`
                       : isOtherInMatch
-                      ? `[${c.name}] 선수는 현재 경기(${c.otherSlotInMatch})에 이미 배정되어 있습니다.`
-                      : `클릭하여 [${c.name}] 선수를 ${currentTeam.toUpperCase()}팀 ${currentSlot + 1}번에 즉시 배정`
+                      ? `[${cleanName}] 현재 경기(${c.otherSlotInMatch})에 이미 배정되어 있습니다.`
+                      : `클릭 시 [${cleanName}] 선수를 ${currentTeam.toUpperCase()}팀 ${currentSlot + 1}번에 즉시 배정합니다.`
                   }
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    backgroundColor: isCurrent ? '#eff6ff' : isDisabled ? '#f1f5f9' : '#ffffff',
-                    border: isCurrent 
-                      ? '1.5px solid var(--ios-blue)' 
-                      : isDisabled 
-                      ? '1px solid #e2e8f0' 
-                      : '1px solid #cbd5e1',
-                    borderLeft: `5px solid ${isDisabled ? '#cbd5e1' : countStyle.accent}`,
-                    boxShadow: isCurrent ? '0 2px 8px rgba(0, 122, 255, 0.12)' : '0 1px 3px rgba(0,0,0,0.03)',
-                    opacity: isDisabled ? 0.6 : 1,
+                    gap: '4px',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    backgroundColor: isCurrent ? '#dbeafe' : isDisabled ? '#f1f5f9' : '#ffffff',
+                    border: isCurrent
+                      ? '1.5px solid #2563eb'
+                      : isDisabled
+                      ? '1px solid #e2e8f0'
+                      : '1.5px solid #cbd5e1',
+                    boxShadow: isCurrent
+                      ? '0 0 0 2px rgba(37, 99, 235, 0.2)'
+                      : isDisabled
+                      ? 'none'
+                      : '0 1px 3px rgba(0,0,0,0.06)',
                     cursor: (isDisabled || isCurrent) ? 'not-allowed' : 'pointer',
+                    opacity: isDisabled ? 0.45 : 1,
                     transition: 'all 0.15s ease',
-                    gap: '12px',
-                    userSelect: 'none'
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                    textAlign: 'left'
                   }}
                   onMouseEnter={(e) => {
                     if (!isDisabled && !isCurrent) {
+                      e.currentTarget.style.borderColor = '#2563eb';
                       e.currentTarget.style.backgroundColor = '#eff6ff';
-                      e.currentTarget.style.borderColor = '#3b82f6';
                       e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 4px 10px rgba(59, 130, 246, 0.15)';
+                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(37, 99, 235, 0.18)';
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isDisabled && !isCurrent) {
-                      e.currentTarget.style.backgroundColor = '#ffffff';
                       e.currentTarget.style.borderColor = '#cbd5e1';
+                      e.currentTarget.style.backgroundColor = '#ffffff';
                       e.currentTarget.style.transform = 'none';
-                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
                     }
                   }}
                 >
-                  {/* 왼쪽: 이름, 남여구분, 총경기수 (사용자 요청: 간략 표기) */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flexWrap: 'wrap' }}>
-                    {/* 1. 이름 */}
-                    <span style={{
-                      fontWeight: 800,
-                      fontSize: '14px',
-                      color: isConflict ? '#94a3b8' : '#0f172a',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {getDisplayNameWithGuest(c)}
-                    </span>
+                  {/* 선수 이름 */}
+                  <span style={{
+                    fontWeight: 800,
+                    fontSize: '13.5px',
+                    color: isConflict ? '#94a3b8' : isCurrent ? '#1d4ed8' : '#0f172a'
+                  }}>
+                    {cleanName}
+                  </span>
 
-                    {/* 2. 남여구분 */}
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      padding: '2px 7px',
-                      borderRadius: '5px',
-                      backgroundColor: isFemale ? '#fdf2f8' : '#eff6ff',
-                      color: isFemale ? '#be185d' : '#1d4ed8',
-                      border: `1px solid ${isFemale ? '#fbcfe8' : '#bfdbfe'}`,
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {isFemale ? '여' : '남'}
-                    </span>
+                  {/* 총경기수: (3G) */}
+                  <span style={{
+                    fontWeight: 800,
+                    fontSize: '11px',
+                    color: countStyle.text,
+                    backgroundColor: countStyle.bg,
+                    border: `1px solid ${countStyle.border}`,
+                    borderRadius: '4px',
+                    padding: '1px 5px',
+                    lineHeight: '1.2'
+                  }}>
+                    ({c.assigned}G)
+                  </span>
 
-                    {/* 3. 총경기수 */}
-                    <span style={{
-                      fontSize: '11.5px',
-                      fontWeight: 800,
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                      backgroundColor: countStyle.bg,
-                      color: countStyle.text,
-                      border: `1px solid ${countStyle.border}`,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      <span>{countStyle.dot}</span>
-                      <span>총 {c.assigned}경기</span>
-                    </span>
-                  </div>
+                  {/* 회원 구분: (정) or (게) */}
+                  <span style={{
+                    fontWeight: 800,
+                    fontSize: '11px',
+                    color: isGuest ? '#c026d3' : (c.role === '준회원' ? '#059669' : '#2563eb'),
+                    backgroundColor: isGuest ? '#fdf4ff' : (c.role === '준회원' ? '#ecfdf5' : '#eff6ff'),
+                    border: `1px solid ${isGuest ? '#f5d0fe' : (c.role === '준회원' ? '#a7f3d0' : '#bfdbfe')}`,
+                    borderRadius: '4px',
+                    padding: '1px 5px',
+                    lineHeight: '1.2'
+                  }}>
+                    ({roleShort})
+                  </span>
 
-                  {/* 오른쪽: 상태 또는 원클릭 배정 유도 뱃지 */}
-                  <div style={{ flexShrink: 0 }}>
-                    {isCurrent ? (
-                      <span style={{
-                        fontSize: '11.5px',
-                        padding: '4px 10px',
-                        borderRadius: '8px',
-                        backgroundColor: '#dbeafe',
-                        color: '#1d4ed8',
-                        fontWeight: 800,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px'
-                      }}>
-                        ✅ 배정됨
-                      </span>
-                    ) : isConflict ? (
-                      <span style={{
-                        fontSize: '11px',
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        backgroundColor: '#fee2e2',
-                        color: '#b91c1c',
-                        fontWeight: 700,
-                        border: '1px solid #fecdd3'
-                      }}>
-                        ⚠️ {c.conflictCourt} 경기중
-                      </span>
-                    ) : isOtherInMatch ? (
-                      <span style={{
-                        fontSize: '11px',
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        backgroundColor: '#fef3c7',
-                        color: '#b45309',
-                        fontWeight: 700,
-                        border: '1px solid #fde68a'
-                      }}>
-                        ⚠️ {c.otherSlotInMatch}
-                      </span>
-                    ) : (
-                      <span style={{
-                        fontSize: '12px',
-                        fontWeight: 800,
-                        color: !c.isParticipant ? '#7c3aed' : '#2563eb',
-                        backgroundColor: !c.isParticipant ? '#f5f3ff' : '#eff6ff',
-                        padding: '4px 10px',
-                        borderRadius: '8px',
-                        border: `1px solid ${!c.isParticipant ? '#ddd6fe' : '#bfdbfe'}`,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px'
-                      }}>
-                        <span>{!c.isParticipant ? '➕ 참가 & 배정' : '클릭 배정'}</span>
-                        <span style={{ fontSize: '11px' }}>➔</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
+                  {/* 성별 미니 도트/텍스트 (여성이면 ♀ 표시) */}
+                  {isFemale && (
+                    <span style={{ fontSize: '9.5px', color: '#db2777', fontWeight: 800 }} title="여성">
+                      ♀
+                    </span>
+                  )}
+
+                  {/* 배정중 또는 중복 상태 표시 */}
+                  {isCurrent && (
+                    <span style={{ fontSize: '10.5px', color: '#1d4ed8', fontWeight: 900, marginLeft: '2px' }}>
+                      ✓
+                    </span>
+                  )}
+                  {isConflict && (
+                    <span style={{ fontSize: '10px', color: '#b91c1c', fontWeight: 700, marginLeft: '2px' }}>
+                      (중복)
+                    </span>
+                  )}
+                </button>
               );
             })
           )}
