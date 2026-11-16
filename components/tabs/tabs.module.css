@@ -178,6 +178,244 @@
   gap: 8px;
 }
 
+/* ── 라운드별 세로 녹색 테니스 코트 테이블 (좌우 스크롤 없음) ── */
+.courtTableWrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.courtTable {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.courtRoundTh {
+  width: 42px;
+  padding: 10px 2px !important;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--txt2);
+  background: rgba(248, 250, 252, 0.9);
+  border-bottom: 1.5px solid var(--border);
+  border-right: 1.5px solid var(--border);
+}
+
+.courtNameTh {
+  padding: 10px 4px !important;
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 900;
+  color: #166534;
+  background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+  border-bottom: 1.5px solid #bbf7d0;
+  border-right: 1px solid #e2e8f0;
+}
+.courtNameTh:last-child {
+  border-right: none;
+}
+
+.courtRoundTd {
+  width: 42px;
+  padding: 6px 2px !important;
+  text-align: center;
+  vertical-align: middle;
+  background: linear-gradient(180deg, rgba(0, 122, 255, 0.06) 0%, rgba(0, 122, 255, 0.02) 100%) !important;
+  color: var(--ios-blue) !important;
+  font-weight: 900;
+  font-size: 13px;
+  border-right: 1.5px solid rgba(0, 122, 255, 0.2);
+  border-bottom: 1px solid var(--border);
+}
+
+.tennisCourtCell {
+  padding: 6px 5px !important;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid rgba(226, 232, 240, 0.7);
+  background: #f8fafc !important;
+}
+.tennisCourtCell:last-child {
+  border-right: none;
+}
+
+.tennisCourt {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  padding: 9px 7px;
+  background: linear-gradient(180deg, #166534 0%, #1d7a46 50%, #166534 100%);
+  border: 2px solid rgba(255, 255, 255, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 3px 8px rgba(22, 101, 52, 0.22);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 테니스 코트 라인 (복식/단식 사이드라인 + 서비스라인 + 센터라인 + 네트라인) */
+.tennisCourtLines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.tennisCourtLines::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 9%;
+  right: 9%;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.42);
+  border-right: 1.5px solid rgba(255, 255, 255, 0.42);
+}
+.tennisCourtLines::after {
+  content: '';
+  position: absolute;
+  top: 23%;
+  bottom: 23%;
+  left: 9%;
+  right: 9%;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.38);
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.38);
+}
+
+.tennisCourtCenterLine {
+  position: absolute;
+  top: 23%;
+  bottom: 23%;
+  left: 50%;
+  width: 0;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tennisCourtNetLine {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px dashed rgba(255, 255, 255, 0.78);
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tennisCourtInner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.courtTeamStack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.courtTeamWinner {
+  background: rgba(250, 204, 21, 0.25);
+  box-shadow: 0 0 0 1.5px rgba(250, 204, 21, 0.85);
+}
+
+.courtPlayerPill {
+  width: 100%;
+  min-width: 0;
+  height: 27px;
+  padding: 2px 5px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: clamp(10.5px, 2.7vw, 12.5px);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  box-sizing: border-box;
+}
+.courtPlayerPill:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+}
+.courtPlayerPill:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.courtPlayerPill:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.courtNetRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px 0;
+  min-height: 22px;
+}
+
+.courtScorePill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 2px 6px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+.courtVsBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.94);
+  color: #166534;
+  font-size: 9.5px;
+  font-weight: 900;
+  padding: 1px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+}
+
+@media (min-width: 640px) {
+  .courtRoundTh,
+  .courtRoundTd {
+    width: 58px;
+    font-size: 14px;
+  }
+  .tennisCourtCell {
+    padding: 8px 10px !important;
+  }
+  .tennisCourt {
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+  .courtPlayerPill {
+    height: 30px;
+    padding: 3px 8px;
+  }
+}
+
 /* ── 대진표 ── */
 .roundLabel {
   background: linear-gradient(135deg, rgba(0, 122, 255, 0.08), rgba(0, 122, 255, 0.02)) !important;
