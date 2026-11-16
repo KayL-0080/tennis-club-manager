@@ -163,8 +163,8 @@ export default function MembersTab({
     const unpaidMembers = clubMembers.filter(m => !m.feePaid);
     const names = unpaidMembers.map(m => m.name).join(', ');
     const cycleText = currentClub?.feeCycle === '연납' ? '올해' : currentClub?.feeCycle === '분기납' ? '이번 분기' : '이번 달';
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const payUrl = `${origin}/members?pay=1`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
+    const payUrl = `${origin}/pay`;
     const numAmt = currentClub?.feeAmount
       ? Number(String(currentClub.feeAmount).replace(/[^0-9]/g, '') || 0).toLocaleString()
       : '0';

@@ -77,8 +77,8 @@ export default function MembersPage() {
           const params = new URLSearchParams(window.location.search);
           if (params.get('pay') === '1' || params.get('pay') === 'true' || params.get('action') === 'pay') {
             setShowPayModal(true);
-            const queryAmount = params.get('amount');
-            const queryTitle = params.get('title');
+            const queryAmount = params.get('amount') || params.get('a');
+            const queryTitle = params.get('title') || params.get('t');
             if (queryAmount) setCustomPayAmount(queryAmount);
             if (queryTitle) setCustomPayTitle(queryTitle);
           }
@@ -273,8 +273,8 @@ export default function MembersPage() {
     const unpaidMembers = regularMembers.filter(m => !m.feePaid);
     const names = unpaidMembers.map(m => m.name).join(', ');
     const cycleText = feeCycle === '연납' ? '올해' : feeCycle === '분기납' ? '이번 분기' : '이번 달';
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const payUrl = `${origin}/members?pay=1`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
+    const payUrl = `${origin}/pay`;
     const numAmt = feeAmount
       ? Number(String(feeAmount).replace(/[^0-9]/g, '') || 0).toLocaleString()
       : '0';

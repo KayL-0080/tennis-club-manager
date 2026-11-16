@@ -774,7 +774,9 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
     const feeDisplay = entryFee > 0 ? `${Number(entryFee).toLocaleString()}원` : '무료';
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
     const tournamentTitle = tournament.title || '정기 대회';
-    const payUrl = `${origin}/members?pay=1&amount=${entryFee || ''}&title=${encodeURIComponent(tournamentTitle + ' 참가비')}`;
+    
+    // 짧고 간결한 간편 납부 링크 (토스로 내기 / 계좌 복사)
+    const payUrl = entryFee > 0 ? `${origin}/pay?a=${entryFee}` : `${origin}/pay`;
 
     const text = `[🏆 ${tournamentTitle} 참가비 입금 안내]
 
