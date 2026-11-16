@@ -2301,37 +2301,129 @@ export default function BracketTab({
 
       {/* 점수 미입력(대진 전용 모드) 안내 카드 또는 정산/순위표 */}
       {!useScore ? (
-        <div className={`card ${styles.section} no-print`} style={{
-          marginTop: '24px',
-          padding: '28px 20px',
-          textAlign: 'center',
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          border: '1.5px dashed var(--border)',
-          borderRadius: '16px'
-        }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 6px 0', color: 'var(--txt)' }}>
-            대진표 편성 전용 모드
-          </h3>
-          <p style={{ fontSize: '13px', color: 'var(--txt2)', margin: '0 auto 16px auto', maxWidth: '420px', lineHeight: 1.5 }}>
-            경기 점수 입력을 사용하지 않는 대진표 전용 상태입니다.<br />
-            스코어 입력칸과 경기 순위표·벌칙금 정산이 숨김 처리되어 대진 확인 및 인쇄/공유에 집중할 수 있습니다.
-          </p>
-          {isAdmin && setUseScore && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ fontWeight: 700, padding: '7px 16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              onClick={() => {
-                if (confirm('점수 입력 기능을 활성화하시겠습니까? (스코어 박스와 순위표가 표시됩니다)')) {
-                  setUseScore(true);
-                }
-              }}
-            >
-              🎾 경기 점수 입력 활성화하기
-            </button>
-          )}
-        </div>
+        <>
+          <div className={`card ${styles.section} no-print`} style={{
+            marginTop: '24px',
+            padding: '28px 20px',
+            textAlign: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            border: '1.5px dashed var(--border)',
+            borderRadius: '16px'
+          }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 6px 0', color: 'var(--txt)' }}>
+              대진표 편성 전용 모드
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--txt2)', margin: '0 auto 16px auto', maxWidth: '420px', lineHeight: 1.5 }}>
+              경기 점수 입력을 사용하지 않는 대진표 전용 상태입니다.<br />
+              스코어 입력칸과 경기 순위표·벌칙금 정산이 숨김 처리되어 대진 확인 및 인쇄/공유에 집중할 수 있습니다.
+            </p>
+            {isAdmin && setUseScore && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ fontWeight: 700, padding: '7px 16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => {
+                  if (confirm('점수 입력 기능을 활성화하시겠습니까? (스코어 박스와 순위표가 표시됩니다)')) {
+                    setUseScore(true);
+                  }
+                }}
+              >
+                🎾 경기 점수 입력 활성화하기
+              </button>
+            )}
+          </div>
+
+          {/* 점수 미입력 모드에서도 제일 아래 선수별 배정 게임수 현황 표기 */}
+          <div className={`card ${styles.section} no-print`} style={{ marginTop: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--txt)' }}>
+                  📊 선수별 배정 게임수 현황
+                </h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--txt2)' }}>
+                  총 {playerGameStats.length}명 · 1인 평균 {(totalAssignedPlayerGames / (playerGameStats.length || 1)).toFixed(1)}게임
+                </p>
+              </div>
+              {isAdmin && !isReadOnly && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setShowAddMemberModal(true)}
+                  style={{ fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                >
+                  👥 정회원 추가
+                </button>
+              )}
+            </div>
+
+            <div className="table-wrap">
+              <table className="table" style={{ width: '100%', textAlign: 'center' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 60 }}>번호</th>
+                    <th style={{ textAlign: 'left', paddingLeft: '16px' }}>선수명</th>
+                    <th style={{ width: 120, textAlign: 'center' }}>배정 게임수</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {playerGameStats.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '24px', color: 'var(--txt3)', fontSize: '13px' }}>
+                        배정된 선수가 없습니다.
+                      </td>
+                    </tr>
+                  ) : (
+                    [...playerGameStats]
+                      .sort((a, b) => b.assigned - a.assigned || a.name.localeCompare(b.name, 'ko'))
+                      .map((p, idx) => {
+                        const isFemale = p.gender === 'F';
+                        const countStyle = getGameCountBadgeStyle(p.assigned);
+                        return (
+                          <tr key={p.id}>
+                            <td style={{ fontWeight: 600, color: 'var(--txt3)', fontSize: '13px' }}>{idx + 1}</td>
+                            <td style={{ textAlign: 'left', paddingLeft: '16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--txt)' }}>
+                                  {getDisplayNameWithGuest(p)}
+                                </span>
+                                <span style={{
+                                  fontSize: '10px',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  backgroundColor: isFemale ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                                  color: isFemale ? '#db2777' : '#2563eb',
+                                  fontWeight: 700
+                                }}>
+                                  {isFemale ? '여' : '남'}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                                <span style={{
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  fontWeight: 800,
+                                  backgroundColor: countStyle.bg,
+                                  color: countStyle.text,
+                                  border: `1px solid ${countStyle.border}`,
+                                  lineHeight: '16px'
+                                }}>
+                                  {p.assigned}게임
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       ) : (
         <>
           {/* 💸 1. 최종 경기 벌칙금(진팀 벌금) 정산소 (usePenalty === true 일 때 표시) */}
