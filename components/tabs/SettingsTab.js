@@ -1,6 +1,6 @@
 // components/tabs/SettingsTab.js — 오늘 참가자 선택 + 라운드/코트 + 특별조건 + 대진표 생성
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { generateSchedule, makeEmptyMatch, calculateRecommendedSettings, splitPlayersByNtrp, calcDefaultSplitRounds } from '@/lib/scheduler';
 import { addMember } from '@/lib/firestore';
 import styles from './tabs.module.css';
