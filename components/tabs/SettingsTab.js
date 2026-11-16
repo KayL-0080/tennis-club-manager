@@ -49,6 +49,7 @@ export default function SettingsTab({
 
   const [localNtrpSplitMode, setLocalNtrpSplitMode] = useState(false);
   const [localNtrpSplitRounds, setLocalNtrpSplitRounds] = useState(() => calcDefaultSplitRounds(startTime, endTime, rounds));
+  const [customUpperIds, setCustomUpperIds] = useState(null); // null: 기본 NTRP 3.0 이상 상위그룹 분리, Array: 사용자 직접 임의 수정 목록
   const [sortByNtrp, setSortByNtrp] = useState(false);
   const [sortOrder, setSortOrder] = useState('NAME'); // 'NAME' | 'NTRP' | 'PRIORITY'
   const [askScoreModalOpen, setAskScoreModalOpen] = useState(false);
@@ -548,7 +549,26 @@ export default function SettingsTab({
     return m ? { ...m, target: pt.target } : null;
   }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
 
-  const ntrpSplitInfo = splitPlayersByNtrp(entries);
+  const ntrpSplitInfo = useMemo(() => {
+    return splitPlayersByNtrp(entries, { customUpperIds });
+  }, [entries, customUpperIds]);
+
+  // 상위/하위 그룹 임의 수정 핸들러
+  const handleMoveToLower = (playerId) => {
+    const currentUpperSet = new Set(ntrpSplitInfo.upperGroup.map(p => p.id));
+    currentUpperSet.delete(playerId);
+    setCustomUpperIds(Array.from(currentUpperSet));
+  };
+
+  const handleMoveToUpper = (playerId) => {
+    const currentUpperSet = new Set(ntrpSplitInfo.upperGroup.map(p => p.id));
+    currentUpperSet.add(playerId);
+    setCustomUpperIds(Array.from(currentUpperSet));
+  };
+
+  const handleResetNtrpGroups = () => {
+    setCustomUpperIds(null);
+  };
 
   // 배분 우선순위 기준 정렬 (1순위 게스트 -> 2순위 4주 0회 -> 3순위 NTRP 낮은순)
   const prioritySortedEntries = [...entries].sort((a, b) => {
@@ -616,11 +636,15 @@ export default function SettingsTab({
       const activeGroups = enableConditions ? validGroups.map(g => ({ memberIds: g.memberIds, count: g.count })) : [];
       const opts = { 
         groups: activeGroups, 
-        mensDoublesCount, womensDoublesCount, mixedCount, jointCount, 
+        mensDoublesCount: 0,
+        womensDoublesCount: 0,
+        mixedCount: 0,
+        jointCount: 0, 
         singlesPerRound,
         noFF: true,
         ntrpSplitMode: effectiveSplitMode,
         splitRounds: effectiveSplitRounds,
+        customUpperIds: effectiveSplitMode ? Array.from(ntrpSplitInfo.upperIds) : null,
         startTime,
         endTime
       };
@@ -659,6 +683,7 @@ export default function SettingsTab({
         ntrpDiffSum: result.ntrpDiffSum,
         ntrpSplitMode: !!effectiveSplitMode,
         splitRounds: effectiveSplitMode ? effectiveSplitRounds : null,
+        customUpperIds: effectiveSplitMode ? Array.from(ntrpSplitInfo.upperIds) : null,
         maxGames: effectiveMaxGames,
         useScore: Boolean(useScore)
       });
@@ -1391,6 +1416,13 @@ export default function SettingsTab({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              {participants.length > 0 && participants.length < courts * 4 && (
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, color: 'var(--primary)', margin: 0 }}>
+                  <input type="checkbox" checked={allowSingles} onChange={e => setAllowSingles(e.target.checked)} />
+                  단식 혼합 허용
+                </label>
+              )}
+
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 800, color: ensureMin4Games ? '#15803d' : 'var(--txt2)', margin: 0 }}>
                 <input
                   type="checkbox"
@@ -1415,187 +1447,7 @@ export default function SettingsTab({
           </div>
         </div>
 
-        {/* 3. 종목별 게임 수 배분 (남복, 여복, 혼복, 잡복) */}
-        <div style={{
-          padding: '16px 18px',
-          borderRadius: '14px',
-          backgroundColor: '#fff',
-          border: '1px solid var(--border)',
-          marginBottom: '16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px'
-        }}>
-          {/* 종목별 배분 타이틀 */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--txt)' }}>
-                🎾 종목별 복식 게임 수 배분
-              </span>
-              <span style={{ fontSize: '11.5px', padding: '2px 8px', borderRadius: '6px', backgroundColor: 'var(--bg2, #f1f5f9)', color: 'var(--txt2)', fontWeight: 700 }}>
-                총 복식 경기: {requiredMatches}경기 ({rounds}R × {courts}코트)
-              </span>
-            </div>
-
-            {participants.length > 0 && participants.length < courts * 4 && (
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: 'var(--primary)', margin: 0 }}>
-                <input type="checkbox" checked={allowSingles} onChange={e => setAllowSingles(e.target.checked)} />
-                단식 혼합 허용
-              </label>
-            )}
-          </div>
-
-          {/* 4분할 종목 카드 그리드 */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-            gap: '10px'
-          }}>
-            {/* 남복 */}
-            <div style={{
-              padding: '12px 14px',
-              borderRadius: '10px',
-              backgroundColor: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
-            }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af' }}>
-                🎾 남성 복식 (남복)
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <select 
-                  className="input input-sm" 
-                  value={mensDoublesCount} 
-                  onChange={e => setMensDoublesCount(parseInt(e.target.value) || 0)} 
-                  style={{ width: '100%', fontWeight: 800, textAlign: 'center', backgroundColor: '#fff' }}
-                >
-                  {numOptions(0, 20)}
-                </select>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af', flexShrink: 0 }}>게임</span>
-              </div>
-            </div>
-
-            {/* 여복 */}
-            <div style={{
-              padding: '12px 14px',
-              borderRadius: '10px',
-              backgroundColor: '#fdf2f8',
-              border: '1px solid #fbcfe8',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
-            }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#9d174d' }}>
-                🎾 여성 복식 (여복)
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <select 
-                  className="input input-sm" 
-                  value={womensDoublesCount} 
-                  onChange={e => setWomensDoublesCount(parseInt(e.target.value) || 0)} 
-                  style={{ width: '100%', fontWeight: 800, textAlign: 'center', backgroundColor: '#fff' }}
-                >
-                  {numOptions(0, 20)}
-                </select>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#9d174d', flexShrink: 0 }}>게임</span>
-              </div>
-            </div>
-
-            {/* 혼복 */}
-            <div style={{
-              padding: '12px 14px',
-              borderRadius: '10px',
-              backgroundColor: '#faf5ff',
-              border: '1px solid #e9d5ff',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
-            }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#6b21a8' }}>
-                🎾 혼합 복식 (혼복)
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <select 
-                  className="input input-sm" 
-                  value={mixedCount} 
-                  onChange={e => setMixedCount(parseInt(e.target.value) || 0)} 
-                  style={{ width: '100%', fontWeight: 800, textAlign: 'center', backgroundColor: '#fff' }}
-                >
-                  {numOptions(0, 20)}
-                </select>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b21a8', flexShrink: 0 }}>게임</span>
-              </div>
-            </div>
-
-            {/* 잡복 */}
-            <div style={{
-              padding: '12px 14px',
-              borderRadius: '10px',
-              backgroundColor: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
-            }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>
-                🎾 자유 복식 (잡복)
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <select 
-                  className="input input-sm" 
-                  value={jointCount} 
-                  onChange={e => setJointCount(parseInt(e.target.value) || 0)} 
-                  style={{ width: '100%', fontWeight: 800, textAlign: 'center', backgroundColor: '#fff' }}
-                >
-                  {numOptions(0, 20)}
-                </select>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155', flexShrink: 0 }}>게임</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 배분 상태 알림 바 */}
-          <div style={{
-            padding: '9px 12px',
-            borderRadius: '8px',
-            fontSize: '12px',
-            fontWeight: 700,
-            backgroundColor: isMatchSumOk ? 'rgba(22, 163, 74, 0.08)' : 'rgba(220, 38, 38, 0.08)',
-            border: `1px solid ${isMatchSumOk ? 'rgba(22, 163, 74, 0.2)' : 'rgba(220, 38, 38, 0.25)'}`,
-            color: isMatchSumOk ? '#15803d' : '#b91c1c',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            lineHeight: 1.4
-          }}>
-            <span>{isMatchSumOk ? '✓' : '⚠️'}</span>
-            <span>
-              {isMatchSumOk 
-                ? (sumMatches < requiredMatches 
-                    ? `지정된 복식 게임(${sumMatches}) 외 남은 경기(${requiredMatches - sumMatches}경기)는 성별 무관(잡복)으로 자동 균등 배정됩니다.` 
-                    : `지정된 게임 수 합계(${sumMatches})가 총 복식 경기 수와 정확히 일치합니다.`)
-                : `남복(${mensDoublesCount || 0}) + 여복(${womensDoublesCount || 0}) + 혼복(${mixedCount || 0}) + 잡복(${jointCount || 0}) 합계(${sumMatches})가 총 복식 경기 수(${requiredMatches} = 라운드×복식코트)를 초과할 수 없습니다.`}
-            </span>
-          </div>
-
-          {isSinglesActive && (
-            <div style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              fontWeight: 700,
-              backgroundColor: 'rgba(37, 99, 235, 0.08)',
-              border: '1px solid rgba(37, 99, 235, 0.2)',
-              color: '#1d4ed8'
-            }}>
-              🎾 참가자 인원 구성상 라운드당 단식 {singlesPerRound}경기, 복식 {doublesPerRound}경기로 자동 편성됩니다.
-            </div>
-          )}
-        </div>
-
-        {/* 4. 부가 경기 옵션 (벌칙금 / NTRP 수준별 분리) */}
+        {/* 3. 부가 경기 옵션 (벌칙금 / NTRP 수준별 분리) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {/* 벌칙금 여부 설정 */}
           <div style={{
@@ -1720,43 +1572,146 @@ export default function SettingsTab({
                   </div>
                 </div>
 
-                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                  * 참가자를 NTRP 순으로 정렬하여 상위 50%와 하위 50% 그룹으로 자동 배정합니다.
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                    * <strong>NTRP 3.0 이상</strong>인 참가자는 기본적으로 상위그룹으로 자동 배정됩니다. 아래 버튼(⬇ / ⬆)을 클릭하여 상위·하위 그룹을 임의로 수정할 수 있습니다.
+                  </div>
+                  {customUpperIds !== null && (
+                    <button
+                      type="button"
+                      onClick={handleResetNtrpGroups}
+                      style={{
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        color: '#475569',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                      title="NTRP 3.0 기준 기본 분리로 되돌립니다"
+                    >
+                      🔄 3.0 기준 초기화
+                    </button>
+                  )}
                 </div>
 
                 {entries.length > 0 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
-                    {/* 상위그룹 미리보기 */}
-                    <div style={{ padding: '10px 12px', borderRadius: '10px', backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#c2410c', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
+                    {/* 상위그룹 (수정 가능) */}
+                    <div style={{ padding: '12px 14px', borderRadius: '12px', backgroundColor: '#fff7ed', border: '1.5px solid #fed7aa' }}>
+                      <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#c2410c', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span>🔥 상위그룹 ({ntrpSplitInfo.upperGroup.length}명)</span>
                         <span style={{ fontSize: '11px', color: '#ea580c' }}>
-                          NTRP {ntrpSplitInfo.upperGroup[ntrpSplitInfo.upperGroup.length - 1]?.ntrp?.toFixed(1) || '-'} ~ {ntrpSplitInfo.upperGroup[0]?.ntrp?.toFixed(1) || '-'}
+                          {ntrpSplitInfo.upperGroup.length > 0
+                            ? `NTRP ${Math.min(...ntrpSplitInfo.upperGroup.map(p => Number(p.ntrp) || 0)).toFixed(1)} ~ ${Math.max(...ntrpSplitInfo.upperGroup.map(p => Number(p.ntrp) || 0)).toFixed(1)}`
+                            : '0명'}
                         </span>
                       </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {ntrpSplitInfo.upperGroup.map((p, idx) => (
-                          <span key={p.id} style={{ fontSize: '11.5px', padding: '2px 7px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #fdba74', color: '#9a3412', fontWeight: 700 }}>
-                            {idx + 1}. {p.name} <span style={{ opacity: 0.75 }}>({p.ntrp.toFixed(1)})</span>
-                          </span>
-                        ))}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {ntrpSplitInfo.upperGroup.length === 0 ? (
+                          <span style={{ fontSize: '11.5px', color: '#9a3412', fontStyle: 'italic' }}>상위그룹에 배정된 선수가 없습니다.</span>
+                        ) : (
+                          ntrpSplitInfo.upperGroup.map((p, idx) => (
+                            <span
+                              key={p.id}
+                              style={{
+                                fontSize: '11.5px',
+                                padding: '3px 8px',
+                                borderRadius: '8px',
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #fdba74',
+                                color: '#9a3412',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                              }}
+                            >
+                              <span>{idx + 1}. {p.name}</span>
+                              <span style={{ fontSize: '10.5px', opacity: 0.8, color: '#c2410c' }}>({Number(p.ntrp || 0).toFixed(1)})</span>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveToLower(p.id)}
+                                title={`${p.name} 선수를 하위그룹으로 이동`}
+                                style={{
+                                  background: '#fff1f2',
+                                  border: '1px solid #fecdd3',
+                                  borderRadius: '4px',
+                                  padding: '1px 4px',
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  color: '#be123c',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                ⬇ 하위로
+                              </button>
+                            </span>
+                          ))
+                        )}
                       </div>
                     </div>
 
-                    {/* 하위그룹 미리보기 */}
-                    <div style={{ padding: '10px 12px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {/* 하위그룹 (수정 가능) */}
+                    <div style={{ padding: '12px 14px', borderRadius: '12px', backgroundColor: '#f0fdf4', border: '1.5px solid #bbf7d0' }}>
+                      <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#15803d', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span>🌱 하위그룹 ({ntrpSplitInfo.lowerGroup.length}명)</span>
                         <span style={{ fontSize: '11px', color: '#16a34a' }}>
-                          NTRP {ntrpSplitInfo.lowerGroup[ntrpSplitInfo.lowerGroup.length - 1]?.ntrp?.toFixed(1) || '-'} ~ {ntrpSplitInfo.lowerGroup[0]?.ntrp?.toFixed(1) || '-'}
+                          {ntrpSplitInfo.lowerGroup.length > 0
+                            ? `NTRP ${Math.min(...ntrpSplitInfo.lowerGroup.map(p => Number(p.ntrp) || 0)).toFixed(1)} ~ ${Math.max(...ntrpSplitInfo.lowerGroup.map(p => Number(p.ntrp) || 0)).toFixed(1)}`
+                            : '0명'}
                         </span>
                       </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {ntrpSplitInfo.lowerGroup.map((p, idx) => (
-                          <span key={p.id} style={{ fontSize: '11.5px', padding: '2px 7px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #86efac', color: '#166534', fontWeight: 700 }}>
-                            {ntrpSplitInfo.upperGroup.length + idx + 1}. {p.name} <span style={{ opacity: 0.75 }}>({p.ntrp.toFixed(1)})</span>
-                          </span>
-                        ))}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {ntrpSplitInfo.lowerGroup.length === 0 ? (
+                          <span style={{ fontSize: '11.5px', color: '#166534', fontStyle: 'italic' }}>하위그룹에 배정된 선수가 없습니다.</span>
+                        ) : (
+                          ntrpSplitInfo.lowerGroup.map((p, idx) => (
+                            <span
+                              key={p.id}
+                              style={{
+                                fontSize: '11.5px',
+                                padding: '3px 8px',
+                                borderRadius: '8px',
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #86efac',
+                                color: '#166534',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                              }}
+                            >
+                              <span>{ntrpSplitInfo.upperGroup.length + idx + 1}. {p.name}</span>
+                              <span style={{ fontSize: '10.5px', opacity: 0.8, color: '#15803d' }}>({Number(p.ntrp || 0).toFixed(1)})</span>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveToUpper(p.id)}
+                                title={`${p.name} 선수를 상위그룹으로 이동`}
+                                style={{
+                                  background: '#fff7ed',
+                                  border: '1px solid #fed7aa',
+                                  borderRadius: '4px',
+                                  padding: '1px 4px',
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  color: '#c2410c',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                ⬆ 상위로
+                              </button>
+                            </span>
+                          ))
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1874,18 +1829,50 @@ export default function SettingsTab({
                   >
                     {(effectiveSplitMode || sortOrder === 'NTRP' || sortByNtrp) && (
                       <td style={{ whiteSpace: 'nowrap', padding: '8px 6px' }}>
-                        <span style={{
-                          fontSize: '11px',
-                          fontWeight: 800,
-                          padding: '2px 6px',
-                          borderRadius: '10px',
-                          backgroundColor: isUpper ? '#ffedd5' : '#dcfce7',
-                          color: isUpper ? '#c2410c' : '#15803d',
-                          border: `1px solid ${isUpper ? '#fdba74' : '#86efac'}`,
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {isUpper ? '🔥 상위' : '🌱 하위'}
-                        </span>
+                        {effectiveSplitMode ? (
+                          <button
+                            type="button"
+                            onClick={() => isUpper ? handleMoveToLower(p.id) : handleMoveToUpper(p.id)}
+                            title="클릭하여 상위/하위 그룹을 전환합니다"
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              cursor: 'pointer',
+                              padding: 0
+                            }}
+                          >
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              padding: '2px 6px',
+                              borderRadius: '10px',
+                              backgroundColor: isUpper ? '#ffedd5' : '#dcfce7',
+                              color: isUpper ? '#c2410c' : '#15803d',
+                              border: `1px solid ${isUpper ? '#fdba74' : '#86efac'}`,
+                              whiteSpace: 'nowrap',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            }}>
+                              <span>{isUpper ? '🔥 상위' : '🌱 하위'}</span>
+                              <span style={{ fontSize: '9px', opacity: 0.7 }}>⇄</span>
+                            </span>
+                          </button>
+                        ) : (
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '2px 6px',
+                            borderRadius: '10px',
+                            backgroundColor: isUpper ? '#ffedd5' : '#dcfce7',
+                            color: isUpper ? '#c2410c' : '#15803d',
+                            border: `1px solid ${isUpper ? '#fdba74' : '#86efac'}`,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {isUpper ? '🔥 상위' : '🌱 하위'}
+                          </span>
+                        )}
                       </td>
                     )}
                     <td style={{ fontWeight: 700, minWidth: '110px', whiteSpace: 'nowrap', wordBreak: 'keep-all', padding: '8px 10px' }}>

@@ -435,7 +435,7 @@ export default function MatchPlayerSelectModal({
                 경기 선수 배정 및 추가
               </h3>
               <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--txt3)' }}>
-                <strong style={{ color: 'var(--ios-blue)' }}>{roundLabel} {courtLabel}</strong> · 선수를 배정할 슬롯을 누르고 아래 명단에서 선택하세요.
+                <strong style={{ color: 'var(--ios-blue)' }}>{roundLabel} {courtLabel}</strong> · 배정할 슬롯을 누른 후 아래 명단에서 이름을 클릭하면 즉시 배정됩니다.
               </p>
             </div>
           </div>
@@ -768,11 +768,7 @@ export default function MatchPlayerSelectModal({
             </div>
           ) : (
             filteredCandidates.map(c => {
-              const badgeStyle = getRoleBadgeStyle(c.role);
               const isFemale = c.gender === 'F';
-              const isMale = c.gender === 'M';
-
-              // ⭐ 경기수에 따른 색상 스타일 계산
               const countStyle = getGameCountBadgeStyle(c.assigned);
 
               // 버튼 및 카드 상태 결정
@@ -784,11 +780,24 @@ export default function MatchPlayerSelectModal({
               return (
                 <div
                   key={c.id}
+                  onClick={() => {
+                    if (isDisabled || isCurrent) return;
+                    handleSelectPlayer(c);
+                  }}
+                  title={
+                    isCurrent
+                      ? '현재 슬롯에 이미 배정되어 있습니다.'
+                      : isConflict
+                      ? `[${c.name}] 선수는 ${roundLabel} ${c.conflictCourt} 경기 중이어서 배정할 수 없습니다.`
+                      : isOtherInMatch
+                      ? `[${c.name}] 선수는 현재 경기(${c.otherSlotInMatch})에 이미 배정되어 있습니다.`
+                      : `클릭하여 [${c.name}] 선수를 ${currentTeam.toUpperCase()}팀 ${currentSlot + 1}번에 즉시 배정`
+                  }
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '8px 12px',
+                    padding: '10px 14px',
                     borderRadius: '12px',
                     backgroundColor: isCurrent ? '#eff6ff' : isDisabled ? '#f1f5f9' : '#ffffff',
                     border: isCurrent 
@@ -796,123 +805,78 @@ export default function MatchPlayerSelectModal({
                       : isDisabled 
                       ? '1px solid #e2e8f0' 
                       : '1px solid #cbd5e1',
-                    borderLeft: `5px solid ${countStyle.accent}`,
-                    boxShadow: isCurrent ? '0 2px 8px rgba(0, 122, 255, 0.12)' : '0 1px 3px rgba(0,0,0,0.02)',
-                    opacity: isDisabled ? 0.75 : 1,
+                    borderLeft: `5px solid ${isDisabled ? '#cbd5e1' : countStyle.accent}`,
+                    boxShadow: isCurrent ? '0 2px 8px rgba(0, 122, 255, 0.12)' : '0 1px 3px rgba(0,0,0,0.03)',
+                    opacity: isDisabled ? 0.6 : 1,
+                    cursor: (isDisabled || isCurrent) ? 'not-allowed' : 'pointer',
                     transition: 'all 0.15s ease',
-                    gap: '10px'
+                    gap: '12px',
+                    userSelect: 'none'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isDisabled && !isCurrent) {
+                      e.currentTarget.style.backgroundColor = '#eff6ff';
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 4px 10px rgba(59, 130, 246, 0.15)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isDisabled && !isCurrent) {
+                      e.currentTarget.style.backgroundColor = '#ffffff';
+                      e.currentTarget.style.borderColor = '#cbd5e1';
+                      e.currentTarget.style.transform = 'none';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)';
+                    }
                   }}
                 >
-                  {/* 선수 기본 정보 & ⭐ 경기수별 전용 색상 배지 */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 800, fontSize: '13.5px', color: isConflict ? 'var(--txt3)' : 'var(--txt)' }}>
-                        {getDisplayNameWithGuest(c)}
-                      </span>
+                  {/* 왼쪽: 이름, 남여구분, 총경기수 (사용자 요청: 간략 표기) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flexWrap: 'wrap' }}>
+                    {/* 1. 이름 */}
+                    <span style={{
+                      fontWeight: 800,
+                      fontSize: '14px',
+                      color: isConflict ? '#94a3b8' : '#0f172a',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {getDisplayNameWithGuest(c)}
+                    </span>
 
-                      {/* 성별 뱃지 */}
-                      <span style={{
-                        fontSize: '10.5px',
-                        padding: '1px 5px',
-                        borderRadius: '4px',
-                        backgroundColor: isFemale ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                        color: isFemale ? '#db2777' : '#2563eb',
-                        fontWeight: 700
-                      }}>
-                        {isFemale ? '여' : '남'}
-                      </span>
+                    {/* 2. 남여구분 */}
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      padding: '2px 7px',
+                      borderRadius: '5px',
+                      backgroundColor: isFemale ? '#fdf2f8' : '#eff6ff',
+                      color: isFemale ? '#be185d' : '#1d4ed8',
+                      border: `1px solid ${isFemale ? '#fbcfe8' : '#bfdbfe'}`,
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {isFemale ? '여' : '남'}
+                    </span>
 
-                      {/* ⭐ 상위/하위 그룹 배지 & NTRP 배지 */}
-                      {c.ntrpGroup && (
-                        <span style={{
-                          fontSize: '10.5px',
-                          padding: '1px 6px',
-                          borderRadius: '6px',
-                          backgroundColor: c.ntrpGroup === 'UPPER' ? '#ffedd5' : '#dcfce7',
-                          color: c.ntrpGroup === 'UPPER' ? '#c2410c' : '#15803d',
-                          border: `1px solid ${c.ntrpGroup === 'UPPER' ? '#fed7aa' : '#bbf7d0'}`,
-                          fontWeight: 800,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '2px'
-                        }}>
-                          {c.ntrpGroup === 'UPPER' ? '🔥 상위그룹' : '🌱 하위그룹'}
-                        </span>
-                      )}
-
-                      {isAdmin && (
-                        <span style={{
-                          fontSize: '10.5px',
-                          padding: '1px 6px',
-                          borderRadius: '6px',
-                          backgroundColor: '#eff6ff',
-                          color: '#1d4ed8',
-                          border: '1px solid #bfdbfe',
-                          fontWeight: 800
-                        }}>
-                          NTRP {Number(c.ntrp || 2.0).toFixed(1)}
-                        </span>
-                      )}
-
-                      {/* 직책 뱃지 */}
-                      <span style={{
-                        fontSize: '10.5px',
-                        padding: '1px 6px',
-                        borderRadius: '6px',
-                        backgroundColor: badgeStyle.bg,
-                        color: badgeStyle.color,
-                        border: `1px solid ${badgeStyle.border}`,
-                        fontWeight: 700
-                      }}>
-                        {c.role || '정회원'}
-                      </span>
-
-                      {/* 출전 라운드 상태 태그 */}
-                      {isConflict && (
-                        <span style={{ fontSize: '10.5px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 700 }}>
-                          ⚠️ {roundLabel} {c.conflictCourt} 경기중
-                        </span>
-                      )}
-                      {isOtherInMatch && (
-                        <span style={{ fontSize: '10.5px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#b45309', fontWeight: 700 }}>
-                          현재 경기 {c.otherSlotInMatch} 배정
-                        </span>
-                      )}
-                      {!c.isParticipant && (
-                        <span style={{ fontSize: '10.5px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#f3e8ff', color: '#7e22ce', fontWeight: 700 }}>
-                          ➕ 대진표 미등록
-                        </span>
-                      )}
-                    </div>
-
-                    {/* ⭐ 사용자 요청 핵심: 경기수별 색상 배지 (총 배정 + 완료 경기수) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
-                      <span style={{
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        fontWeight: 800,
-                        backgroundColor: countStyle.bg,
-                        color: countStyle.text,
-                        border: `1px solid ${countStyle.border}`,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
-                        <span>{countStyle.dot}</span>
-                        <span>총 {c.assigned}경기 배정</span>
-                        <span style={{ opacity: 0.8, fontWeight: 600 }}>({c.played}경기 완료)</span>
-                      </span>
-                      {c.isAvailableInRound && (
-                        <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
-                          🟢 현재 라운드 대기중(출전 가능)
-                        </span>
-                      )}
-                    </div>
+                    {/* 3. 총경기수 */}
+                    <span style={{
+                      fontSize: '11.5px',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: countStyle.bg,
+                      color: countStyle.text,
+                      border: `1px solid ${countStyle.border}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      <span>{countStyle.dot}</span>
+                      <span>총 {c.assigned}경기</span>
+                    </span>
                   </div>
 
-                  {/* 우측 배정 버튼 */}
-                  <div>
+                  {/* 오른쪽: 상태 또는 원클릭 배정 유도 뱃지 */}
+                  <div style={{ flexShrink: 0 }}>
                     {isCurrent ? (
                       <span style={{
                         fontSize: '11.5px',
@@ -925,64 +889,48 @@ export default function MatchPlayerSelectModal({
                         alignItems: 'center',
                         gap: '3px'
                       }}>
-                        ✅ 현재 배정됨
+                        ✅ 배정됨
                       </span>
                     ) : isConflict ? (
-                      <button
-                        type="button"
-                        disabled
-                        style={{
-                          fontSize: '11.5px',
-                          padding: '4px 10px',
-                          borderRadius: '8px',
-                          backgroundColor: '#e2e8f0',
-                          color: '#94a3b8',
-                          border: 'none',
-                          fontWeight: 700,
-                          cursor: 'not-allowed'
-                        }}
-                      >
-                        중복 불가
-                      </button>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: '#fee2e2',
+                        color: '#b91c1c',
+                        fontWeight: 700,
+                        border: '1px solid #fecdd3'
+                      }}>
+                        ⚠️ {c.conflictCourt} 경기중
+                      </span>
                     ) : isOtherInMatch ? (
-                      <button
-                        type="button"
-                        disabled
-                        style={{
-                          fontSize: '11.5px',
-                          padding: '4px 10px',
-                          borderRadius: '8px',
-                          backgroundColor: '#e2e8f0',
-                          color: '#94a3b8',
-                          border: 'none',
-                          fontWeight: 700,
-                          cursor: 'not-allowed'
-                        }}
-                      >
-                        경기 배정됨
-                      </button>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: '#fef3c7',
+                        color: '#b45309',
+                        fontWeight: 700,
+                        border: '1px solid #fde68a'
+                      }}>
+                        ⚠️ {c.otherSlotInMatch}
+                      </span>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleSelectPlayer(c)}
-                        style={{
-                          fontSize: '12px',
-                          padding: '5px 12px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          backgroundColor: !c.isParticipant ? '#7c3aed' : 'var(--ios-blue)',
-                          color: '#ffffff',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {!c.isParticipant ? '참가 & 배정 ➕' : '배정 🎾'}
-                      </button>
+                      <span style={{
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        color: !c.isParticipant ? '#7c3aed' : '#2563eb',
+                        backgroundColor: !c.isParticipant ? '#f5f3ff' : '#eff6ff',
+                        padding: '4px 10px',
+                        borderRadius: '8px',
+                        border: `1px solid ${!c.isParticipant ? '#ddd6fe' : '#bfdbfe'}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}>
+                        <span>{!c.isParticipant ? '➕ 참가 & 배정' : '클릭 배정'}</span>
+                        <span style={{ fontSize: '11px' }}>➔</span>
+                      </span>
                     )}
                   </div>
                 </div>
