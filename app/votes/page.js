@@ -51,6 +51,21 @@ const formatVoteTimeFull = (isoString) => {
   }
 };
 
+// 투표 마감 여부 판별 (관리자 수동 강제 마감 > 수동 재오픈 > 자동 마감일시 순서)
+export const isEventClosed = (event) => {
+  if (!event || !event.date) return false;
+  // 1. 관리자가 수동으로 강제 마감한 경우
+  if (event.isClosedManual === true) return true;
+  // 2. 관리자가 마감 해제(재오픈)한 경우 (기존 마감시간 경과 후에도 투표 허용)
+  if (event.isClosedManual === false) return false;
+  // 3. 기본 자동 마감: 경기 전날 18:00
+  const [y, m, d] = event.date.split('-').map(Number);
+  const dl = new Date(y, m - 1, d);
+  dl.setDate(dl.getDate() - 1);
+  dl.setHours(18, 0, 0, 0);
+  return new Date() > dl;
+};
+
 // 현재 월의 모든 투표가 완료(마감 또는 과거 일자)되었는지 판별하여 다음달 또는 적절한 표시 월 결정
 const resolveInitialMonth = (evts) => {
   const today = formatDateToYMD();
@@ -60,15 +75,11 @@ const resolveInitialMonth = (evts) => {
   // 현재 월의 이벤트들
   const currentEvents = evts.filter(e => e.date && e.date.substring(0, 7) === currentMonth);
   
-  // 투표 종료 여부 판별 (과거 일정이거나 투표 마감시간 경과)
+  // 투표 종료 여부 판별 (과거 일정이거나 투표 마감)
   const isVoteFinished = (e) => {
     if (!e || !e.date) return true;
     if (e.date < today) return true;
-    const [y, m, d] = e.date.split('-').map(Number);
-    const dl = new Date(y, m - 1, d);
-    dl.setDate(dl.getDate() - 1);
-    dl.setHours(18, 0, 0, 0);
-    return new Date() > dl;
+    return isEventClosed(e);
   };
 
   // 현재 월에 일정이 아예 없거나, 모든 일정이 종료(투표 마감 또는 과거 일자)된 경우
@@ -96,10 +107,11 @@ const resolveInitialMonth = (evts) => {
 };
 
 export default function VotesPage() {
-  const { isAdmin, can } = useAuth();
+  const { user, isAdmin, can, adminMember } = useAuth();
   const canCreateVote = can ? can('createVote') : false;
   const canVoteSettings = can ? can('voteSettings') : false;
   const canClosedOverride = can ? can('voteClosedOverride') : false;
+  const canCloseVote = can ? can('closeVoteManually') : false;
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
@@ -384,21 +396,61 @@ export default function VotesPage() {
     return () => unsubscribe();
   }, []);
 
+  // 관리자 수동 강제 마감 / 마감 해제(재오픈) 토글 핸들러
+  const handleToggleCloseEvent = async (evt, e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const targetEvt = evt || selectedEvent;
+    if (!targetEvt || !targetEvt.id) return;
+
+    const currentlyClosed = isEventClosed(targetEvt);
+    const willClose = !currentlyClosed;
+
+    const confirmMsg = willClose
+      ? `[${targetEvt.title || '정기모임'}] (${targetEvt.date}) 투표를 지금 강제로 마감하시겠습니까?\n마감 후 일반 회원은 참석 여부를 변경할 수 없습니다.`
+      : `[${targetEvt.title || '정기모임'}] (${targetEvt.date}) 투표 마감을 해제(재오픈)하시겠습니까?\n일반 회원이 다시 투표에 참여할 수 있게 됩니다.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    const actorName = adminMember?.memberName || user?.displayName || user?.email || '운영진';
+    const updates = {
+      isClosedManual: willClose,
+      ...(willClose 
+        ? { closedAt: new Date().toISOString(), closedBy: actorName }
+        : { reopenedAt: new Date().toISOString(), closedAt: null })
+    };
+
+    // 1. 낙관적 로컬 상태 즉시 갱신
+    setEvents(prev => prev.map(item => item.id === targetEvt.id ? { ...item, ...updates } : item));
+    setSelectedEvent(prev => prev && prev.id === targetEvt.id ? { ...prev, ...updates } : prev);
+
+    try {
+      const cached = localStorage.getItem('tcm_cached_events');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const updatedCache = parsed.map(item => item.id === targetEvt.id ? { ...item, ...updates } : item);
+        localStorage.setItem('tcm_cached_events', JSON.stringify(updatedCache));
+      }
+    } catch (err) {}
+
+    // 2. Firestore 동기화
+    try {
+      await updateEvent('shared', targetEvt.id, updates);
+      alert(willClose ? '투표가 강제 마감되었습니다.' : '투표 마감이 해제되어 다시 오픈되었습니다.');
+    } catch (err) {
+      console.error('Failed to toggle event close state:', err);
+      alert('투표 상태 변경 중 오류가 발생했습니다: ' + err.message);
+      loadData();
+    }
+  };
+
   const handleToggleAttendance = async (memberId, status) => {
     if (!selectedEvent) return;
     
     // Check deadline (일반 사용자는 마감 이후 변경 불가, 운영진은 마감 이후에도 언제든 수정 가능)
-    if (selectedEvent.date) {
-      const [y, m, d] = selectedEvent.date.split('-');
-      const deadline = new Date(y, m - 1, d);
-      deadline.setDate(deadline.getDate() - 1);
-      deadline.setHours(18, 0, 0, 0);
-      const isClosed = new Date() > deadline;
-
-      if (!isAdmin && !canClosedOverride && isClosed) {
-        alert('투표가 마감되었습니다. (운영진만 마감 후 수정이 가능합니다)');
-        return;
-      }
+    const isClosed = isEventClosed(selectedEvent);
+    if (!isAdmin && !canClosedOverride && isClosed) {
+      alert('투표가 마감되었습니다. (운영진만 마감 후 수정이 가능합니다)');
+      return;
     }
 
     const activeEvt = events.find(e => e.id === selectedEvent.id) || selectedEvent;
@@ -666,7 +718,7 @@ export default function VotesPage() {
               const dl = new Date(y, m - 1, d);
               dl.setDate(dl.getDate() - 1);
               dl.setHours(18, 0, 0, 0);
-              const isClosed = new Date() > dl;
+              const isClosed = isEventClosed(e);
               const dlStr = `${dl.getMonth() + 1}/${dl.getDate()} 18:00`;
               const eventDayName = dayNames[new Date(y, m - 1, d).getDay()];
               
@@ -763,7 +815,7 @@ export default function VotesPage() {
                     </div>
 
                     {/* Row 3: 투표 현황 & 마감 상태 */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {isPast ? (
                           <>
@@ -780,13 +832,48 @@ export default function VotesPage() {
                         )}
                       </div>
 
-                      <div style={{ flexShrink: 0 }}>
+                      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {isPast ? (
                           <span style={{ color: '#64748b', fontWeight: 600, fontSize: '12px' }}>종료됨</span>
                         ) : isClosed ? (
-                          <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '12.5px' }}>마감됨</span>
+                          <span style={{ color: '#ef4444', fontWeight: 800, fontSize: '12.5px' }}>
+                            {e.isClosedManual ? '🔒 관리자 마감' : '마감됨'}
+                          </span>
                         ) : (
                           <span style={{ color: '#ea580c', fontWeight: 800, fontSize: '12.5px' }}>마감 : {dlStr}</span>
+                        )}
+
+                        {/* 관리자 전용 빠른 마감 / 재오픈 버튼 */}
+                        {(isAdmin || canCloseVote) && !isPast && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={(evt) => handleToggleCloseEvent(e, evt)}
+                            style={{
+                              padding: '2px 8px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              borderRadius: '6px',
+                              height: '24px',
+                              lineHeight: '22px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '2px',
+                              cursor: 'pointer',
+                              ...(isClosed ? {
+                                background: '#f1f5f9',
+                                color: '#334155',
+                                border: '1px solid #cbd5e1'
+                              } : {
+                                background: '#fee2e2',
+                                color: '#dc2626',
+                                border: '1px solid #fca5a5'
+                              })
+                            }}
+                            title={isClosed ? '클릭하여 투표 재오픈' : '클릭하여 투표 강제 마감'}
+                          >
+                            {isClosed ? '🔓 재오픈' : '🔒 마감'}
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1007,10 +1094,8 @@ export default function VotesPage() {
                 const activeAttendees = activeEvent.attendees || {};
                 const activeTimestamps = activeEvent.attendanceTimestamps || {};
                 const [y, m, d] = (activeEvent.date || '').split('-');
-                const deadline = new Date(y, m - 1, d);
-                deadline.setDate(deadline.getDate() - 1);
-                deadline.setHours(18, 0, 0, 0);
-                const isClosed = new Date() > deadline;
+                const isClosed = isEventClosed(activeEvent);
+                const isPast = activeEvent.date < todayStr;
 
                 const attCount = Object.values(activeAttendees).filter(v => v === 'Y').length;
                 const absCount = Object.values(activeAttendees).filter(v => v === 'N').length;
@@ -1057,7 +1142,50 @@ export default function VotesPage() {
                           ⏰ {activeEvent.startTime} ~ {activeEvent.endTime} <br/> 📍 {activeEvent.location}
                         </p>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {(isAdmin || canCloseVote) && !isPast && (
+                          isClosed ? (
+                            <button 
+                              type="button" 
+                              className="btn btn-sm"
+                              style={{
+                                background: '#f8fafc',
+                                color: '#334155',
+                                border: '1px solid #cbd5e1',
+                                fontWeight: 700,
+                                fontSize: '12px',
+                                padding: '4px 9px',
+                                borderRadius: '6px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                              onClick={(e) => handleToggleCloseEvent(activeEvent, e)}
+                              title="마감을 해제하고 회원이 다시 투표할 수 있도록 오픈합니다"
+                            >
+                              🔓 마감 해제
+                            </button>
+                          ) : (
+                            <button 
+                              type="button" 
+                              className="btn btn-sm btn-danger"
+                              style={{
+                                fontWeight: 700,
+                                fontSize: '12px',
+                                padding: '4px 9px',
+                                borderRadius: '6px',
+                                boxShadow: '0 2px 6px rgba(239, 68, 68, 0.25)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                              onClick={(e) => handleToggleCloseEvent(activeEvent, e)}
+                              title="투표를 지금 즉시 강제로 마감합니다"
+                            >
+                              🔒 투표 마감
+                            </button>
+                          )
+                        )}
                         {(isAdmin || canCreateVote) && (
                           <>
                             <button className="btn btn-secondary btn-sm" onClick={() => setIsEditing(true)}>수정</button>
@@ -1149,8 +1277,18 @@ export default function VotesPage() {
 
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                           {isClosed && (
-                            <span style={{ color: (isAdmin || canClosedOverride) ? 'var(--ios-blue)' : 'var(--danger)', fontSize: '12px', fontWeight: 600, marginRight: '4px' }}>
-                              {(isAdmin || canClosedOverride) ? '마감됨 (수정 가능)' : '투표 마감됨'}
+                            <span style={{ 
+                              color: (isAdmin || canClosedOverride) ? 'var(--ios-blue)' : '#dc2626', 
+                              fontSize: '12px', 
+                              fontWeight: 700, 
+                              marginRight: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '2px'
+                            }}>
+                              {(isAdmin || canClosedOverride) 
+                                ? (activeEvent.isClosedManual ? '🔒 관리자 마감됨 (수정 가능)' : '마감됨 (수정 가능)')
+                                : (activeEvent.isClosedManual ? '🔒 관리자에 의해 마감됨' : '투표 마감됨')}
                             </span>
                           )}
                           <button
