@@ -40,6 +40,8 @@ export default function MembersPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [copiedAccount, setCopiedAccount] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [customPayTitle, setCustomPayTitle] = useState('');
+  const [customPayAmount, setCustomPayAmount] = useState('');
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderText, setReminderText] = useState('');
 
@@ -75,6 +77,10 @@ export default function MembersPage() {
           const params = new URLSearchParams(window.location.search);
           if (params.get('pay') === '1' || params.get('pay') === 'true' || params.get('action') === 'pay') {
             setShowPayModal(true);
+            const queryAmount = params.get('amount');
+            const queryTitle = params.get('title');
+            if (queryAmount) setCustomPayAmount(queryAmount);
+            if (queryTitle) setCustomPayTitle(queryTitle);
           }
         }
       } catch (err) {
@@ -199,7 +205,8 @@ export default function MembersPage() {
     }
 
     const { bank, accountNo } = parseBankAndAccount(bankAccount);
-    const cleanAmount = (feeAmount || '').replace(/[^0-9]/g, '');
+    const targetAmount = customPayAmount || feeAmount || '';
+    const cleanAmount = String(targetAmount).replace(/[^0-9]/g, '');
 
     const params = [];
     if (bank) params.push(`bank=${encodeURIComponent(bank)}`);
@@ -840,7 +847,11 @@ export default function MembersPage() {
             zIndex: 9999,
             padding: '16px'
           }}
-          onClick={() => setShowPayModal(false)}
+          onClick={() => {
+            setShowPayModal(false);
+            setCustomPayTitle('');
+            setCustomPayAmount('');
+          }}
         >
           <div
             className="modal-content"
@@ -872,12 +883,16 @@ export default function MembersPage() {
                   🎾 {clubProfile?.name || currentClub?.name || '테친회'}
                 </span>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
-                  💳 회비 간편 납부
+                  💳 {customPayTitle || '회비 간편 납부'}
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setShowPayModal(false)}
+                onClick={() => {
+                  setShowPayModal(false);
+                  setCustomPayTitle('');
+                  setCustomPayAmount('');
+                }}
                 style={{
                   background: '#f1f5f9',
                   border: 'none',
@@ -898,7 +913,7 @@ export default function MembersPage() {
             </div>
 
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', lineHeight: 1.5 }}>
-              토스 앱으로 즉시 간편 송금하시거나 입금 계좌를 복사하여 회비를 편리하게 납부하세요.
+              토스 앱으로 즉시 간편 송금하시거나 입금 계좌를 복사하여 {customPayTitle ? '참가비를' : '회비를'} 편리하게 납부하세요.
             </p>
 
             {/* 회비 정보 요약 카드 */}
@@ -910,9 +925,11 @@ export default function MembersPage() {
               marginBottom: '18px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#475569' }}>납부 금액 ({feeCycle || '월납'})</span>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#475569' }}>
+                  {customPayTitle ? '납부 금액' : `납부 금액 (${feeCycle || '월납'})`}
+                </span>
                 <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#1d4ed8' }}>
-                  {feeAmount ? `${Number(feeAmount.replace(/[^0-9]/g, '') || 0).toLocaleString()}원` : '미설정'}
+                  {(customPayAmount || feeAmount) ? `${Number(String(customPayAmount || feeAmount).replace(/[^0-9]/g, '') || 0).toLocaleString()}원` : '미설정'}
                 </span>
               </div>
               <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>

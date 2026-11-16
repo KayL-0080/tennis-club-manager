@@ -770,18 +770,17 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
 
   const handleOpenFeeNoticeModal = () => {
     const dayName = getDayName(date);
-    const attendeeNames = attendees
-      .map(id => byId[id]?.name)
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b, 'ko'));
     const dayDisplay = dayName ? ` (${dayName})` : '';
     const feeDisplay = entryFee > 0 ? `${Number(entryFee).toLocaleString()}원` : '무료';
-    const totalExpected = attendees.length * entryFee;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tcmngr.vercel.app';
+    const tournamentTitle = tournament.title || '정기 대회';
+    const payUrl = `${origin}/members?pay=1&amount=${entryFee || ''}&title=${encodeURIComponent(tournamentTitle + ' 참가비')}`;
 
-    const text = `[🏆 ${tournament.title || '정기 대회'} 참가비 입금 및 대회 안내]
+    const text = `[🏆 ${tournamentTitle} 참가비 입금 안내]
 
 안녕하세요, 회원 여러분!
-이번 ${date}${dayDisplay} 정기 대회의 참가비 입금 및 경기 진행 규칙을 안내드립니다.
+이번 ${date}${dayDisplay} 정기 대회의 참가비 입금을 안내드립니다.
+아직 입금하지 않으신 회원님들은 아래 간편 납부 링크(토스로 내기 / 계좌 복사) 또는 계좌로 입금 부탁드립니다!
 
 📅 대회 일시: ${date}${dayDisplay} ⏰ ${startTime} ~ ${endTime}
 🎾 대회 방식: ${isTeam ? '팀전' : isFixedPair ? '개인전(고정 페어)' : '개인전(파트너 순환)'}
@@ -789,22 +788,10 @@ export default function DraftPhase({ tournament, members, onUpdate, isAdmin }) {
 🏦 입금 계좌: ${bankAccount || '(계좌 정보 미입력 - 현장 납부 또는 운영진 문의)'}
 ⏰ 입금 기한: 대회 시작 전까지
 
-📜 [경기 진행 규칙 안내]
-1️⃣ 복식 핸디캡 룰:
-${matchRules.doublesHandicap}
+💳 회비 간편 납부 링크 (토스로 내기 / 계좌 복사):
+👉 ${payUrl}
 
-2️⃣ 타이브레이크 룰:
-${matchRules.tiebreak}
-
-3️⃣ No-Ad 룰:
-${matchRules.noAd}${matchRules.custom ? `\n\n4️⃣ 추가 및 매너 수칙:\n${matchRules.custom}` : ''}
-${isFixedPair && pairs.length > 0 ? `\n👫 [확정된 페어 명단 (${pairs.length}페어)]\n` + pairs.map((p, i) => `${p.name || `${i + 1}페어`}: ${byId[p.player1]?.name || '미정'} & ${byId[p.player2]?.name || '미정'}`).join('\n') : ''}
-
-👥 참가 선수 명단 (총 ${attendees.length}명 / 총 예상 ${totalExpected.toLocaleString()}원):
-${attendeeNames.length > 0 ? attendeeNames.map((name, i) => `${i + 1}. ${name}`).join('\n') : '참가자 미정'}
-
-※ 원활한 대회 준비를 위해 기한 내 입금 부탁드립니다. 감사합니다! 🎾
-🔗 실시간 대진 및 순위 확인: https://tcmngr.vercel.app`;
+※ 원활한 대회 준비를 위해 기한 내 입금 부탁드립니다. 감사합니다! 🎾`;
 
     setFeeNoticeText(text);
     setShowFeeNoticeModal(true);
