@@ -114,14 +114,26 @@ export default function SettingsTab({
     }
   }, [matchDate, events]);
 
+  const isSundayDate = (dateStr) => {
+    if (!dateStr) return false;
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length < 3 || isNaN(parts[0])) return false;
+    return new Date(parts[0], parts[1] - 1, parts[2]).getDay() === 0;
+  };
+
   const handleMatchDateChange = (newDate) => {
     setMatchDate(newDate);
+    const sunday = isSundayDate(newDate);
     const evt = events.find(e => e.date === newDate);
     if (evt) {
       lastAutoSyncedDateRef.current = newDate;
-      const sTime = evt.startTime || startTime;
+      const sTime = evt.startTime || (sunday ? '12:30' : startTime);
       const eTime = evt.endTime || endTime;
-      if (evt.startTime) setStartTime(evt.startTime);
+      if (evt.startTime) {
+        setStartTime(evt.startTime);
+      } else if (sunday) {
+        setStartTime('12:30');
+      }
       if (evt.endTime) setEndTime(evt.endTime);
       if (participants.length > 0) {
         applyRecommendation(participants, sTime, eTime, courts);
@@ -129,8 +141,20 @@ export default function SettingsTab({
         const rec = calculateRecommendedSettings({ startTime: sTime, endTime: eTime, courts, participants, members });
         setRounds(rec.rounds);
       }
-      setRecNotice(`🗓️ ${newDate} 정기모임 투표 시간(${sTime} ~ ${eTime})이 시작/종료시간에 자동 반영되었습니다.`);
-      setTimeout(() => setRecNotice(''), 4000);
+    } else if (sunday) {
+      lastAutoSyncedDateRef.current = newDate;
+      const sTime = '12:30';
+      setStartTime(sTime);
+      // 이전 일정의 종료시간(예: 평일 저녁 22:00)이 남아있는 경우 기본 16:00으로 보정
+      const currentDur = calcDuration(sTime, endTime).diff;
+      const eTime = (!endTime || endTime <= sTime || currentDur > 360) ? '16:00' : endTime;
+      if (eTime !== endTime) setEndTime(eTime);
+      if (participants.length > 0) {
+        applyRecommendation(participants, sTime, eTime, courts);
+      } else {
+        const rec = calculateRecommendedSettings({ startTime: sTime, endTime: eTime, courts, participants, members });
+        setRounds(rec.rounds);
+      }
     }
   };
 
