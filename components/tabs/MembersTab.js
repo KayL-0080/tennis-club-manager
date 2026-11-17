@@ -11,6 +11,26 @@ const EXEC_ROLES = ['회장', '부회장', '총무', '경기이사', '운영이�
 
 const isGuestMember = (m) => Boolean(m && (m.role === '게스트' || m.isGuest === true));
 
+// 📞 전화번호 자동 하이픈 포맷팅 (010-1234-5678 등)
+const formatPhoneNumber = (raw = '') => {
+  const str = String(raw || '').trim();
+  if (!str) return '';
+  const digits = str.replace(/[^0-9]/g, '');
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    if (digits.startsWith('02')) {
+      return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+    }
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 9 && digits.startsWith('02')) {
+    return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+  }
+  return str;
+};
+
 // 🏷️ 직책별 배지 스타일 및 아이콘 매핑
 const getRoleBadgeStyle = (role) => {
   switch (role) {
@@ -66,9 +86,10 @@ export default function MembersTab({
   const hasEditPerm = isAdmin || Boolean(canEditMember);
   const hasFeePerm = isAdmin || Boolean(canManageFee);
   const showNtrp = Boolean(isAdmin);
+  const showPhone = Boolean(isAdmin || hasEditPerm);
   // 게스트 관리 탭에서는 월회비 납부 컬럼을 숨김 (게스트는 월회비 대상이 아님)
   const showFee = Boolean(hasFeePerm) && !isGuestView;
-  const totalColumns = 6 + (showNtrp ? 1 : 0) + (showFee ? 1 : 0) + (hasEditPerm ? 1 : 0);
+  const totalColumns = 6 + (showPhone ? 1 : 0) + (showNtrp ? 1 : 0) + (showFee ? 1 : 0) + (hasEditPerm ? 1 : 0);
 
   // 정회원(준회원 포함) vs 게스트 분리
   const clubMembers = members.filter(m => !isGuestMember(m));
@@ -105,6 +126,7 @@ export default function MembersTab({
     gender: 'M',
     birthYear: '',
     tennisStartedAt: '',
+    phone: '',
     ntrp: 2.0,
     feePaid: false
   });
@@ -113,9 +135,14 @@ export default function MembersTab({
   const displayedMembers = sortedMembers.filter(m => {
     if (searchKeyword.trim()) {
       const q = searchKeyword.trim().toLowerCase();
+      const qDigits = q.replace(/[^0-9]/g, '');
       const matchName = m.name?.toLowerCase().includes(q);
       const matchRole = m.role?.toLowerCase().includes(q);
-      if (!matchName && !matchRole) return false;
+      const matchPhone = showPhone && (
+        (m.phone || '').toLowerCase().includes(q) ||
+        (qDigits.length >= 2 && (m.phone || '').replace(/[^0-9]/g, '').includes(qDigits))
+      );
+      if (!matchName && !matchRole && !matchPhone) return false;
     }
     if (!isGuestView) {
       if (filterRole === 'UNPAID') {
@@ -194,6 +221,7 @@ export default function MembersTab({
       gender: 'M',
       birthYear: '',
       tennisStartedAt: '',
+      phone: '',
       ntrp: 2.0,
       feePaid: false
     });
@@ -213,7 +241,8 @@ export default function MembersTab({
       isGuest: roleVal === '게스트',
       name: newMember.name.trim(),
       birthYear: (newMember.birthYear || '').toString().trim(),
-      tennisStartedAt: (newMember.tennisStartedAt || '').toString().trim()
+      tennisStartedAt: (newMember.tennisStartedAt || '').toString().trim(),
+      phone: formatPhoneNumber((newMember.phone || '').toString().trim())
     });
     setShowAddModal(false);
     setNewMember({
@@ -222,6 +251,7 @@ export default function MembersTab({
       gender: 'M',
       birthYear: '',
       tennisStartedAt: '',
+      phone: '',
       ntrp: 2.0,
       feePaid: false
     });
@@ -240,6 +270,7 @@ export default function MembersTab({
       name: editingMember.name.trim(),
       birthYear: (editingMember.birthYear || '').toString().trim(),
       tennisStartedAt: (editingMember.tennisStartedAt || '').toString().trim(),
+      phone: formatPhoneNumber((editingMember.phone || '').toString().trim()),
       ntrp: parseFloat(editingMember.ntrp) || 2.0,
       feePaid: Boolean(editingMember.feePaid)
     };
@@ -503,7 +534,7 @@ export default function MembersTab({
           background: '#ffffff',
           boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)'
         }}>
-          <table style={{ width: '100%', minWidth: (showNtrp || showFee || hasEditPerm) ? '700px' : '480px', borderCollapse: 'collapse', textAlign: 'center', margin: 0 }}>
+          <table style={{ width: '100%', minWidth: (showPhone || showNtrp || showFee || hasEditPerm) ? '800px' : '480px', borderCollapse: 'collapse', textAlign: 'center', margin: 0 }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontSize: '12.5px', fontWeight: 700 }}>
                 <th style={{ width: '52px', padding: '12px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>번호</th>
@@ -512,6 +543,9 @@ export default function MembersTab({
                 <th style={{ width: '60px', padding: '12px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>성별</th>
                 <th style={{ width: '75px', padding: '12px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>생년</th>
                 <th style={{ width: '100px', padding: '12px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>테니스 시작</th>
+                {showPhone && (
+                  <th style={{ width: '125px', padding: '12px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>전화번호</th>
+                )}
                 {showNtrp && (
                   <th style={{ width: '75px', padding: '12px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>NTRP</th>
                 )}
@@ -630,6 +664,23 @@ export default function MembersTab({
                             onBlur={e => onSave(p.id, { tennisStartedAt: e.target.value })} 
                           />
                         </td>
+                        {showPhone && (
+                          <td style={{ padding: '8px 4px' }}>
+                            <input 
+                              className="input input-sm" 
+                              type="tel" 
+                              value={p.phone || ''} 
+                              placeholder="010-0000-0000"
+                              style={{ width: '115px', textAlign: 'center', fontSize: '12.5px' }}
+                              onChange={e => onUpdateLocal(p.id, { phone: e.target.value })}
+                              onBlur={e => {
+                                const formatted = formatPhoneNumber(e.target.value);
+                                onUpdateLocal(p.id, { phone: formatted });
+                                onSave(p.id, { phone: formatted });
+                              }} 
+                            />
+                          </td>
+                        )}
                         {showNtrp && (
                           <td style={{ padding: '8px 4px' }}>
                             <select 
@@ -753,7 +804,25 @@ export default function MembersTab({
                         {p.tennisStartedAt || '-'}
                       </td>
 
-                      {/* 7. NTRP (운영자 모드 전용) */}
+                      {/* 7. 전화번호 (운영자/편집권한 전용 · 클릭 시 바로 전화 연결) */}
+                      {showPhone && (
+                        <td style={{ padding: '12px 8px', whiteSpace: 'nowrap', fontSize: '13px', fontWeight: p.phone ? 600 : 400 }}>
+                          {p.phone ? (
+                            <a
+                              href={`tel:${String(p.phone).replace(/[^0-9+]/g, '')}`}
+                              style={{ color: '#0f172a', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              title="클릭하여 전화 걸기"
+                            >
+                              <span style={{ fontSize: '11.5px', opacity: 0.75 }}>📞</span>
+                              <span>{formatPhoneNumber(p.phone)}</span>
+                            </a>
+                          ) : (
+                            <span style={{ color: '#cbd5e1' }}>-</span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* 8. NTRP (운영자 모드 전용) */}
                       {showNtrp && (
                         <td style={{ padding: '12px 6px', whiteSpace: 'nowrap' }}>
                           <span style={{
@@ -1058,6 +1127,18 @@ export default function MembersTab({
                   />
                 </div>
               </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>전화번호</label>
+                <input 
+                  className="input" 
+                  type="tel" 
+                  value={newMember.phone || ''} 
+                  onChange={e => setNewMember({...newMember, phone: e.target.value})}
+                  onBlur={e => setNewMember(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
+                  placeholder="예: 010-1234-5678"
+                />
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '24px' }}>
@@ -1155,6 +1236,18 @@ export default function MembersTab({
                     placeholder="예: 2021.05"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>전화번호</label>
+                <input 
+                  className="input" 
+                  type="tel" 
+                  value={editingMember.phone || ''} 
+                  onChange={e => setEditingMember({...editingMember, phone: e.target.value})}
+                  onBlur={e => setEditingMember(prev => prev ? { ...prev, phone: formatPhoneNumber(e.target.value) } : prev)}
+                  placeholder="예: 010-1234-5678"
+                />
               </div>
 
               {editingMember.role !== '게스트' && (
