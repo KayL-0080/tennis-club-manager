@@ -350,6 +350,51 @@ export default function FeeLedgerTab({
     });
   }, [entries]);
 
+  // 시작월 이전 달까지의 최종 누적 잔액 계산 (전월 말일자 잔액)
+  const prevMonthClosingBalance = useMemo(() => {
+    if (!startMonth) return null;
+    const prevEntries = sortedAllEntries.filter(e => e.date && e.date < `${startMonth}-01`);
+    if (prevEntries.length === 0) return null;
+
+    const [sy, sm] = startMonth.split('-').map(Number);
+    const prevLastDay = new Date(sy, sm - 1, 0);
+    const prevYm = `${prevLastDay.getFullYear()}-${String(prevLastDay.getMonth() + 1).padStart(2, '0')}`;
+    const prevEndDate = `${prevYm}-${String(prevLastDay.getDate()).padStart(2, '0')}`;
+
+    const prevMonths = [...new Set(prevEntries.map(e => e.date.substring(0, 7)))].sort();
+    let bal = 0;
+    prevMonths.forEach(ym => {
+      const mItems = prevEntries.filter(e => e.date.substring(0, 7) === ym);
+      const hasCarryOver = mItems.some(e => e.category === '이월잔액');
+      const mNet = mItems.reduce((acc, cur) => acc + (Number(cur.income) || 0) - (Number(cur.expense) || 0), 0);
+      if (hasCarryOver) {
+        bal = mNet;
+      } else {
+        bal += mNet;
+      }
+    });
+
+    return {
+      month: prevYm,
+      monthNum: prevLastDay.getMonth() + 1,
+      endDate: prevEndDate,
+      balance: bal
+    };
+  }, [sortedAllEntries, startMonth]);
+
+  // 조회 기간 내 수동 입력된 '이월잔액' 항목 존재 여부
+  const hasManualCarryOverInPeriod = useMemo(() => {
+    return sortedAllEntries.some(e => {
+      const ym = (e.date || '').substring(0, 7);
+      return ym >= startMonth && ym <= endMonth && e.category === '이월잔액';
+    });
+  }, [sortedAllEntries, startMonth, endMonth]);
+
+  // 전월 말일자 자동 이월잔액 (기간 내 수동 '이월잔액'이 없을 때 자동 반영)
+  const autoCarryOverBalance = (!hasManualCarryOverInPeriod && prevMonthClosingBalance)
+    ? prevMonthClosingBalance.balance
+    : 0;
+
   // 조회 시작월 ~ 종료월 내역 및 누적 잔액 계산 (사용일 기준 최근일부터 조회 지원)
   const periodEntriesWithBalance = useMemo(() => {
     const targetList = sortedAllEntries.filter(e => {
@@ -358,8 +403,8 @@ export default function FeeLedgerTab({
       return ym >= startMonth && ym <= endMonth;
     });
 
-    // 1단계: 시간순(과거 -> 최근)으로 누적 잔액 정확히 계산
-    let runningBalance = 0;
+    // 1단계: 전월 말일자 잔액부터 시작하여 시간순(과거 -> 최근)으로 누적 잔액 정확히 계산
+    let runningBalance = autoCarryOverBalance;
     const withBalance = targetList.map((item) => {
       const inc = Number(item.income) || 0;
       const exp = Number(item.expense) || 0;
@@ -380,21 +425,7 @@ export default function FeeLedgerTab({
       ...item,
       rowNum: idx + 1,
     }));
-  }, [sortedAllEntries, startMonth, endMonth, sortOrder]);
-
-  // 시작월 이전 달의 최종 잔액 계산 (전월 이월잔액 자동 입력용)
-  const prevMonthClosingBalance = useMemo(() => {
-    const prevEntries = sortedAllEntries.filter(e => e.date && e.date < `${startMonth}-01`);
-    if (prevEntries.length === 0) return null;
-    const prevMonths = [...new Set(prevEntries.map(e => e.date.substring(0, 7)))].sort();
-    const lastMonth = prevMonths[prevMonths.length - 1];
-    const lastMonthEntries = prevEntries.filter(e => e.date.substring(0, 7) === lastMonth);
-    const lastMonthBalance = lastMonthEntries.reduce((acc, cur) => acc + (Number(cur.income) || 0) - (Number(cur.expense) || 0), 0);
-    return {
-      month: lastMonth,
-      balance: lastMonthBalance
-    };
-  }, [sortedAllEntries, startMonth]);
+  }, [sortedAllEntries, startMonth, endMonth, sortOrder, autoCarryOverBalance]);
 
   // 화면 필터링된 내역 (구분/항목 콤보박스 및 검색어 적용)
   const filteredEntries = useMemo(() => {
@@ -476,16 +507,17 @@ export default function FeeLedgerTab({
     const filteredExpense = filteredEntries.reduce((s, x) => s + (Number(x.expense) || 0), 0);
 
     return {
+      carryOverBalance: autoCarryOverBalance,
       totalIncome,
       totalExpense,
-      netBalance: totalIncome - totalExpense,
+      netBalance: autoCarryOverBalance + totalIncome - totalExpense,
       incomeTotals,
       expenseTotals,
       filteredIncome,
       filteredExpense,
       filteredBalance: filteredIncome - filteredExpense
     };
-  }, [periodEntriesWithBalance, filteredEntries]);
+  }, [periodEntriesWithBalance, filteredEntries, autoCarryOverBalance]);
 
   const handleFillCarryover = () => {
     setFormDate(`${startMonth}-01`);
@@ -838,7 +870,17 @@ export default function FeeLedgerTab({
   const renderA4LedgerSheet = () => {
     const clubName = currentClub?.name || '테친회';
     const printDate = getTodayYMD();
-    const rowCount = periodEntriesWithBalance.length;
+    // 출력물에서는 전월 말일 잔액이 맨 위에 오고, 당월 내역이 시간순(과거 -> 최근)으로 이어져 말일 잔액으로 마감되도록 정렬
+    const chronologicalEntries = sortOrder === 'DESC'
+      ? [...periodEntriesWithBalance].reverse()
+      : periodEntriesWithBalance;
+    const showAutoCarryOverRow = !hasManualCarryOverInPeriod && prevMonthClosingBalance !== null;
+    const [ey, em] = endMonth.split('-').map(Number);
+    const endLastDay = new Date(ey, em, 0);
+    const endDateStr = `${endLastDay.getFullYear()}-${String(endLastDay.getMonth() + 1).padStart(2, '0')}-${String(endLastDay.getDate()).padStart(2, '0')}`;
+    const endMonthNum = endLastDay.getMonth() + 1;
+
+    const rowCount = chronologicalEntries.length + (showAutoCarryOverRow ? 1 : 0);
     const isCompact = rowCount > 18;
     const totalCatCount = INCOME_CATEGORIES.length + EXPENSE_CATEGORIES.length;
 
@@ -902,20 +944,30 @@ export default function FeeLedgerTab({
         {/* 2. 월별 총괄 수지 요약 박스 */}
         <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #0f172a', marginBottom: '10px', textAlign: 'center' }}>
           <thead>
-            <tr style={{ background: '#f8fafc', fontSize: '11.5px' }}>
-              <th style={{ border: '1px solid #64748b', padding: '6px 8px', width: '33.3%', color: '#1e3a8a', fontWeight: 800 }}>
-                총 수입 합계 (이월잔액 포함)
+            <tr style={{ background: '#f8fafc', fontSize: '11px' }}>
+              {showAutoCarryOverRow && (
+                <th style={{ border: '1px solid #64748b', padding: '6px 6px', width: '25%', color: '#1e40af', fontWeight: 800 }}>
+                  {prevMonthClosingBalance.monthNum}월 말일자 잔액 ({prevMonthClosingBalance.endDate})
+                </th>
+              )}
+              <th style={{ border: '1px solid #64748b', padding: '6px 6px', width: showAutoCarryOverRow ? '25%' : '33.3%', color: '#1e3a8a', fontWeight: 800 }}>
+                {showAutoCarryOverRow ? `${formattedPeriodTitle} 수입 합계` : '총 수입 합계 (이월잔액 포함)'}
               </th>
-              <th style={{ border: '1px solid #64748b', padding: '6px 8px', width: '33.3%', color: '#9f1239', fontWeight: 800 }}>
-                총 지출 합계
+              <th style={{ border: '1px solid #64748b', padding: '6px 6px', width: showAutoCarryOverRow ? '25%' : '33.3%', color: '#9f1239', fontWeight: 800 }}>
+                {showAutoCarryOverRow ? `${formattedPeriodTitle} 지출 합계` : '총 지출 합계'}
               </th>
-              <th style={{ border: '1px solid #64748b', padding: '6px 8px', width: '33.3%', color: '#065f46', fontWeight: 800 }}>
-                최종 잔액 (수입 - 지출)
+              <th style={{ border: '1px solid #64748b', padding: '6px 6px', width: showAutoCarryOverRow ? '25%' : '33.3%', color: '#065f46', fontWeight: 800 }}>
+                {endMonthNum}월 말일자 최종 잔액 ({endDateStr})
               </th>
             </tr>
           </thead>
           <tbody>
-            <tr style={{ fontSize: '15px', fontWeight: 900 }}>
+            <tr style={{ fontSize: '14.5px', fontWeight: 900 }}>
+              {showAutoCarryOverRow && (
+                <td style={{ border: '1px solid #64748b', padding: '8px', color: '#1e40af', background: '#eff6ff' }}>
+                  {formatNum(prevMonthClosingBalance.balance)}원
+                </td>
+              )}
               <td style={{ border: '1px solid #64748b', padding: '8px', color: '#1d4ed8', background: '#ffffff' }}>
                 +{formatNum(summary.totalIncome)}원
               </td>
@@ -967,13 +1019,13 @@ export default function FeeLedgerTab({
           </table>
         )}
 
-        {/* 4. 월별 전체 상세 내역 테이블 (관리항목: 사용일, 내용, 수입, 지출, 적요 + 잔액) */}
+        {/* 4. 월별 전체 상세 내역 테이블 (전월 말일 잔액 최상단 + 시간순 수입·지출 + 말일 최종 잔액) */}
         <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #0f172a', fontSize: isCompact ? '10.5px' : '11.5px' }}>
           <thead>
             <tr style={{ background: '#e2e8f0', color: '#0f172a' }}>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px' : '6px', width: '36px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>No.</th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '92px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>
-                사용일 {sortOrder === 'DESC' ? '(최근순)' : '(과거순)'}
+                사용일
               </th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '88px', textAlign: 'center', fontWeight: 900, whiteSpace: 'nowrap' }}>내용</th>
               <th style={{ border: '1px solid #475569', padding: isCompact ? '4px 6px' : '6px 8px', width: '98px', textAlign: 'right', fontWeight: 900, color: '#1e3a8a', whiteSpace: 'nowrap' }}>수입</th>
@@ -983,17 +1035,42 @@ export default function FeeLedgerTab({
             </tr>
           </thead>
           <tbody>
-            {periodEntriesWithBalance.length === 0 ? (
+            {showAutoCarryOverRow && (
+              <tr style={{ background: '#eff6ff', fontWeight: 800 }}>
+                <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px' : '6px', textAlign: 'center', color: '#1e40af', whiteSpace: 'nowrap' }}>
+                  이월
+                </td>
+                <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px 6px' : '6px 8px', textAlign: 'center', color: '#1e40af', whiteSpace: 'nowrap' }}>
+                  {prevMonthClosingBalance.endDate}
+                </td>
+                <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px 6px' : '6px 8px', textAlign: 'center', color: '#1e40af', whiteSpace: 'nowrap' }}>
+                  전월이월
+                </td>
+                <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px 6px' : '6px 8px', textAlign: 'right', color: '#1d4ed8', whiteSpace: 'nowrap' }}>
+                  {prevMonthClosingBalance.balance > 0 ? formatNum(prevMonthClosingBalance.balance) : '-'}
+                </td>
+                <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px 6px' : '6px 8px', textAlign: 'right', color: '#be123c', whiteSpace: 'nowrap' }}>
+                  {prevMonthClosingBalance.balance < 0 ? formatNum(Math.abs(prevMonthClosingBalance.balance)) : '-'}
+                </td>
+                <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px 6px' : '6px 8px', textAlign: 'right', fontWeight: 900, color: '#1e3a8a', background: '#dbeafe', whiteSpace: 'nowrap' }}>
+                  {formatNum(prevMonthClosingBalance.balance)}
+                </td>
+                <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px 8px' : '6px 10px', textAlign: 'left', color: '#1e40af', fontWeight: 700 }}>
+                  {prevMonthClosingBalance.monthNum}월 말일자 잔액 이월
+                </td>
+              </tr>
+            )}
+            {chronologicalEntries.length === 0 ? (
               <tr>
                 <td colSpan={7} style={{ border: '1px solid #64748b', padding: '24px', textAlign: 'center', color: '#64748b' }}>
                   해당 기간에 등록된 회비 수입·지출 내역이 없습니다.
                 </td>
               </tr>
             ) : (
-              periodEntriesWithBalance.map((item, idx) => (
+              chronologicalEntries.map((item, idx) => (
                 <tr key={item.id || idx} style={{ background: idx % 2 === 1 ? '#f8fafc' : '#ffffff' }}>
                   <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px' : '6px', textAlign: 'center', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                    {item.rowNum}
+                    {idx + 1}
                   </td>
                   <td style={{ border: '1px solid #64748b', padding: isCompact ? '4px 6px' : '6px 8px', textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>
                     {item.date}
@@ -1020,7 +1097,7 @@ export default function FeeLedgerTab({
           <tfoot>
             <tr style={{ background: '#f1f5f9', fontWeight: 900, fontSize: isCompact ? '11.5px' : '12.5px' }}>
               <td colSpan={3} style={{ border: '1.5px solid #0f172a', padding: '7px 8px', textAlign: 'center', color: '#0f172a', whiteSpace: 'nowrap' }}>
-                {formattedPeriodTitle} 합 계 ({periodEntriesWithBalance.length}건)
+                {formattedPeriodTitle} 합 계 ({chronologicalEntries.length}건)
               </td>
               <td style={{ border: '1.5px solid #0f172a', padding: '7px 6px', textAlign: 'right', color: '#1d4ed8', whiteSpace: 'nowrap' }}>
                 +{formatNum(summary.totalIncome)}원
@@ -1031,8 +1108,8 @@ export default function FeeLedgerTab({
               <td style={{ border: '1.5px solid #0f172a', padding: '7px 6px', textAlign: 'right', color: '#047857', background: '#ecfdf5', whiteSpace: 'nowrap' }}>
                 {formatNum(summary.netBalance)}원
               </td>
-              <td style={{ border: '1.5px solid #0f172a', padding: '7px 8px', textAlign: 'left', fontSize: '10.5px', color: '#475569', whiteSpace: 'nowrap' }}>
-                잔액 = 총수입 - 총지출
+              <td style={{ border: '1.5px solid #0f172a', padding: '7px 8px', textAlign: 'left', fontSize: '10.5px', color: '#065f46', whiteSpace: 'nowrap' }}>
+                {endMonthNum}월 말일자 최종 잔액 ({endDateStr})
               </td>
             </tr>
           </tfoot>

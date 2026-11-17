@@ -582,10 +582,12 @@ tr:hover td { background: rgba(0, 122, 255, 0.04); }
   }
   .a4-print-only-sheet {
     display: block !important;
+    visibility: visible !important;
     width: 100% !important;
-    page-break-after: avoid;
-    page-break-inside: avoid;
-    break-inside: avoid;
+    page-break-after: auto;
+  }
+  .a4-print-only-sheet * {
+    visibility: visible !important;
   }
   .card { border: 1px solid #ccc; box-shadow: none; margin-bottom: 12px; }
   th { background: #f1f5f9 !important; color: #0f172a !important; border-bottom: 1.5px solid #334155; }

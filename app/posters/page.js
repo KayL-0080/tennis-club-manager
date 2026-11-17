@@ -1626,7 +1626,13 @@ export default function PostersPage() {
                   type="button"
                   className="btn btn-primary"
                   style={{ fontWeight: 800, padding: '7px 18px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    document.body.classList.add('printing-voucher');
+                    const cleanup = () => document.body.classList.remove('printing-voucher');
+                    window.addEventListener('afterprint', cleanup, { once: true });
+                    window.print();
+                    setTimeout(cleanup, 2000);
+                  }}
                 >
                   <span>🖨️</span>
                   <span>지금 바로 인쇄</span>

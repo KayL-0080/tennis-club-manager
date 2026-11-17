@@ -697,23 +697,18 @@
   border-bottom: 1.5px dashed #cbd5e1;
 }
 
-/* @media print: 브라우저 인쇄 시 A4 지폐 크기(148mm x 68mm)로 정확히 출력 */
+/* @media print: 브라우저 인쇄 시 A4 지폐 크기(148mm x 68mm)로 정확히 출력 (상품권 인쇄 모드일 때만 적용) */
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 10mm;
-  }
-
-  body * {
+  :global(body.printing-voucher) * {
     visibility: hidden;
   }
 
-  .printA4TargetArea,
-  .printA4TargetArea * {
+  :global(body.printing-voucher) .printA4TargetArea,
+  :global(body.printing-voucher) .printA4TargetArea * {
     visibility: visible;
   }
 
-  .printA4TargetArea {
+  :global(body.printing-voucher) .printA4TargetArea {
     position: absolute;
     left: 0;
     top: 0;
