@@ -2452,17 +2452,22 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                               <button
                                 key={slotLabel}
                                 type="button"
-                                disabled={!isAdmin || !teamId}
-                                onClick={() => isAdmin && teamId && openAssignModal(courtId, courtNum, setIdx, teamSide, teamId, m)}
+                                disabled={!isAdmin}
+                                onClick={() => {
+                                  if (!isAdmin) return;
+                                  const p1 = isTeamA ? m.playerA1 : m.playerB1;
+                                  const p2 = isTeamA ? m.playerA2 : m.playerB2;
+                                  openPlayerAssignModal(courtId, courtNum, setIdx, teamSide, teamId, p1, p2);
+                                }}
                                 className={tableStyles.courtPlayerPill}
                                 style={{
                                   backgroundColor: isDup ? '#fee2e2' : baseBg,
                                   border: `${player ? '1.5px solid' : '1px dashed'} ${isDup ? '#ef4444' : baseBorder}`,
                                   color: isDup ? '#b91c1c' : baseColor,
                                   fontWeight: player ? 800 : 600,
-                                  cursor: (isAdmin && teamId) ? 'pointer' : 'default'
+                                  cursor: isAdmin ? 'pointer' : 'default'
                                 }}
-                                title={isAdmin ? (teamId ? '클릭하여 출전 선수 지정/변경' : '먼저 팀을 선택해주세요') : ''}
+                                title={isAdmin ? (teamId ? '클릭하여 해당 조 선수 지정/변경' : '먼저 조(팀)을 선택해주세요') : ''}
                               >
                                 {player ? (
                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', minWidth: 0, maxWidth: '100%', justifyContent: 'center' }}>
@@ -2648,7 +2653,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                             type="button"
                             className="btn btn-secondary btn-sm"
                             style={{ fontSize: '11px', padding: '3px 8px', height: '26px', color: '#dc2626' }}
-                            onClick={() => handleRemoveLastSet(courtId, courtNum)}
+                            onClick={() => handleRemoveSet(courtId)}
                           >
                             ➖ 삭제
                           </button>
