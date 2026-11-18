@@ -2515,34 +2515,43 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                         className="input input-sm"
                                         style={{
                                           width: '100%',
-                                          height: '22px',
-                                          fontSize: '10.5px',
-                                          fontWeight: 800,
-                                          padding: '0 4px',
+                                          height: '25px',
+                                          fontSize: '12px',
+                                          fontWeight: 900,
+                                          letterSpacing: '0.02em',
+                                          padding: '0 6px',
                                           textAlign: 'center',
                                           textAlignLast: 'center',
-                                          backgroundColor: m.teamAId ? teamATheme.bg : 'rgba(255,255,255,0.9)',
-                                          color: m.teamAId ? teamATheme.text : '#334155',
-                                          border: `1px solid ${teamATheme.border}`,
-                                          borderRadius: '5px',
-                                          marginBottom: '2px'
+                                          backgroundColor: m.teamAId ? (teamATheme.badgeBg || '#007aff') : 'rgba(255,255,255,0.92)',
+                                          color: m.teamAId ? '#ffffff' : '#334155',
+                                          border: m.teamAId ? '1.5px solid rgba(255,255,255,0.92)' : '1.5px dashed #94a3b8',
+                                          boxShadow: m.teamAId ? '0 1px 3px rgba(0,0,0,0.25)' : 'none',
+                                          borderRadius: '6px',
+                                          marginBottom: '3px'
                                         }}
                                         value={m.teamAId || ''}
                                         onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamAId', e.target.value)}
                                       >
-                                        <option value="">A팀 선택</option>
-                                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                        <option value="" style={{ backgroundColor: '#ffffff', color: '#334155', fontWeight: 700 }}>A팀 선택</option>
+                                        {teams.map(t => (
+                                          <option key={t.id} value={t.id} style={{ backgroundColor: '#ffffff', color: '#0f172a', fontWeight: 800 }}>
+                                            {t.name}
+                                          </option>
+                                        ))}
                                       </select>
                                     ) : (
                                       <div style={{
-                                        fontSize: '10.5px',
-                                        fontWeight: 800,
+                                        fontSize: '12px',
+                                        fontWeight: 900,
+                                        letterSpacing: '0.02em',
                                         textAlign: 'center',
-                                        padding: '1px 6px',
-                                        borderRadius: '5px',
-                                        backgroundColor: 'rgba(255,255,255,0.9)',
-                                        color: teamATheme.text,
-                                        marginBottom: '2px'
+                                        padding: '2px 8px',
+                                        borderRadius: '6px',
+                                        backgroundColor: m.teamAId ? (teamATheme.badgeBg || '#007aff') : 'rgba(255,255,255,0.92)',
+                                        color: m.teamAId ? '#ffffff' : '#475569',
+                                        border: m.teamAId ? '1.5px solid rgba(255,255,255,0.92)' : '1.5px dashed #94a3b8',
+                                        boxShadow: m.teamAId ? '0 1px 3px rgba(0,0,0,0.25)' : 'none',
+                                        marginBottom: '3px'
                                       }}>
                                         {teamMap[m.teamAId]?.name || 'A팀 미정'}
                                       </div>
@@ -2585,34 +2594,43 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
                                         className="input input-sm"
                                         style={{
                                           width: '100%',
-                                          height: '22px',
-                                          fontSize: '10.5px',
-                                          fontWeight: 800,
-                                          padding: '0 4px',
+                                          height: '25px',
+                                          fontSize: '12px',
+                                          fontWeight: 900,
+                                          letterSpacing: '0.02em',
+                                          padding: '0 6px',
                                           textAlign: 'center',
                                           textAlignLast: 'center',
-                                          backgroundColor: m.teamBId ? teamBTheme.bg : 'rgba(255,255,255,0.9)',
-                                          color: m.teamBId ? teamBTheme.text : '#334155',
-                                          border: `1px solid ${teamBTheme.border}`,
-                                          borderRadius: '5px',
-                                          marginBottom: '2px'
+                                          backgroundColor: m.teamBId ? (teamBTheme.badgeBg || '#ff3b30') : 'rgba(255,255,255,0.92)',
+                                          color: m.teamBId ? '#ffffff' : '#334155',
+                                          border: m.teamBId ? '1.5px solid rgba(255,255,255,0.92)' : '1.5px dashed #94a3b8',
+                                          boxShadow: m.teamBId ? '0 1px 3px rgba(0,0,0,0.25)' : 'none',
+                                          borderRadius: '6px',
+                                          marginBottom: '3px'
                                         }}
                                         value={m.teamBId || ''}
                                         onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamBId', e.target.value)}
                                       >
-                                        <option value="">B팀 선택</option>
-                                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                        <option value="" style={{ backgroundColor: '#ffffff', color: '#334155', fontWeight: 700 }}>B팀 선택</option>
+                                        {teams.map(t => (
+                                          <option key={t.id} value={t.id} style={{ backgroundColor: '#ffffff', color: '#0f172a', fontWeight: 800 }}>
+                                            {t.name}
+                                          </option>
+                                        ))}
                                       </select>
                                     ) : (
                                       <div style={{
-                                        fontSize: '10.5px',
-                                        fontWeight: 800,
+                                        fontSize: '12px',
+                                        fontWeight: 900,
+                                        letterSpacing: '0.02em',
                                         textAlign: 'center',
-                                        padding: '1px 6px',
-                                        borderRadius: '5px',
-                                        backgroundColor: 'rgba(255,255,255,0.9)',
-                                        color: teamBTheme.text,
-                                        marginBottom: '2px'
+                                        padding: '2px 8px',
+                                        borderRadius: '6px',
+                                        backgroundColor: m.teamBId ? (teamBTheme.badgeBg || '#ff3b30') : 'rgba(255,255,255,0.92)',
+                                        color: m.teamBId ? '#ffffff' : '#475569',
+                                        border: m.teamBId ? '1.5px solid rgba(255,255,255,0.92)' : '1.5px dashed #94a3b8',
+                                        boxShadow: m.teamBId ? '0 1px 3px rgba(0,0,0,0.25)' : 'none',
+                                        marginBottom: '3px'
                                       }}>
                                         {teamMap[m.teamBId]?.name || 'B팀 미정'}
                                       </div>
