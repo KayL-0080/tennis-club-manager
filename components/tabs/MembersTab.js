@@ -86,7 +86,7 @@ export default function MembersTab({
   const hasEditPerm = isAdmin || Boolean(canEditMember);
   const hasFeePerm = isAdmin || Boolean(canManageFee);
   const showNtrp = Boolean(isAdmin);
-  const showPhone = Boolean(isAdmin || hasEditPerm);
+  const showPhone = Boolean(isAdmin);
   // 게스트 관리 탭에서는 월회비 납부 컬럼을 숨김 (게스트는 월회비 대상이 아님)
   const showFee = Boolean(hasFeePerm) && !isGuestView;
   const totalColumns = 6 + (showPhone ? 1 : 0) + (showNtrp ? 1 : 0) + (showFee ? 1 : 0) + (hasEditPerm ? 1 : 0);
@@ -242,7 +242,7 @@ export default function MembersTab({
       name: newMember.name.trim(),
       birthYear: (newMember.birthYear || '').toString().trim(),
       tennisStartedAt: (newMember.tennisStartedAt || '').toString().trim(),
-      phone: formatPhoneNumber((newMember.phone || '').toString().trim())
+      ...(showPhone ? { phone: formatPhoneNumber((newMember.phone || '').toString().trim()) } : {})
     });
     setShowAddModal(false);
     setNewMember({
@@ -270,7 +270,7 @@ export default function MembersTab({
       name: editingMember.name.trim(),
       birthYear: (editingMember.birthYear || '').toString().trim(),
       tennisStartedAt: (editingMember.tennisStartedAt || '').toString().trim(),
-      phone: formatPhoneNumber((editingMember.phone || '').toString().trim()),
+      ...(showPhone ? { phone: formatPhoneNumber((editingMember.phone || '').toString().trim()) } : {}),
       ntrp: parseFloat(editingMember.ntrp) || 2.0,
       feePaid: Boolean(editingMember.feePaid)
     };
@@ -1128,17 +1128,19 @@ export default function MembersTab({
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>전화번호</label>
-                <input 
-                  className="input" 
-                  type="tel" 
-                  value={newMember.phone || ''} 
-                  onChange={e => setNewMember({...newMember, phone: e.target.value})}
-                  onBlur={e => setNewMember(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
-                  placeholder="예: 010-1234-5678"
-                />
-              </div>
+              {showPhone && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>전화번호</label>
+                  <input 
+                    className="input" 
+                    type="tel" 
+                    value={newMember.phone || ''} 
+                    onChange={e => setNewMember({...newMember, phone: e.target.value})}
+                    onBlur={e => setNewMember(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
+                    placeholder="예: 010-1234-5678"
+                  />
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '24px' }}>
@@ -1238,17 +1240,19 @@ export default function MembersTab({
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>전화번호</label>
-                <input 
-                  className="input" 
-                  type="tel" 
-                  value={editingMember.phone || ''} 
-                  onChange={e => setEditingMember({...editingMember, phone: e.target.value})}
-                  onBlur={e => setEditingMember(prev => prev ? { ...prev, phone: formatPhoneNumber(e.target.value) } : prev)}
-                  placeholder="예: 010-1234-5678"
-                />
-              </div>
+              {showPhone && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--txt2)' }}>전화번호</label>
+                  <input 
+                    className="input" 
+                    type="tel" 
+                    value={editingMember.phone || ''} 
+                    onChange={e => setEditingMember({...editingMember, phone: e.target.value})}
+                    onBlur={e => setEditingMember(prev => prev ? { ...prev, phone: formatPhoneNumber(e.target.value) } : prev)}
+                    placeholder="예: 010-1234-5678"
+                  />
+                </div>
+              )}
 
               {editingMember.role !== '게스트' && (
                 <div>
