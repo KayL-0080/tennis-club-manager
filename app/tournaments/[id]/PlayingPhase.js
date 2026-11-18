@@ -2,6 +2,18 @@ import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { TEAM_COLORS, generateTournamentSchedule } from './PickingPhase';
 import { generateIndividualTournamentMatches, generateFixedPairTournamentMatches } from './DraftPhase';
+import tableStyles from '@/components/tabs/tabs.module.css';
+
+// 경기수별 5단계 컬러 배지 스타일 (대진표와 동일 규격)
+const getGameCountBadgeStyle = (count) => {
+  const c = Number(count) || 0;
+  if (c === 0) return { bg: '#f1f5f9', text: '#64748b', border: '#cbd5e1', short: '0G' };
+  if (c === 1) return { bg: '#fee2e2', text: '#b91c1c', border: '#fecaca', short: '1G' };
+  if (c === 2) return { bg: '#fef3c7', text: '#b45309', border: '#fde68a', short: '2G' };
+  if (c === 3) return { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0', short: '3G' };
+  if (c === 4) return { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe', short: '4G' };
+  return { bg: '#f3e8ff', text: '#7e22ce', border: '#e9d5ff', short: `${c}G` };
+};
 
 // Helper to normalize lineups from object or array format into structured list
 export const getNormalizedLineupList = (team) => {
@@ -103,6 +115,7 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
   const [assignModalData, setAssignModalData] = useState(null);
   const [modalP1, setModalP1] = useState(null);
   const [modalP2, setModalP2] = useState(null);
+  const [indAssignModal, setIndAssignModal] = useState(null); // { matchIdx, field, round, courtName, currentPid }
 
   const isCourtCollapsed = (courtId) => {
     if (collapsedCourts[courtId] !== undefined) {
@@ -1013,6 +1026,14 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
       unassignedPlayers
     };
   }, [type, teams, tournament.pairs, tournament.attendees, localMatches, byId, teamMap, tournament.courtDetails]);
+
+  const playerGameCountMap = useMemo(() => {
+    const map = {};
+    (playerGameStatsData?.playerStatsList || []).forEach(p => {
+      map[p.id] = p.totalGames || 0;
+    });
+    return map;
+  }, [playerGameStatsData]);
 
   // 필터링 및 정렬된 선수별 통계
   const filteredAndSortedPlayers = useMemo(() => {
@@ -2336,885 +2357,561 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
           </div>
         )}
 
-        {/* Group by Court */}
-        {type === 'team' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {courtDetails.map((court, cIdx) => {
-              const courtId = court.id || `c-${cIdx+1}`;
-              const courtNum = court.name;
-              const courtMaxGames = court.games || 2;
-              const maxCourtCapacity = Math.max(courtMaxGames, courtSets[courtId] || 2, tournament.gamesPerTeam || 4, maxAllowedSets || 12, 12);
-              const isCollapsed = isCourtCollapsed(courtId);
-              const totalSets = courtSets[courtId] || courtMaxGames;
-              const allSetIndices = Array.from({ length: totalSets }, (_, i) => i + 1);
+        {/* ── 라운드별 전체 대진표 (세로 녹색 테니스 코트 UI · 좌우 스크롤 없음) ── */}
+        {type === 'team' && (() => {
+          const maxSetsCount = Math.max(
+            ...courtDetails.map((c, idx) => courtSets[c.id || `c-${idx + 1}`] || c.games || 2),
+            1
+          );
+          const setIndices = Array.from({ length: maxSetsCount }, (_, i) => i + 1);
 
-              const matchBySet = {};
-              allSetIndices.forEach(setIdx => {
-                matchBySet[setIdx] = localMatches.find(match => 
-                  (match.courtId === courtId || match.court === courtNum) && match.setIndex === setIdx
-                ) || {
-                  court: courtNum,
-                  courtId: courtId,
-                  setIndex: setIdx,
-                  teamAId: '',
-                  teamBId: '',
-                  playerA1: null,
-                  playerA2: null,
-                  playerB1: null,
-                  playerB2: null,
-                  scoreA: null,
-                  scoreB: null
-                };
-              });
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className={tableStyles.courtTableWrap}>
+                <table className={tableStyles.courtTable}>
+                  <thead>
+                    <tr>
+                      <th className={tableStyles.courtRoundTh}>R</th>
+                      {courtDetails.map((court, cIdx) => (
+                        <th key={court.id || cIdx} className={tableStyles.courtNameTh}>
+                          {court.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {setIndices.map((setIdx) => (
+                      <tr key={setIdx}>
+                        <td className={tableStyles.courtRoundTd}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                            <span>{setIdx}R</span>
+                            <span style={{ fontSize: '9.5px', fontWeight: 600, color: '#64748b', lineHeight: 1.1 }}>
+                              {getSetTimeSlot(tournament.startTime, setIdx)}
+                            </span>
+                          </div>
+                        </td>
+                        {courtDetails.map((court, cIdx) => {
+                          const courtId = court.id || `c-${cIdx + 1}`;
+                          const courtNum = court.name;
+                          const totalSetsForCourt = courtSets[courtId] || court.games || 2;
+                          if (setIdx > totalSetsForCourt) {
+                            return (
+                              <td key={courtId} className={tableStyles.tennisCourtCell} style={{ textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+                                -
+                              </td>
+                            );
+                          }
 
-              const completedSets = allSetIndices.filter(setIdx => {
-                const m = matchBySet[setIdx];
-                return m.scoreA !== null && m.scoreB !== null;
-              });
-
-              const activeSetIdx = allSetIndices.find(setIdx => {
-                const m = matchBySet[setIdx];
-                return m.scoreA === null || m.scoreB === null;
-              }) || null;
-
-              const setsToRender = isCollapsed 
-                ? (activeSetIdx !== null ? [activeSetIdx] : [])
-                : allSetIndices;
-
-              return (
-                <div key={courtId} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '14px', backgroundColor: '#f8fafc', overflowX: 'auto' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
-                        🎾 {courtNum} 대진
-                      </h3>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        style={{
-                          padding: '2px 8px',
-                          fontSize: '11px',
-                          height: '24px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          borderRadius: '12px',
-                          backgroundColor: isCollapsed ? '#e0f2fe' : '#fff',
-                          color: isCollapsed ? '#0369a1' : 'var(--txt)',
-                          borderColor: isCollapsed ? '#7dd3fc' : 'var(--border)',
-                          fontWeight: isCollapsed ? 'bold' : 'normal'
-                        }}
-                        onClick={() => toggleCourtCollapse(courtId)}
-                      >
-                        {isCollapsed ? '⚡ 진행중만 모아보기' : '📋 전체 펼쳐보기'}
-                        <span>{isCollapsed ? '▲' : '▼'}</span>
-                      </button>
-                    </div>
-
-                    {isAdmin && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          style={{
-                            padding: '3px 8px',
-                            fontSize: '11px',
-                            height: '26px',
-                            color: '#b91c1c',
-                            borderColor: '#fca5a5',
-                            backgroundColor: (courtSets[courtId] || courtMaxGames) <= 1 ? '#f1f5f9' : '#fff',
-                            cursor: (courtSets[courtId] || courtMaxGames) <= 1 ? 'not-allowed' : 'pointer'
-                          }}
-                          onClick={() => handleRemoveSet(courtId)}
-                          disabled={(courtSets[courtId] || courtMaxGames) <= 1}
-                          title="세트 삭제"
-                        >
-                          ➖ 세트 삭제
-                        </button>
-                        
-                        <select 
-                          className="input input-sm" 
-                          style={{ width: '74px', padding: '2px 4px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', height: '26px' }} 
-                          value={courtSets[courtId] || courtMaxGames} 
-                          onChange={e => handleCourtSetsChange(courtId, parseInt(e.target.value) || 2, courtNum, maxCourtCapacity)}
-                        >
-                          {Array.from({ length: maxCourtCapacity }, (_, i) => i + 1).map(s => (
-                            <option key={s} value={s}>{s}세트</option>
-                          ))}
-                        </select>
-
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          style={{
-                            padding: '3px 8px',
-                            fontSize: '11px',
-                            height: '26px',
-                            color: '#0369a1',
-                            borderColor: '#7dd3fc',
-                            backgroundColor: (courtSets[courtId] || courtMaxGames) >= maxCourtCapacity ? '#f1f5f9' : '#fff',
-                            cursor: (courtSets[courtId] || courtMaxGames) >= maxCourtCapacity ? 'not-allowed' : 'pointer'
-                          }}
-                          onClick={() => handleAddSet(courtId, courtNum, maxCourtCapacity)}
-                          disabled={(courtSets[courtId] || courtMaxGames) >= maxCourtCapacity}
-                          title={`세트 추가 (최대: ${maxCourtCapacity}세트)`}
-                        >
-                          ➕ 세트 추가
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {isCollapsed && (
-                    <div style={{ marginBottom: '10px', padding: '6px 10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                      <span>
-                        {activeSetIdx !== null ? (
-                          <>🔥 <strong>{activeSetIdx}세트</strong> 경기 진행 중 ({completedSets.length}세트 완료 / {totalSets - activeSetIdx}세트 대기)</>
-                        ) : (
-                          <>✅ <strong>모든 경기({totalSets}세트) 완료됨</strong></>
-                        )}
-                      </span>
-                      <button 
-                        type="button"
-                        onClick={() => toggleCourtCollapse(courtId)} 
-                        style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', textDecoration: 'underline' }}
-                      >
-                        전체 세트 펼치기 ({totalSets}세트)
-                      </button>
-                    </div>
-                  )}
-
-                  {setsToRender.length > 0 ? (
-                    <table className="table" style={{ width: '100%', minWidth: '320px', textAlign: 'center', fontSize: '12px', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ backgroundColor: '#edf2f7' }}>
-                          <th style={{ width: '48px', padding: '6px 2px', fontSize: '11px' }}>시간</th>
-                          <th style={{ width: '38px', padding: '6px 2px', fontSize: '11px' }}>세트</th>
-                          <th style={{ padding: '6px 4px', fontSize: '11px' }}>대진</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {setsToRender.map((setIdx) => {
-                          const m = matchBySet[setIdx];
-                          const teamAPlayers = teamMap[m.teamAId]?.players || [];
-                          const teamBPlayers = teamMap[m.teamBId]?.players || [];
+                          const m = localMatches.find(match =>
+                            (match.courtId === courtId || match.court === courtNum) && match.setIndex === setIdx
+                          ) || {
+                            court: courtNum,
+                            courtId: courtId,
+                            setIndex: setIdx,
+                            teamAId: '',
+                            teamBId: '',
+                            playerA1: null,
+                            playerA2: null,
+                            playerB1: null,
+                            playerB2: null,
+                            scoreA: null,
+                            scoreB: null
+                          };
 
                           const teamAIdx = m.teamAId ? teamIndexMap[m.teamAId] : undefined;
-                          const teamATheme = (teamAIdx !== undefined && teamAIdx >= 0) ? TEAM_COLORS[teamAIdx % TEAM_COLORS.length] : { bg: '#f8fafc', border: '#e2e8f0', text: 'var(--txt)', badgeBg: 'var(--blue)' };
-
+                          const teamATheme = (teamAIdx !== undefined && teamAIdx >= 0) ? TEAM_COLORS[teamAIdx % TEAM_COLORS.length] : { bg: '#eff6ff', border: '#93c5fd', text: '#0c4a6e' };
                           const teamBIdx = m.teamBId ? teamIndexMap[m.teamBId] : undefined;
-                          const teamBTheme = (teamBIdx !== undefined && teamBIdx >= 0) ? TEAM_COLORS[teamBIdx % TEAM_COLORS.length] : { bg: '#f8fafc', border: '#e2e8f0', text: 'var(--txt)', badgeBg: 'var(--red)' };
+                          const teamBTheme = (teamBIdx !== undefined && teamBIdx >= 0) ? TEAM_COLORS[teamBIdx % TEAM_COLORS.length] : { bg: '#fff7ed', border: '#fdba74', text: '#7c2d12' };
+
+                          const hasScore = m.scoreA !== null && m.scoreA !== undefined && m.scoreB !== null && m.scoreB !== undefined;
+                          const isWinA = hasScore && Number(m.scoreA) > Number(m.scoreB);
+                          const isWinB = hasScore && Number(m.scoreB) > Number(m.scoreA);
 
                           const matchConflictInfo = conflictMap.matchConflicts[m.id] || null;
-                          const isPlayerA1Conflicting = matchConflictInfo && m.playerA1 && matchConflictInfo[m.playerA1];
-                          const isPlayerA2Conflicting = matchConflictInfo && m.playerA2 && matchConflictInfo[m.playerA2];
-                          const isPlayerB1Conflicting = matchConflictInfo && m.playerB1 && matchConflictInfo[m.playerB1];
-                          const isPlayerB2Conflicting = matchConflictInfo && m.playerB2 && matchConflictInfo[m.playerB2];
+
+                          const renderTeamPlayerPill = (teamSide, pid, slotLabel) => {
+                            const isTeamA = teamSide === 'A';
+                            const teamId = isTeamA ? m.teamAId : m.teamBId;
+                            const player = byId[pid];
+                            const isFemale = player?.gender === 'F';
+                            const isDup = matchConflictInfo && pid && matchConflictInfo[pid];
+                            const gCount = pid ? (playerGameCountMap[pid] || 0) : 0;
+                            const countStyle = getGameCountBadgeStyle(gCount);
+
+                            const baseBg = player
+                              ? (isTeamA ? 'rgba(224, 242, 254, 0.96)' : 'rgba(255, 237, 213, 0.96)')
+                              : 'rgba(255, 255, 255, 0.22)';
+                            const baseBorder = player
+                              ? (isTeamA ? '#7dd3fc' : '#fdba74')
+                              : 'rgba(255, 255, 255, 0.55)';
+                            const baseColor = player
+                              ? (isTeamA ? '#0c4a6e' : '#7c2d12')
+                              : 'rgba(255, 255, 255, 0.9)';
+
+                            return (
+                              <button
+                                key={slotLabel}
+                                type="button"
+                                disabled={!isAdmin || !teamId}
+                                onClick={() => isAdmin && teamId && openAssignModal(courtId, courtNum, setIdx, teamSide, teamId, m)}
+                                className={tableStyles.courtPlayerPill}
+                                style={{
+                                  backgroundColor: isDup ? '#fee2e2' : baseBg,
+                                  border: `${player ? '1.5px solid' : '1px dashed'} ${isDup ? '#ef4444' : baseBorder}`,
+                                  color: isDup ? '#b91c1c' : baseColor,
+                                  fontWeight: player ? 800 : 600,
+                                  cursor: (isAdmin && teamId) ? 'pointer' : 'default'
+                                }}
+                                title={isAdmin ? (teamId ? '클릭하여 출전 선수 지정/변경' : '먼저 팀을 선택해주세요') : ''}
+                              >
+                                {player ? (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', minWidth: 0, maxWidth: '100%', justifyContent: 'center' }}>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {player.name}
+                                    </span>
+                                    <span style={{ fontSize: '9.5px', color: isFemale ? '#be185d' : '#1d4ed8', fontWeight: 800, flexShrink: 0 }}>
+                                      ({isFemale ? '여' : '남'})
+                                    </span>
+                                    <span style={{
+                                      fontSize: '8.5px',
+                                      padding: '0 3px',
+                                      borderRadius: '3px',
+                                      fontWeight: 800,
+                                      backgroundColor: countStyle.bg,
+                                      color: countStyle.text,
+                                      border: `1px solid ${countStyle.border}`,
+                                      lineHeight: '13px',
+                                      flexShrink: 0
+                                    }}>
+                                      {countStyle.short}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '10.5px', fontStyle: 'italic' }}>
+                                    {teamId ? '+ 선수' : '팀 미정'}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          };
 
                           return (
-                            <tr 
-                              key={setIdx} 
-                              style={{ 
-                                borderBottom: '1px solid #e2e8f0',
-                                cursor: isAdmin ? 'grab' : 'default',
-                                transition: 'background-color 0.2s',
-                                backgroundColor: isCollapsed ? '#fff' : 'transparent'
-                              }}
-                              draggable={isAdmin}
-                              onDragStart={(e) => {
-                                if (!isAdmin) return;
-                                e.dataTransfer.setData('courtId', courtId);
-                                e.dataTransfer.setData('courtNum', courtNum);
-                                e.dataTransfer.setData('setIndex', setIdx);
-                                e.currentTarget.style.opacity = '0.5';
-                              }}
-                              onDragEnd={(e) => {
-                                e.currentTarget.style.opacity = '1';
-                              }}
-                              onDragOver={(e) => {
-                                if (isAdmin) e.preventDefault();
-                              }}
-                              onDragEnter={(e) => {
-                                if (isAdmin) e.currentTarget.style.backgroundColor = '#e0f2fe';
-                              }}
-                              onDragLeave={(e) => {
-                                if (isAdmin) e.currentTarget.style.backgroundColor = isCollapsed ? '#fff' : 'transparent';
-                              }}
-                              onDrop={(e) => {
-                                if (!isAdmin) return;
-                                e.currentTarget.style.backgroundColor = isCollapsed ? '#fff' : 'transparent';
-                                const sourceCourtId = e.dataTransfer.getData('courtId');
-                                const sourceCourtNum = e.dataTransfer.getData('courtNum');
-                                const sourceSetIndex = parseInt(e.dataTransfer.getData('setIndex'));
-                                
-                                if (sourceCourtId !== courtId) {
-                                  alert('다른 코트로는 경기를 이동할 수 없습니다.');
-                                  return;
-                                }
-                                if (sourceSetIndex !== setIdx) {
-                                  handleSwapMatches(courtId, courtNum, sourceSetIndex, setIdx);
-                                }
-                              }}
-                            >
-                              <td style={{ padding: '6px 2px', fontSize: '11px', whiteSpace: 'nowrap', color: 'var(--txt2)' }}>
-                                {getSetTimeSlot(tournament.startTime, setIdx)}
-                              </td>
-                              <td style={{ padding: '6px 2px', fontWeight: 'bold', fontSize: '12px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
-                                  {isAdmin && <span style={{ color: '#94a3b8', cursor: 'grab', fontSize: '11px', userSelect: 'none' }}>☰</span>}
-                                  <span>{setIdx}</span>
-                                </div>
-                              </td>
-                              
-                              <td style={{ padding: '6px 4px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%' }}>
-                                  {/* Team A Block */}
-                                  <div style={{ 
-                                    flex: 1, 
-                                    minWidth: '95px', 
-                                    display: 'flex', 
-                                    flexDirection: 'column', 
-                                    gap: '4px', 
-                                    border: `1.5px solid ${teamATheme.border}`, 
-                                    borderRadius: '8px', 
-                                    padding: '5px 6px', 
-                                    backgroundColor: teamATheme.bg 
-                                  }}>
+                            <td key={courtId} className={tableStyles.tennisCourtCell}>
+                              <div className={tableStyles.tennisCourt}>
+                                <div className={tableStyles.tennisCourtLines} />
+                                <div className={tableStyles.tennisCourtCenterLine} />
+                                <div className={tableStyles.tennisCourtNetLine} />
+
+                                <div className={tableStyles.tennisCourtInner}>
+                                  {/* 상단 코트 (A팀) */}
+                                  <div className={`${tableStyles.courtTeamStack} ${isWinA ? tableStyles.courtTeamWinner : ''}`}>
                                     {isAdmin ? (
                                       <select
                                         className="input input-sm"
-                                        style={{ 
-                                          width: '100%', 
-                                          fontWeight: 'bold', 
-                                          fontSize: '12px', 
-                                          padding: '2px 4px', 
-                                          height: '26px', 
-                                          lineHeight: 'normal',
+                                        style={{
+                                          width: '100%',
+                                          height: '22px',
+                                          fontSize: '10.5px',
+                                          fontWeight: 800,
+                                          padding: '0 4px',
                                           textAlign: 'center',
                                           textAlignLast: 'center',
-                                          backgroundColor: '#fff',
-                                          borderColor: teamATheme.border,
-                                          color: teamATheme.text,
-                                          borderRadius: '5px'
+                                          backgroundColor: m.teamAId ? teamATheme.bg : 'rgba(255,255,255,0.9)',
+                                          color: m.teamAId ? teamATheme.text : '#334155',
+                                          border: `1px solid ${teamATheme.border}`,
+                                          borderRadius: '5px',
+                                          marginBottom: '2px'
                                         }}
                                         value={m.teamAId || ''}
                                         onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamAId', e.target.value)}
                                       >
-                                        <option value="">A조(팀)</option>
+                                        <option value="">A팀 선택</option>
                                         {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                       </select>
                                     ) : (
-                                      <div style={{ fontWeight: 'bold', fontSize: '12px', color: teamATheme.text, textAlign: 'center' }}>
-                                        {teamMap[m.teamAId]?.name || 'A조'}
-</div>
+                                      <div style={{
+                                        fontSize: '10.5px',
+                                        fontWeight: 800,
+                                        textAlign: 'center',
+                                        padding: '1px 6px',
+                                        borderRadius: '5px',
+                                        backgroundColor: 'rgba(255,255,255,0.9)',
+                                        color: teamATheme.text,
+                                        marginBottom: '2px'
+                                      }}>
+                                        {teamMap[m.teamAId]?.name || 'A팀 미정'}
+                                      </div>
                                     )}
-                                    
-                                    {/* Players Container & Modal Trigger */}
-                                    <div 
-                                      onClick={() => {
-                                        if (isAdmin && m.teamAId) {
-                                          openPlayerAssignModal(courtId, courtNum, setIdx, 'A', m.teamAId, m.playerA1, m.playerA2);
-                                        }
-                                      }}
-                                      style={{ 
-                                        display: 'flex', 
-                                        flexDirection: 'column', 
-                                        alignItems: 'center', 
-                                        gap: '2px', 
-                                        backgroundColor: '#fff', 
-                                        border: (isPlayerA1Conflicting || isPlayerA2Conflicting) ? '1.5px solid #ef4444' : '1px solid #e2e8f0', 
-                                        borderRadius: '6px', 
-                                        padding: '4px 6px', 
-                                        cursor: (isAdmin && m.teamAId) ? 'pointer' : 'default',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                                        minHeight: '44px',
-                                        justifyContent: 'center'
-                                      }}
-                                      title={isAdmin ? (m.teamAId ? "클릭하여 출전 선수 지정 또는 변경" : "") : "선수 배정은 운영진만 가능합니다"}
-                                    >
-                                      {(m.playerA1 || m.playerA2) ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', flexWrap: 'wrap', width: '100%' }}>
-                                          <span style={{ 
-                                            fontSize: '11.5px', 
-                                            fontWeight: 700, 
-                                            color: isPlayerA1Conflicting ? '#b91c1c' : 'var(--txt)',
-                                            backgroundColor: isPlayerA1Conflicting ? '#fee2e2' : '#f1f5f9',
-                                            padding: '1px 4px',
-                                            borderRadius: '4px'
-                                          }}>
-                                            {byId[m.playerA1]?.name || '선수1'} {isPlayerA1Conflicting && '⚠️'}
-                                          </span>
-                                          <span style={{ fontSize: '10px', color: '#94a3b8' }}>/</span>
-                                          <span style={{ 
-                                            fontSize: '11.5px', 
-                                            fontWeight: 700, 
-                                            color: isPlayerA2Conflicting ? '#b91c1c' : 'var(--txt)',
-                                            backgroundColor: isPlayerA2Conflicting ? '#fee2e2' : '#f1f5f9',
-                                            padding: '1px 4px',
-                                            borderRadius: '4px'
-                                          }}>
-                                            {byId[m.playerA2]?.name || '선수2'} {isPlayerA2Conflicting && '⚠️'}
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>👥 선수 미지정</span>
-                                      )}
+                                    {renderTeamPlayerPill('A', m.playerA1, 'A1')}
+                                    {renderTeamPlayerPill('A', m.playerA2, 'A2')}
+                                  </div>
 
-                                      {m.teamAId && (
-                                        <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                          ✏️ {(m.playerA1 || m.playerA2) ? '선수 변경' : '선수 지정'}
-                                        </span>
-                                      )}
+                                  {/* 중앙 네트 / 스코어 */}
+                                  <div className={tableStyles.courtNetRow}>
+                                    <div className={tableStyles.courtScorePill}>
+                                      <select
+                                        disabled={!isAdmin}
+                                        className={tableStyles.scoreInput}
+                                        style={{ width: '38px', height: '24px', fontSize: '12px', padding: '0 2px', border: '1px solid #cbd5e1', fontWeight: 800, textAlign: 'center', borderRadius: '5px' }}
+                                        value={m.scoreA === null || m.scoreA === undefined ? '' : m.scoreA}
+                                        onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreA', e.target.value)}
+                                      >
+                                        <option value="">-</option>
+                                        {Array.from({ length: maxGames + 1 }).map((_, i) => <option key={i} value={i}>{i}</option>)}
+                                      </select>
+                                      <span style={{ fontWeight: 900, color: '#334155', fontSize: '12px', padding: '0 2px' }}>:</span>
+                                      <select
+                                        disabled={!isAdmin}
+                                        className={tableStyles.scoreInput}
+                                        style={{ width: '38px', height: '24px', fontSize: '12px', padding: '0 2px', border: '1px solid #cbd5e1', fontWeight: 800, textAlign: 'center', borderRadius: '5px' }}
+                                        value={m.scoreB === null || m.scoreB === undefined ? '' : m.scoreB}
+                                        onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreB', e.target.value)}
+                                      >
+                                        <option value="">-</option>
+                                        {Array.from({ length: maxGames + 1 }).map((_, i) => <option key={i} value={i}>{i}</option>)}
+                                      </select>
                                     </div>
                                   </div>
 
-                                  {/* Score A */}
-                                  <select
-                                    className="input input-sm"
-                                    style={{ 
-                                      width: '38px', 
-                                      height: '52px', 
-                                      textAlign: 'center', 
-                                      textAlignLast: 'center', 
-                                      fontSize: '15px', 
-                                      fontWeight: 'bold', 
-                                      padding: 0, 
-                                      borderRadius: '6px', 
-                                      flexShrink: 0, 
-                                      opacity: 1, 
-                                      cursor: isAdmin ? 'pointer' : 'default', 
-                                      pointerEvents: isAdmin ? 'auto' : 'none', 
-                                      appearance: isAdmin ? 'auto' : 'none', 
-                                      backgroundColor: m.scoreA !== null ? '#f8fafc' : '#ffffff', 
-                                      color: m.scoreA !== null ? 'var(--blue)' : 'var(--txt3)',
-                                      border: '1px solid #cbd5e1'
-                                    }}
-                                    value={m.scoreA !== null ? m.scoreA : ''}
-                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreA', e.target.value)}
-                                    disabled={!isAdmin || !m.teamAId || !m.teamBId}
-                                  >
-                                    <option value="">-</option>
-                                    {Array.from({ length: maxGames + 1 }).map((_, i) => (
-                                      <option key={i} value={i}>{i}</option>
-                                    ))}
-                                  </select>
-
-                                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--txt3)', flexShrink: 0, padding: '0 1px' }}>vs</span>
-
-                                  {/* Score B */}
-                                  <select
-                                    className="input input-sm"
-                                    style={{ 
-                                      width: '38px', 
-                                      height: '52px', 
-                                      textAlign: 'center', 
-                                      textAlignLast: 'center', 
-                                      fontSize: '15px', 
-                                      fontWeight: 'bold', 
-                                      padding: 0, 
-                                      borderRadius: '6px', 
-                                      flexShrink: 0, 
-                                      opacity: 1, 
-                                      cursor: isAdmin ? 'pointer' : 'default', 
-                                      pointerEvents: isAdmin ? 'auto' : 'none', 
-                                      appearance: isAdmin ? 'auto' : 'none', 
-                                      backgroundColor: m.scoreB !== null ? '#f8fafc' : '#ffffff', 
-                                      color: m.scoreB !== null ? 'var(--red)' : 'var(--txt3)',
-                                      border: '1px solid #cbd5e1'
-                                    }}
-                                    value={m.scoreB !== null ? m.scoreB : ''}
-                                    onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'scoreB', e.target.value)}
-                                    disabled={!isAdmin || !m.teamAId || !m.teamBId}
-                                  >
-                                    <option value="">-</option>
-                                    {Array.from({ length: maxGames + 1 }).map((_, i) => (
-                                      <option key={i} value={i}>{i}</option>
-                                    ))}
-                                  </select>
-
-                                  {/* Team B Block */}
-                                  <div style={{ 
-                                    flex: 1, 
-                                    minWidth: '95px', 
-                                    display: 'flex', 
-                                    flexDirection: 'column', 
-                                    gap: '4px', 
-                                    border: `1.5px solid ${teamBTheme.border}`, 
-                                    borderRadius: '8px', 
-                                    padding: '5px 6px', 
-                                    backgroundColor: teamBTheme.bg 
-                                  }}>
+                                  {/* 하단 코트 (B팀) */}
+                                  <div className={`${tableStyles.courtTeamStack} ${isWinB ? tableStyles.courtTeamWinner : ''}`}>
                                     {isAdmin ? (
                                       <select
                                         className="input input-sm"
-                                        style={{ 
-                                          width: '100%', 
-                                          fontWeight: 'bold', 
-                                          fontSize: '12px', 
-                                          padding: '2px 4px', 
-                                          height: '26px', 
-                                          lineHeight: 'normal',
+                                        style={{
+                                          width: '100%',
+                                          height: '22px',
+                                          fontSize: '10.5px',
+                                          fontWeight: 800,
+                                          padding: '0 4px',
                                           textAlign: 'center',
                                           textAlignLast: 'center',
-                                          backgroundColor: '#fff',
-                                          borderColor: teamBTheme.border,
-                                          color: teamBTheme.text,
-                                          borderRadius: '5px'
+                                          backgroundColor: m.teamBId ? teamBTheme.bg : 'rgba(255,255,255,0.9)',
+                                          color: m.teamBId ? teamBTheme.text : '#334155',
+                                          border: `1px solid ${teamBTheme.border}`,
+                                          borderRadius: '5px',
+                                          marginBottom: '2px'
                                         }}
                                         value={m.teamBId || ''}
                                         onChange={e => handleUpdateMatchSlot(courtId, courtNum, setIdx, 'teamBId', e.target.value)}
                                       >
-                                        <option value="">B조(팀)</option>
+                                        <option value="">B팀 선택</option>
                                         {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                       </select>
                                     ) : (
-                                      <div style={{ fontWeight: 'bold', fontSize: '12px', color: teamBTheme.text, textAlign: 'center' }}>
-                                        {teamMap[m.teamBId]?.name || 'B조'}
+                                      <div style={{
+                                        fontSize: '10.5px',
+                                        fontWeight: 800,
+                                        textAlign: 'center',
+                                        padding: '1px 6px',
+                                        borderRadius: '5px',
+                                        backgroundColor: 'rgba(255,255,255,0.9)',
+                                        color: teamBTheme.text,
+                                        marginBottom: '2px'
+                                      }}>
+                                        {teamMap[m.teamBId]?.name || 'B팀 미정'}
                                       </div>
                                     )}
-                                    
-                                    {/* Players Container & Modal Trigger */}
-                                    <div 
-                                      onClick={() => {
-                                        if (isAdmin && m.teamBId) {
-                                          openPlayerAssignModal(courtId, courtNum, setIdx, 'B', m.teamBId, m.playerB1, m.playerB2);
-                                        }
-                                      }}
-                                      style={{ 
-                                        display: 'flex', 
-                                        flexDirection: 'column', 
-                                        alignItems: 'center', 
-                                        gap: '2px', 
-                                        backgroundColor: '#fff', 
-                                        border: (isPlayerB1Conflicting || isPlayerB2Conflicting) ? '1.5px solid #ef4444' : '1px solid #e2e8f0', 
-                                        borderRadius: '6px', 
-                                        padding: '4px 6px', 
-                                        cursor: (isAdmin && m.teamBId) ? 'pointer' : 'default',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                                        minHeight: '44px',
-                                        justifyContent: 'center'
-                                      }}
-                                      title={isAdmin ? (m.teamBId ? "클릭하여 출전 선수 지정 또는 변경" : "") : "선수 배정은 운영진만 가능합니다"}
-                                    >
-                                      {(m.playerB1 || m.playerB2) ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', flexWrap: 'wrap', width: '100%' }}>
-                                          <span style={{ 
-                                            fontSize: '11.5px', 
-                                            fontWeight: 700, 
-                                            color: isPlayerB1Conflicting ? '#b91c1c' : 'var(--txt)',
-                                            backgroundColor: isPlayerB1Conflicting ? '#fee2e2' : '#f1f5f9',
-                                            padding: '1px 4px',
-                                            borderRadius: '4px'
-                                          }}>
-                                            {byId[m.playerB1]?.name || '선수1'} {isPlayerB1Conflicting && '⚠️'}
-                                          </span>
-                                          <span style={{ fontSize: '10px', color: '#94a3b8' }}>/</span>
-                                          <span style={{ 
-                                            fontSize: '11.5px', 
-                                            fontWeight: 700, 
-                                            color: isPlayerB2Conflicting ? '#b91c1c' : 'var(--txt)',
-                                            backgroundColor: isPlayerB2Conflicting ? '#fee2e2' : '#f1f5f9',
-                                            padding: '1px 4px',
-                                            borderRadius: '4px'
-                                          }}>
-                                            {byId[m.playerB2]?.name || '선수2'} {isPlayerB2Conflicting && '⚠️'}
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>👥 선수 미지정</span>
-                                      )}
-
-                                      {m.teamBId && (
-                                        <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                          ✏️ {(m.playerB1 || m.playerB2) ? '선수 변경' : '선수 지정'}
-                                        </span>
-                                      )}
-                                    </div>
+                                    {renderTeamPlayerPill('B', m.playerB1, 'B1')}
+                                    {renderTeamPlayerPill('B', m.playerB2, 'B2')}
                                   </div>
                                 </div>
-                              </td>
-                            </tr>
+                              </div>
+                            </td>
                           );
                         })}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                      <div style={{ fontSize: '24px', marginBottom: '6px' }}>🏆</div>
-                      <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#166534' }}>{courtNum}의 모든 경기({totalSets}세트)가 완료되었습니다!</div>
-                      <button 
-                        type="button" 
-                        className="btn btn-secondary btn-sm" 
-                        style={{ marginTop: '8px', fontSize: '11px' }}
-                        onClick={() => toggleCourtCollapse(courtId)}
-                      >
-                        📋 전체 세트 결과 펼쳐보기 ({totalSets}세트)
-                      </button>
-                    </div>
-                  )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {isAdmin && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {courtDetails.map((court, cIdx) => {
+                    const courtId = court.id || `c-${cIdx + 1}`;
+                    const courtNum = court.name;
+                    const maxCap = Math.max(court.games || 2, courtSets[courtId] || 2, tournament.gamesPerTeam || 4, maxAllowedSets || 12, 12);
+                    return (
+                      <div key={courtId} style={{ display: 'inline-flex', gap: '4px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '11px', padding: '3px 8px', height: '26px' }}
+                          onClick={() => handleAddSet(courtId, courtNum, maxCap)}
+                          disabled={(courtSets[courtId] || court.games || 2) >= maxCap}
+                        >
+                          ➕ {courtNum} 세트 추가
+                        </button>
+                        {(courtSets[courtId] || court.games || 2) > 1 && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '11px', padding: '3px 8px', height: '26px', color: '#dc2626' }}
+                            onClick={() => handleRemoveLastSet(courtId, courtNum)}
+                          >
+                            ➖ 삭제
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })()}
 
         {type !== 'team' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* 1. 중복 선수 점검 알림 배너 */}
             {conflictMap.hasConflict ? (
-              <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '10px', boxShadow: '0 2px 6px rgba(239, 68, 68, 0.08)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', color: '#991b1b', fontSize: '13px', marginBottom: '6px' }}>
-                  <span>⚠️ 동시간대 중복 출전 선수 감지 ({conflictMap.conflictDetails.length}건)</span>
+              <div style={{ padding: '10px 14px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '10px' }}>
+                <div style={{ fontWeight: 'bold', color: '#991b1b', fontSize: '12.5px', marginBottom: '4px' }}>
+                  ⚠️ 동시간대 중복 출전 선수 감지 ({conflictMap.conflictDetails.length}건)
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#b91c1c' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11.5px', color: '#b91c1c' }}>
                   {conflictMap.conflictDetails.map((c, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-                      • <strong>{c.playerName}</strong> 선수: <strong>{c.timeStr} ({c.slot}경기)</strong> 시간대에 <strong>{c.courts.join(' & ')}</strong>에 중복 배정되었습니다.
+                    <div key={i}>
+                      • <strong>{c.playerName}</strong>: <strong>{c.timeStr} ({c.slot}경기)</strong> ({c.courts.join(' & ')})
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div style={{ padding: '8px 14px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#166534', flexWrap: 'wrap', gap: '6px' }}>
-                <span style={{ fontWeight: 600 }}>✅ 동시간대 선수 중복 출전 없음 (정상)</span>
+              <div style={{ padding: '7px 12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#166534', flexWrap: 'wrap', gap: '6px' }}>
+                <span style={{ fontWeight: 700 }}>✅ 동시간대 중복 출전 없음</span>
                 <span style={{ color: 'var(--txt3)' }}>
-                  총 {localMatches.length}경기 중 {localMatches.filter(m => m.court).length}경기 코트 배정 완료
+                  총 {localMatches.length}경기
                 </span>
               </div>
             )}
 
-            {/* 2. 라운드 순서 변경 (드래그 & 드롭) 바 및 보기 모드 탭 */}
-            <div style={{ backgroundColor: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)' }}>🔄 라운드 순서 변경</span>
-                  <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
-                    {isAdmin ? '라운드 카드를 드래그 & 드롭하여 순서를 변경하세요.' : '라운드 순서'}
-                  </span>
-                </div>
+            {/* 2. 라운드별 전체 세로 녹색 테니스 코트 테이블 (좌우 스크롤 없음) */}
+            <div className={tableStyles.courtTableWrap}>
+              <table className={tableStyles.courtTable}>
+                <thead>
+                  <tr>
+                    <th className={tableStyles.courtRoundTh}>R</th>
+                    {courtDetails.map((court, cIdx) => (
+                      <th key={court.id || cIdx} className={tableStyles.courtNameTh}>
+                        {court.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {availableRounds.map((r) => {
+                    const isOver = dragOverRound === r;
+                    const isBeingDragged = draggingRound === r;
+                    return (
+                      <tr
+                        key={r}
+                        draggable={isAdmin}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', String(r));
+                          setDraggingRound(r);
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                        }}
+                        onDragEnter={() => setDragOverRound(r)}
+                        onDragLeave={() => setDragOverRound(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const fromR = parseInt(e.dataTransfer.getData('text/plain')) || draggingRound;
+                          if (fromR && fromR !== r) {
+                            handleReorderRounds(fromR, r);
+                          }
+                          setDraggingRound(null);
+                          setDragOverRound(null);
+                        }}
+                        style={{
+                          opacity: isBeingDragged ? 0.5 : 1,
+                          outline: isOver ? '2px dashed #3b82f6' : 'none'
+                        }}
+                      >
+                        <td className={tableStyles.courtRoundTd}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                            <span>{r}R</span>
+                            {isAdmin && (
+                              <span style={{ cursor: 'grab', opacity: 0.45, fontSize: '13px', lineHeight: 1 }} title="드래그하여 라운드 순서 변경">
+                                ☰
+                              </span>
+                            )}
+                            <span style={{ fontSize: '9px', fontWeight: 600, color: '#64748b', lineHeight: 1.1 }}>
+                              {formatMatchTimeSlot(tournament.startTime, r)}
+                            </span>
+                          </div>
+                        </td>
+                        {courtDetails.map((court, cIdx) => {
+                          const m = matchesForRender.find(match => (match.round || 1) === r && match.court === court.name);
+                          if (!m) {
+                            return (
+                              <td key={court.id || cIdx} className={tableStyles.tennisCourtCell} style={{ textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+                                -
+                              </td>
+                            );
+                          }
 
-                {/* 뷰 모드 스위처 */}
-                <div style={{ display: 'flex', backgroundColor: '#e2e8f0', borderRadius: '8px', padding: '2px', gap: '2px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setIndViewMode('court')}
-                    style={{
-                      border: 'none',
-                      padding: '4px 10px',
-                      fontSize: '11px',
-                      fontWeight: indViewMode === 'court' ? 'bold' : 'normal',
-                      backgroundColor: indViewMode === 'court' ? '#fff' : 'transparent',
-                      color: indViewMode === 'court' ? 'var(--navy)' : 'var(--txt3)',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      boxShadow: indViewMode === 'court' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                    }}
-                  >
-                    🎾 코트별 보기
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIndViewMode('round')}
-                    style={{
-                      border: 'none',
-                      padding: '4px 10px',
-                      fontSize: '11px',
-                      fontWeight: indViewMode === 'round' ? 'bold' : 'normal',
-                      backgroundColor: indViewMode === 'round' ? '#fff' : 'transparent',
-                      color: indViewMode === 'round' ? 'var(--navy)' : 'var(--txt3)',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      boxShadow: indViewMode === 'round' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                    }}
-                  >
-                    🔄 라운드별 보기
-                  </button>
-                </div>
-              </div>
+                          const hasScore = m.scoreA !== null && m.scoreA !== undefined && m.scoreB !== null && m.scoreB !== undefined;
+                          const isWinA = hasScore && Number(m.scoreA) > Number(m.scoreB);
+                          const isWinB = hasScore && Number(m.scoreB) > Number(m.scoreA);
+                          const matchConflictInfo = conflictMap.matchConflicts[m.id] || null;
 
-              {/* 드래그 가능한 라운드 칩 목록 */}
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                {availableRounds.map((r) => {
-                  const isBeingDragged = draggingRound === r;
-                  const isOver = dragOverRound === r;
-                  const countInR = localMatches.filter(m => (m.round || 1) === r).length;
+                          const renderIndPill = (field, pid, isTeamA) => {
+                            const player = byId[pid];
+                            const isFemale = player?.gender === 'F';
+                            const isDup = matchConflictInfo && pid && matchConflictInfo[pid];
+                            const gCount = pid ? (playerGameCountMap[pid] || 0) : 0;
+                            const countStyle = getGameCountBadgeStyle(gCount);
 
-                  return (
-                    <div
-                      key={r}
-                      draggable={isAdmin}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', String(r));
-                        setDraggingRound(r);
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                      }}
-                      onDragEnter={() => setDragOverRound(r)}
-                      onDragLeave={() => setDragOverRound(null)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const fromR = parseInt(e.dataTransfer.getData('text/plain')) || draggingRound;
-                        if (fromR && fromR !== r) {
-                          handleReorderRounds(fromR, r);
-                        }
-                        setDraggingRound(null);
-                        setDragOverRound(null);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '6px 12px',
-                        backgroundColor: isOver ? '#dbeafe' : isBeingDragged ? '#e2e8f0' : '#fff',
-                        border: isOver ? '2px dashed #3b82f6' : '1px solid var(--border)',
-                        borderRadius: '8px',
-                        cursor: isAdmin ? 'grab' : 'default',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                        userSelect: 'none',
-                        transition: 'all 0.15s ease'
-                      }}
-                      title={isAdmin ? `${r}라운드를 드래그하여 다른 라운드 위치로 이동` : `${r}라운드`}
-                    >
-                      {isAdmin && <span style={{ color: 'var(--txt3)', fontSize: '11px' }}>☰</span>}
-                      <span style={{ fontWeight: 800, fontSize: '12px', color: 'var(--txt)' }}>
-                        {r}라운드
-                      </span>
-                      <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
-                        ({countInR}경기)
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+                            const baseBg = player
+                              ? (isTeamA ? 'rgba(224, 242, 254, 0.96)' : 'rgba(255, 237, 213, 0.96)')
+                              : 'rgba(255, 255, 255, 0.22)';
+                            const baseBorder = player
+                              ? (isTeamA ? '#7dd3fc' : '#fdba74')
+                              : 'rgba(255, 255, 255, 0.55)';
+                            const baseColor = player
+                              ? (isTeamA ? '#0c4a6e' : '#7c2d12')
+                              : 'rgba(255, 255, 255, 0.9)';
+
+                            return (
+                              <button
+                                key={field}
+                                type="button"
+                                disabled={!isAdmin}
+                                onClick={() => isAdmin && setIndAssignModal({
+                                  matchIdx: m._originalIdx,
+                                  field,
+                                  round: r,
+                                  courtName: court.name,
+                                  currentPid: pid
+                                })}
+                                className={tableStyles.courtPlayerPill}
+                                style={{
+                                  backgroundColor: isDup ? '#fee2e2' : baseBg,
+                                  border: `${player ? '1.5px solid' : '1px dashed'} ${isDup ? '#ef4444' : baseBorder}`,
+                                  color: isDup ? '#b91c1c' : baseColor,
+                                  fontWeight: player ? 800 : 600,
+                                  cursor: isAdmin ? 'pointer' : 'default'
+                                }}
+                                title={isAdmin ? '클릭하여 선수 변경' : ''}
+                              >
+                                {player ? (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', minWidth: 0, maxWidth: '100%', justifyContent: 'center' }}>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {player.name}
+                                    </span>
+                                    <span style={{ fontSize: '9.5px', color: isFemale ? '#be185d' : '#1d4ed8', fontWeight: 800, flexShrink: 0 }}>
+                                      ({isFemale ? '여' : '남'})
+                                    </span>
+                                    <span style={{
+                                      fontSize: '8.5px',
+                                      padding: '0 3px',
+                                      borderRadius: '3px',
+                                      fontWeight: 800,
+                                      backgroundColor: countStyle.bg,
+                                      color: countStyle.text,
+                                      border: `1px solid ${countStyle.border}`,
+                                      lineHeight: '13px',
+                                      flexShrink: 0
+                                    }}>
+                                      {countStyle.short}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '10.5px', fontStyle: 'italic' }}>+ 추가</span>
+                                )}
+                              </button>
+                            );
+                          };
+
+                          return (
+                            <td key={court.id || cIdx} className={tableStyles.tennisCourtCell}>
+                              <div className={tableStyles.tennisCourt}>
+                                <div className={tableStyles.tennisCourtLines} />
+                                <div className={tableStyles.tennisCourtCenterLine} />
+                                <div className={tableStyles.tennisCourtNetLine} />
+
+                                <div className={tableStyles.tennisCourtInner}>
+                                  {/* 상단 코트 (A팀) */}
+                                  <div className={`${tableStyles.courtTeamStack} ${isWinA ? tableStyles.courtTeamWinner : ''}`}>
+                                    {type === 'fixed_pair' && m.pairAName && (
+                                      <div style={{ fontSize: '10px', fontWeight: 800, textAlign: 'center', color: '#e0f2fe', marginBottom: '1px' }}>
+                                        👫 {m.pairAName}
+                                      </div>
+                                    )}
+                                    {renderIndPill('playerA1', m.playerA1, true)}
+                                    {renderIndPill('playerA2', m.playerA2, true)}
+                                  </div>
+
+                                  {/* 중앙 네트 / 스코어 */}
+                                  <div className={tableStyles.courtNetRow}>
+                                    <div className={tableStyles.courtScorePill}>
+                                      <select
+                                        disabled={!isAdmin}
+                                        className={tableStyles.scoreInput}
+                                        style={{ width: '38px', height: '24px', fontSize: '12px', padding: '0 2px', border: '1px solid #cbd5e1', fontWeight: 800, textAlign: 'center', borderRadius: '5px' }}
+                                        value={m.scoreA === null || m.scoreA === undefined ? '' : m.scoreA}
+                                        onChange={e => updateMatchScore(m._originalIdx, 'scoreA', e.target.value)}
+                                      >
+                                        <option value="">-</option>
+                                        {Array.from({ length: maxGames + 1 }).map((_, i) => <option key={i} value={i}>{i}</option>)}
+                                      </select>
+                                      <span style={{ fontWeight: 900, color: '#334155', fontSize: '12px', padding: '0 2px' }}>:</span>
+                                      <select
+                                        disabled={!isAdmin}
+                                        className={tableStyles.scoreInput}
+                                        style={{ width: '38px', height: '24px', fontSize: '12px', padding: '0 2px', border: '1px solid #cbd5e1', fontWeight: 800, textAlign: 'center', borderRadius: '5px' }}
+                                        value={m.scoreB === null || m.scoreB === undefined ? '' : m.scoreB}
+                                        onChange={e => updateMatchScore(m._originalIdx, 'scoreB', e.target.value)}
+                                      >
+                                        <option value="">-</option>
+                                        {Array.from({ length: maxGames + 1 }).map((_, i) => <option key={i} value={i}>{i}</option>)}
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  {/* 하단 코트 (B팀) */}
+                                  <div className={`${tableStyles.courtTeamStack} ${isWinB ? tableStyles.courtTeamWinner : ''}`}>
+                                    {type === 'fixed_pair' && m.pairBName && (
+                                      <div style={{ fontSize: '10px', fontWeight: 800, textAlign: 'center', color: '#ffedd5', marginBottom: '1px' }}>
+                                        👫 {m.pairBName}
+                                      </div>
+                                    )}
+                                    {renderIndPill('playerB1', m.playerB1, false)}
+                                    {renderIndPill('playerB2', m.playerB2, false)}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
-            {/* 3. 모드별 대진 목록 렌더링 */}
-            {indViewMode === 'court' ? (
-              <>
-                {courtDetails.map((court, cIdx) => {
-                  const courtId = court.id || `c-${cIdx+1}`;
-                  const courtNum = court.name;
-                  const courtMatches = matchesForRender
-                    .filter(m => m.court === courtNum)
-                    .sort((a, b) => (a.setIndex || a.round || 0) - (b.setIndex || b.round || 0));
-
-                  const isCollapsed = isCourtCollapsed(courtId);
-                  const completedMatches = courtMatches.filter(m => m.scoreA !== null && m.scoreB !== null);
-                  const activeMatch = courtMatches.find(m => m.scoreA === null || m.scoreB === null) || null;
-                  const activeMatchIdx = activeMatch ? courtMatches.indexOf(activeMatch) + 1 : null;
-                  const matchesToRender = isCollapsed
-                    ? (activeMatch ? [activeMatch] : [])
-                    : courtMatches;
-
-                  return (
-                    <div key={court.id || cIdx} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '14px', backgroundColor: '#f8fafc' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
-                            🎾 {courtNum} 대진 ({courtMatches.length}경기)
-                          </h3>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{
-                              padding: '2px 8px',
-                              fontSize: '11px',
-                              height: '24px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              borderRadius: '12px',
-                              backgroundColor: isCollapsed ? '#e0f2fe' : '#fff',
-                              color: isCollapsed ? '#0369a1' : 'var(--txt)',
-                              borderColor: isCollapsed ? '#7dd3fc' : 'var(--border)',
-                              fontWeight: isCollapsed ? 'bold' : 'normal'
-                            }}
-                            onClick={() => toggleCourtCollapse(courtId)}
-                          >
-                            {isCollapsed ? '⚡ 진행중만 모아보기' : '📋 전체 펼쳐보기'}
-                            <span>{isCollapsed ? '▲' : '▼'}</span>
-                          </button>
-                        </div>
-                        {courtMatches.length > 0 && (
-                          <span style={{ fontSize: '12px', color: 'var(--txt3)', fontWeight: 600 }}>
-                            시작 시간: ⏰ {formatMatchTimeSlot(tournament.startTime, courtMatches[0].setIndex || 1).split('~')[0].trim()}
-                          </span>
-                        )}
-                      </div>
-
-                      {isCollapsed && (
-                        <div style={{ marginBottom: '10px', padding: '6px 10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                          <span>
-                            {activeMatch !== null ? (
-                              <>🔥 <strong>{activeMatch.setIndex || activeMatchIdx}경기</strong> 진행 중 ({completedMatches.length}경기 완료 / {courtMatches.length - activeMatchIdx}경기 대기)</>
-                            ) : (
-                              <>✅ <strong>모든 경기({courtMatches.length}경기) 완료됨</strong></>
-                            )}
-                          </span>
-                          <button 
-                            type="button"
-                            onClick={() => toggleCourtCollapse(courtId)} 
-                            style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', textDecoration: 'underline' }}
-                          >
-                            전체 경기 펼치기 ({courtMatches.length}경기)
-                          </button>
-                        </div>
-                      )}
-
-                      {matchesToRender.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {matchesToRender.map(m => renderIndividualMatch(m))}
-                        </div>
-                      ) : isCollapsed && courtMatches.length > 0 && activeMatch === null ? (
-                        <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                          <div style={{ fontSize: '24px', marginBottom: '6px' }}>🏆</div>
-                          <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#166534' }}>{courtNum}의 모든 경기({courtMatches.length}경기)가 완료되었습니다!</div>
-                          <button 
-                            type="button" 
-                            className="btn btn-secondary btn-sm" 
-                            style={{ marginTop: '8px', fontSize: '11px' }}
-                            onClick={() => toggleCourtCollapse(courtId)}
-                          >
-                            📋 전체 경기 결과 펼쳐보기 ({courtMatches.length}경기)
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '14px 0' }}>
-                          배정된 대진이 없습니다.
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                
-                {(() => {
-                  const unassignedMatches = matchesForRender.filter(m => !m.court);
-                  if (unassignedMatches.length === 0) return null;
-                  return (
-                    <div style={{ border: '1px dashed var(--border)', borderRadius: '10px', padding: '14px', backgroundColor: '#f8fafc' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                        <h3 style={{ margin: 0, fontSize: '14px', color: 'var(--txt2)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          ❓ 코트 미정 대진 ({unassignedMatches.length}경기)
-                        </h3>
-                        {isAdmin && (
-                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                            <button 
-                              className="btn btn-primary btn-sm" 
-                              style={{ fontSize: '12px', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              onClick={autoAssignIndividualCourts}
-                            >
-                              🎲 코트 자동 배정 실행
-                            </button>
-                            <button 
-                              className="btn btn-secondary btn-sm" 
-                              style={{ fontSize: '12px', padding: '4px 10px', color: '#b91c1c', borderColor: '#fca5a5' }}
-                              onClick={unassignIndividualCourts}
-                            >
-                              🧹 배정 해제
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {unassignedMatches.map(m => renderIndividualMatch(m))}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
-            ) : (
-              /* 라운드별 보기 모드 */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {availableRounds.map((r) => {
-                  const roundMatches = matchesForRender
-                    .filter(m => (m.round || 1) === r)
-                    .sort((a, b) => (a.setIndex || a.round || 0) - (b.setIndex || b.round || 0));
-
-                  const isOver = dragOverRound === r;
-                  const isBeingDragged = draggingRound === r;
-                  const completedInRound = roundMatches.filter(m => m.scoreA !== null && m.scoreB !== null);
-                  const activeInRound = roundMatches.filter(m => m.scoreA === null || m.scoreB === null);
-                  const isRoundDone = roundMatches.length > 0 && activeInRound.length === 0;
-
-                  const matchesToRender = activeOnlyMode
-                    ? activeInRound
-                    : roundMatches;
-
-                  return (
-                    <div
-                      key={r}
-                      draggable={isAdmin}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', String(r));
-                        setDraggingRound(r);
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                      }}
-                      onDragEnter={() => setDragOverRound(r)}
-                      onDragLeave={() => setDragOverRound(null)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const fromR = parseInt(e.dataTransfer.getData('text/plain')) || draggingRound;
-                        if (fromR && fromR !== r) {
-                          handleReorderRounds(fromR, r);
-                        }
-                        setDraggingRound(null);
-                        setDragOverRound(null);
-                      }}
-                      style={{
-                        border: isOver ? '2px dashed #3b82f6' : '1px solid var(--border)',
-                        borderRadius: '10px',
-                        padding: '14px',
-                        backgroundColor: isOver ? '#eff6ff' : isBeingDragged ? '#f1f5f9' : '#f8fafc',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '6px' }}>
-                        <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}>
-                          {isAdmin && <span style={{ color: 'var(--txt3)', fontSize: '12px', cursor: 'grab' }}>☰</span>}
-                          🔄 {r}라운드 대진 ({roundMatches.length}경기)
-                          {isRoundDone && (
-                            <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '10px' }}>
-                              ✅ 완료
-                            </span>
-                          )}
-                        </h3>
-                        <span style={{ fontSize: '11px', color: 'var(--txt3)' }}>
-                          {isAdmin ? '드래그하여 라운드 순서 변경 가능' : ''}
-                        </span>
-                      </div>
-
-                      {activeOnlyMode && (
-                        <div style={{ marginBottom: '10px', padding: '6px 10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                          <span>
-                            {!isRoundDone ? (
-                              <>🔥 <strong>{activeInRound.length}경기 진행 중</strong> ({completedInRound.length}경기 완료)</>
-                            ) : (
-                              <>✅ <strong>{r}라운드 모든 경기({roundMatches.length}경기) 완료됨</strong></>
-                            )}
-                          </span>
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {matchesToRender.map(m => renderIndividualMatch(m))}
-                        {matchesToRender.length === 0 && roundMatches.length > 0 && activeOnlyMode && isRoundDone && (
-                          <div style={{ padding: '16px', textAlign: 'center', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12px', color: '#166534', fontWeight: 'bold' }}>
-                            🏆 {r}라운드의 모든 경기가 완료되었습니다.
-                          </div>
-                        )}
-                        {roundMatches.length === 0 && (
-                          <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '14px 0' }}>해당 라운드에 대진이 없습니다.</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* 코트 미지정 경기가 있을 경우 별도 표시 */}
+            {(() => {
+              const courtNames = courtDetails.map(c => c.name);
+              const unassigned = matchesForRender.filter(m => !m.court || !courtNames.includes(m.court));
+              if (unassigned.length === 0) return null;
+              return (
+                <div style={{ border: '1px dashed var(--border)', borderRadius: '10px', padding: '12px', backgroundColor: '#fff' }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--txt2)', fontWeight: 800 }}>
+                    ⏳ 코트 미지정 경기 ({unassigned.length}경기)
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {unassigned.map(m => renderIndividualMatch(m))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -4089,6 +3786,104 @@ export default function PlayingPhase({ tournament, members, onUpdate, isAdmin })
       );
       return mounted && typeof document !== 'undefined' ? createPortal(modalEl, document.body) : modalEl;
     })()}
+
+      {/* 개인전 / 고정페어 선수 원클릭 배정 모달 (컴팩트 이름카드) */}
+      {indAssignModal && (() => {
+        const currentMatch = localMatches[indAssignModal.matchIdx];
+        const currentRound = indAssignModal.round;
+        const roundPlayingIds = new Set();
+        localMatches.forEach((m, idx) => {
+          if ((m.round || 1) === currentRound && idx !== indAssignModal.matchIdx) {
+            [m.playerA1, m.playerA2, m.playerB1, m.playerB2].filter(Boolean).forEach(id => roundPlayingIds.add(id));
+          }
+        });
+        const sameMatchIds = new Set(
+          currentMatch ? [currentMatch.playerA1, currentMatch.playerA2, currentMatch.playerB1, currentMatch.playerB2].filter(Boolean) : []
+        );
+
+        const modalEl = (
+          <div className="modal-overlay" onClick={() => setIndAssignModal(null)} style={{ zIndex: 10000 }}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px', width: '92%', borderRadius: '18px', padding: '18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: 'var(--navy)' }}>
+                    🎾 {indAssignModal.round}R {indAssignModal.courtName} 선수 선택
+                  </h3>
+                  <div style={{ fontSize: '11.5px', color: 'var(--txt3)', marginTop: '2px' }}>
+                    이름 카드를 클릭하면 바로 배정됩니다.
+                  </div>
+                </div>
+                <button type="button" onClick={() => setIndAssignModal(null)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: 'var(--txt3)' }}>
+                  &times;
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '55vh', overflowY: 'auto', padding: '4px 2px' }}>
+                {attendeeOptions.map(mem => {
+                  const gCount = playerGameCountMap[mem.id] || 0;
+                  const countStyle = getGameCountBadgeStyle(gCount);
+                  const isCurrent = mem.id === indAssignModal.currentPid;
+                  const isInSameMatch = sameMatchIds.has(mem.id) && !isCurrent;
+                  const isDupOtherCourt = roundPlayingIds.has(mem.id);
+                  const isDisabled = isInSameMatch || isDupOtherCourt;
+                  const roleShort = mem.role === '게스트' || mem.isGuest ? '게' : mem.role === '준회원' ? '준' : '정';
+                  const cleanName = (mem.name || '').replace(/\s*\((게|정|준|게스트)\)\s*$/, '').trim();
+
+                  return (
+                    <button
+                      key={mem.id}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => {
+                        updateIndividualMatchPlayer(indAssignModal.matchIdx, indAssignModal.field, mem.id);
+                        setIndAssignModal(null);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '6px 10px',
+                        borderRadius: '10px',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        opacity: isDisabled ? 0.45 : 1,
+                        backgroundColor: isCurrent ? '#dbeafe' : countStyle.bg,
+                        color: isCurrent ? '#1d4ed8' : countStyle.text,
+                        border: isCurrent ? '2px solid #2563eb' : `1px solid ${countStyle.border}`,
+                        boxShadow: isCurrent ? '0 2px 6px rgba(37, 99, 235, 0.2)' : '0 1px 2px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <span>{cleanName}({gCount}G)({roleShort})</span>
+                      {isDupOtherCourt && <span style={{ fontSize: '10px', color: '#dc2626' }}>(중복)</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+                {indAssignModal.currentPid ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ color: '#dc2626', fontSize: '12px' }}
+                    onClick={() => {
+                      updateIndividualMatchPlayer(indAssignModal.matchIdx, indAssignModal.field, '');
+                      setIndAssignModal(null);
+                    }}
+                  >
+                    슬롯 비우기
+                  </button>
+                ) : <span />}
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setIndAssignModal(null)}>
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+        return mounted && typeof document !== 'undefined' ? createPortal(modalEl, document.body) : modalEl;
+      })()}
     </div>
   );
 }
